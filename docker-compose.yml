@@ -1,0 +1,45 @@
+# AgentForge: API + PostgreSQL (+ dashboard once built, see web/).
+#
+#   cp .env.example .env   # add provider keys
+#   docker compose up --build
+#
+# Ports are bound to localhost only. This default setup runs agent commands
+# with the *local* sandbox inside the API container (single-user development).
+# For container-isolated agent execution use the sandbox override:
+#   docker compose -f docker-compose.yml -f docker-compose.sandbox.yml up
+# and read SECURITY.md first.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agentforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentforge}
+      POSTGRES_DB: agentforge
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      AGENTFORGE_DATABASE_URL: postgresql+asyncpg://agentforge:${POSTGRES_PASSWORD:-agentforge}@db:5432/agentforge
+      AGENTFORGE_LOG_JSON: "true"
+      AGENTFORGE_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - agentdata:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  agentdata:

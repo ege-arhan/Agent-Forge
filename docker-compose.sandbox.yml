@@ -1,0 +1,17 @@
+# Override: run agent commands in per-run Docker containers.
+#
+# The API container talks to the host Docker daemon through its socket. Access
+# to the Docker socket is equivalent to root on the host - only use this on a
+# machine you control, and never expose the API without AGENTFORGE_API_KEY.
+#
+# Workspaces are bind-mounted into sandbox containers by *host* path, so the
+# data directory must have the same path on the host and in the API container.
+services:
+  api:
+    user: "0:0"   # needed to access the host docker socket; see SECURITY.md
+    environment:
+      AGENTFORGE_ALLOW_LOCAL_SANDBOX: "false"
+      AGENTFORGE_DATA_DIR: ${AGENTFORGE_HOST_DATA_DIR:-/var/lib/agentforge}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${AGENTFORGE_HOST_DATA_DIR:-/var/lib/agentforge}:${AGENTFORGE_HOST_DATA_DIR:-/var/lib/agentforge}

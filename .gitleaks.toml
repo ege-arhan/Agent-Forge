@@ -1,0 +1,8 @@
+title = "AgentForge gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fake credentials used by redaction tests"
+paths = ['''tests/unit/test_redaction\.py''', '''tests/.*''']

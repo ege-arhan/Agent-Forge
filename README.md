@@ -1,1 +1,242 @@
 # AgentForge
+
+**An open-source platform for engineering, running and evaluating LLM agents.**
+
+AgentForge lets you define an agent declaratively (model, tools, memory,
+limits, sandbox), run it against a goal inside an isolated workspace, inspect
+every step and tool call, score the outcome with deterministic evaluators, and
+compare agent configurations on repeatable benchmarks. It works with
+Anthropic, OpenAI, Google Gemini, OpenRouter and local models, and can turn
+GitHub issues into draft pull requests for human review.
+
+It is an engineering tool, not a chatbot: runs are recorded, reproducible and
+measurable.
+
+> Status: alpha (pre-release). Core engine, API, CLI, benchmarks and GitHub
+> workflow are implemented and tested; the web dashboard is in progress. See
+> [ROADMAP.md](ROADMAP.md) and [docs/STATUS.md](docs/STATUS.md).
+
+## Features
+
+- **Multi-provider**: Anthropic (Claude), OpenAI, OpenRouter, Gemini
+  (OpenAI-compatible endpoint), local OpenAI-compatible servers (Ollama, vLLM,
+  LM Studio), plus a deterministic *scripted* provider for offline tests.
+- **Instrumented runtime**: ReAct or plan-and-execute loop with LLM retry
+  policies, timeouts, cancellation, step and tool-call budgets, and
+  evaluation-driven retries. Every run records steps, tool calls, errors,
+  token usage, estimated cost (only when pricing is known) and evaluation.
+- **Tools with guardrails**: filesystem, terminal, git, HTTP and GitHub tools
+  behind a plugin registry; every call is schema-validated, permission-checked,
+  time-limited, truncated and secret-redacted.
+- **Sandboxes**: per-run workspaces; a hardened Docker sandbox (no network,
+  read-only root, dropped capabilities, resource limits, non-root).
+- **Memory**: context compaction for long runs, persistent per-agent memory
+  with recall, and `remember`/`recall` tools.
+- **Evaluation**: built-in evaluators (tests pass, file checks, output checks,
+  step budgets, tool usage, LLM judge) and custom Python evaluators.
+- **Benchmarks & experiments**: YAML suites with initial state, allowed tools
+  and success criteria; repeated runs with confidence intervals; experiments
+  that compare models, prompts, tools or strategies against a baseline.
+- **GitHub**: issue → repository analysis → implementation → tests →
+  evaluation → branch → commit → **draft** PR. AgentForge never merges.
+- **Interfaces**: CLI, REST API with live server-sent events, web dashboard
+  (in progress).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    CLI & API --> RT[Agent Runtime]
+    RT --> LLM[LLM providers]
+    RT --> EX[Tool executor] --> SB[Sandbox]
+    RT --> MEM[Memory]
+    RT --> EV[Evaluators]
+    BE[Benchmarks / Experiments] --> RT
+    GH[GitHub workflow] --> RT
+    RT -- events --> DB[(SQLite / PostgreSQL)]
+```
+
+Details, design decisions and trust boundaries: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Installation
+
+Requires Python 3.12+.
+
+```bash
+git clone https://github.com/ege-arhan/Agent-Forge && cd Agent-Forge
+uv sync --all-extras            # or: pip install -e '.[all]'
+source .venv/bin/activate
+```
+
+Extras: `anthropic`, `openai` (also used for OpenRouter, Gemini and local
+servers), `postgres`, `all`.
+
+With Docker Compose (API + PostgreSQL):
+
+```bash
+cp .env.example .env            # add provider keys
+docker compose up --build       # API on http://127.0.0.1:8000 (docs at /docs)
+```
+
+## Quick start (offline, no API key)
+
+The scripted demo agent replays fixed solutions, so you can see the whole
+pipeline without a model. Its scores say nothing about real models.
+
+```bash
+agentforge bench run examples/benchmarks/starter.yaml -a examples/agents/scripted-demo.yaml
+agentforge runs list
+agentforge runs show <run-id>
+```
+
+With a real model:
+
+```bash
+export ANTHROPIC_API_KEY=...
+agentforge run examples/agents/anthropic-coder.yaml \
+  --goal "Create fizzbuzz.py and a test for it, then run the test" \
+  --eval '{"type": "command", "command": "python3 -m pytest -q"}'
+```
+
+(`anthropic-coder.yaml` uses the Docker sandbox; build the sandbox image first
+with `docker build -f docker/sandbox.Dockerfile -t agentforge-sandbox:latest .`
+and set `sandbox.image`, or switch `sandbox.kind` to `local` for trusted
+experiments.)
+
+## Creating an agent
+
+Agents are YAML/JSON documents validated by `AgentConfig`:
+
+```yaml
+name: my-coder
+model:
+  provider: anthropic          # anthropic | openai | openrouter | gemini | local | scripted
+  model: claude-opus-5
+  max_tokens: 16000
+  # api_key_env: MY_KEY_VAR    # defaults to the provider's standard variable
+system_prompt: |
+  You are a careful software engineer...
+tools: [filesystem, terminal, git, memory]   # toolsets or individual tool names
+tool_settings:
+  http_request: {allowed_hosts: ["api.example.com"]}
+limits: {max_steps: 30, timeout_seconds: 900, max_tool_calls: 100}
+retry: {llm_max_attempts: 4, evaluation_retries: 1}
+planner: {strategy: react}      # or plan_execute
+memory: {persist: true, recall_limit: 5}
+sandbox: {kind: docker, image: agentforge-sandbox:latest, network: none, memory: 1g}
+```
+
+More examples in [`examples/agents/`](examples/agents). Store agents for the
+API/dashboard with `agentforge agents create my-coder.yaml` or
+`POST /api/v1/agents`.
+
+## Running agents
+
+- CLI: `agentforge run AGENT.yaml --goal "..." [--eval SPEC]...` prints a live
+  trace and a summary; exit code is non-zero if the run or its evaluation fails.
+- API: `POST /api/v1/runs {"agent_id": "...", "goal": "...", "evaluators": [...]}`
+  returns immediately; follow with `GET /api/v1/runs/{id}` or the SSE stream
+  `GET /api/v1/runs/{id}/events`. `POST /runs/{id}/cancel` stops a run;
+  `POST /runs/{id}/rerun` reproduces it from its stored config snapshot.
+
+## Tools
+
+| Toolset | Tools | Permissions |
+|---|---|---|
+| `filesystem` | `read_file`, `write_file`, `edit_file`, `list_directory`, `search_files` | `fs:read`, `fs:write` |
+| `terminal` | `run_command` | `process:exec` |
+| `git` | `git_status`, `git_diff`, `git_log`, `git_commit`, `git_branch` | `git:read`, `git:write` |
+| `http` | `http_request` (public hosts only, optional allowlist) | `network` |
+| `github` | `github_get_repository`, `github_list_issues`, `github_get_issue`, `github_comment_issue`, `github_create_pull_request` (draft) | `github:read`, `github:write` |
+| `memory` | `remember`, `recall` | `memory` |
+
+`agentforge tools` lists them with schemas. Operators can deny permissions
+globally (`AGENTFORGE_DENIED_PERMISSIONS=network,github:write`). Custom tools
+plug in via the `agentforge.tools` entry-point group — see
+[docs/tools.md](docs/tools.md).
+
+## Memory
+
+- **Short-term**: the conversation window; old large tool outputs are
+  compacted beyond `memory.keep_recent_messages`.
+- **Persistent agent memory**: with `memory.persist: true`, a summary of every
+  run is stored; relevant memories are recalled into the system prompt of
+  later runs. Agents can also use `remember`/`recall` explicitly.
+- Search is lexical (BM25-style); the `MemoryStore` interface is ready for a
+  vector store.
+
+## Evaluation
+
+Evaluators produce a pass/fail and a score in [0, 1]; the run's evaluation is
+the weighted mean, and it passes when all *required* evaluators pass.
+
+| Type | Checks |
+|---|---|
+| `completed` | the agent finished with a final answer |
+| `command` | a command (e.g. the test suite) exits with the expected code |
+| `file_exists`, `file_contains` | workspace state |
+| `output_contains`, `output_matches` | the final answer |
+| `max_steps`, `tool_used` | efficiency / behaviour |
+| `llm_judge` | a separately configured judge model scores against a rubric |
+| `python` | your own `Evaluator` subclass |
+
+Run metrics (duration, steps, LLM calls and retries, tool calls and success
+rate, errors, tokens, estimated cost) are computed only from recorded data.
+See [docs/evaluation.md](docs/evaluation.md).
+
+## Benchmarks and experiments
+
+A suite defines tasks with an initial state, allowed tools, expected
+behaviour, success criteria (evaluators), timeouts and step budgets:
+
+```bash
+agentforge bench run examples/benchmarks/starter.yaml -a examples/agents/anthropic-coder.yaml -r 3
+agentforge experiment run examples/experiments/model-comparison.yaml
+```
+
+Results include pass rates with 95% Wilson confidence intervals, score
+spread, duration, steps, tokens and cost. Experiments compare variants of a
+base config (model, prompt, tools, planner, limits) against the first variant.
+Results describe those configurations on that suite — they are not general
+model rankings. See [docs/benchmarks.md](docs/benchmarks.md).
+
+## GitHub integration
+
+```bash
+export GITHUB_TOKEN=...   # repo scope
+agentforge github issues owner/repo
+agentforge github solve owner/repo 42 -a examples/agents/github-issue-solver.yaml \
+  --test-command "pytest -q" --push --open-pr
+```
+
+AgentForge clones the repository, creates `agentforge/issue-42-<slug>`, runs
+the agent (which never sees the token), verifies commits and tests, and — only
+if requested and the evaluation passed — pushes the branch and opens a
+**draft** pull request. There is no merge capability. See
+[docs/github.md](docs/github.md).
+
+## Security
+
+Agent output is untrusted. Use the Docker sandbox for anything but trusted
+local experiments; the local sandbox provides no isolation. Secrets are kept
+out of child processes and redacted from logs and records. Full model and
+limitations: [SECURITY.md](SECURITY.md).
+
+## Development
+
+```bash
+uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
+```
+
+See [DEVELOPMENT.md](DEVELOPMENT.md). CI runs lint, strict type checking,
+tests on Python 3.12/3.13, PostgreSQL and Docker-sandbox tests, image builds,
+dependency audit, secret scanning and CodeQL.
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md). Next: web dashboard,
+GitHub API/dashboard pages, OpenTelemetry export, migrations, public beta.
+
+## License
+
+Apache-2.0.
