@@ -32,6 +32,9 @@ Completed in this session:
   `bench report`, `bench compare`), API (`/improvements`,
   `/benchmarks/runs/{id}/analysis|report`, `/benchmarks/compare`,
   `/agents/{id}/versions`) and dashboard pages (Improvement, per-agent view).
+- Review fixes: concurrent agent updates now allocate distinct versions
+  (row lock; reproduced on PostgreSQL first), and benchmark runs take the
+  config and recorded version from one stored-agent snapshot.
 - Benchmark-design fix found while dogfooding: a run stopped by its step limit
   counted as passed when the workspace happened to satisfy the checks. The
   dogfood suites now require `completed` (the starter suite is unchanged).
@@ -49,8 +52,8 @@ Results:
   run and recorded nothing. No real-model numbers exist.
 
 Tests (2026-09-26, this branch):
-- Python: 263 tests passing (unit, integration, e2e, 8 Docker-sandbox tests
-  with a running daemon); integration + e2e (77) also pass against
+- Python: 265 tests passing (unit, integration, e2e, 8 Docker-sandbox tests
+  with a running daemon); integration + e2e (79) also pass against
   PostgreSQL 16, including the migration drift check and the `0002` backfill.
 - Dashboard: ESLint, `tsc --noEmit`, 16 unit tests (node:test), production
   build; Improvement pages checked in Chromium (light and dark).

@@ -92,6 +92,9 @@ All notable changes are documented here. The format follows
   security headers and an audit log for state-changing API calls.
 
 ### Fixed
+- Concurrent updates of a stored agent could fail with a unique-constraint
+  error on PostgreSQL; the agent row is now locked while the next version is
+  allocated.
 - Benchmark runs left running by a stopped API process stayed "running"
   forever; they (and interrupted improvement evaluations) are now marked
   failed on startup.
