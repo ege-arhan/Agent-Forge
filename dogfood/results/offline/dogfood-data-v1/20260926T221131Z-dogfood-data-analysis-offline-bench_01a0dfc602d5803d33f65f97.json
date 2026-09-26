@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "result_class": "offline",
+  "benchmark_run_id": "bench_01a0dfc602d5803d33f65f97",
+  "status": "succeeded",
+  "suite_id": "dogfood-data",
+  "suite_name": "Dogfood: data analysis",
+  "suite_version": "1",
+  "agent_name": "dogfood-data-analysis-offline",
+  "agent_id": "agt_01a0dfc602cec223ed8d32a2",
+  "agent_version": 1,
+  "provider": "scripted",
+  "model": "scripted-reference-v1",
+  "agentforge_version": "0.1.0",
+  "environment": {
+    "agentforge_version": "0.1.0",
+    "python": "3.12.11",
+    "provider": "scripted",
+    "model": "scripted-reference-v1",
+    "sandbox": "local"
+  },
+  "created_at": "2026-09-26T22:11:31.157311Z",
+  "finished_at": "2026-09-26T22:11:31.349454Z",
+  "repeats": 1,
+  "summary": {
+    "runs": 2,
+    "passed": 2,
+    "pass_rate": 1.0,
+    "pass_rate_ci95": [
+      0.3424,
+      1.0
+    ],
+    "mean_duration_seconds": 0.088,
+    "total_tool_calls": 7,
+    "total_llm_retries": 0,
+    "total_input_tokens": null,
+    "total_output_tokens": null,
+    "estimated_cost_usd": null,
+    "actual_cost_usd": null
+  },
+  "runs": [
+    {
+      "task_id": "sales-by-region",
+      "repeat": 1,
+      "run_id": "run_01a0dfc602d85afae3573434",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "file_exists",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "hidden_values_correct",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        }
+      ],
+      "steps": 5,
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "duration_seconds": 0.09,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    },
+    {
+      "task_id": "service-error-rates",
+      "repeat": 1,
+      "run_id": "run_01a0dfc60338dfe805263137",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "hidden_rates_correct",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "names_worst_service",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        }
+      ],
+      "steps": 4,
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "duration_seconds": 0.086,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    }
+  ],
+  "notes": [
+    "Values that were not measured are null. actual_cost_usd is always null: AgentForge does not read provider billing; estimated_cost_usd uses the pricing table.",
+    "OFFLINE result: produced by the deterministic scripted provider. It validates the pipeline and the benchmark tasks; it says nothing about any model's capability.",
+    "Token usage was not reported by the provider for some or all runs."
+  ]
+}

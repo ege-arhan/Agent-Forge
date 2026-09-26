@@ -1,0 +1,139 @@
+# Dogfooding suite: GitHub Issue Solver (suite collection "dogfood" v1, see dogfood/README.md).
+#
+# Offline stand-in for the GitHub workflow: each task is a local git
+# repository with the issue in ISSUE.md and the project's rules in
+# CONTRIBUTING.md. The agent must leave a PR-ready branch: correct name,
+# commit referencing the issue, regression test, clean work tree. (The real
+# GitHub workflow — clone, push, draft PR — is `agentforge github solve`.)
+id: dogfood-issues
+name: "Dogfood: GitHub issue solver"
+description: Resolve issues in a git repository following contribution rules, ending on a PR-ready branch.
+version: "1"
+repeats: 1
+defaults:
+  timeout_seconds: 900
+  max_steps: 25
+
+tasks:
+  - id: issue-7-leap-year
+    goal: >-
+      Resolve the issue described in ISSUE.md, following CONTRIBUTING.md. Leave the result
+      committed on the correct branch, ready for a pull request.
+    setup:
+      git_init: true
+      files:
+        ISSUE.md: |
+          # Issue #7: is_leap_year(1900) returns True
+
+          `dates.is_leap_year(1900)` returns `True`, but 1900 was not a leap year: century
+          years are leap years only when they are divisible by 400.
+
+          Expected: `is_leap_year(1900) is False` and `is_leap_year(2000) is True`.
+        CONTRIBUTING.md: |
+          # Contributing
+
+          - Work on a branch named `fix/issue-<number>` for bug fixes.
+          - Every bug fix needs a regression test in the existing test file.
+          - Reference the issue in the commit message, e.g. `Fix leap years (#7)`.
+          - Run `python3 test_dates.py` before committing; commit all your changes.
+        dates.py: |
+          def is_leap_year(year: int) -> bool:
+              return year % 4 == 0
+        test_dates.py: |
+          from dates import is_leap_year
+
+          assert is_leap_year(2024)
+          assert not is_leap_year(2023)
+          print("all tests passed")
+    allowed_tools: [filesystem, terminal, git]
+    expected_behavior: >-
+      Create fix/issue-7, fix the century rule, add a regression test, run the tests, commit
+      with "#7" in the message.
+    evaluators:
+      - type: completed
+        name: finished
+      - type: command
+        name: on_issue_branch
+        command: test "$(git rev-parse --abbrev-ref HEAD)" = fix/issue-7
+      - type: command
+        name: clean_worktree
+        command: test -z "$(git status --porcelain)"
+      - type: command
+        name: commit_references_issue
+        command: git log main..HEAD --format=%B | grep -q '#7'
+      - type: command
+        name: regression_test_added
+        command: git diff main..HEAD -- test_dates.py | grep -q '^+.*1900'
+      - type: command
+        name: tests_pass
+        command: python3 test_dates.py
+      - type: command
+        name: hidden_rules
+        command: |
+          python3 - <<'PY'
+          from dates import is_leap_year
+          for year, leap in {1900: False, 2000: True, 2100: False, 2024: True, 2023: False}.items():
+              assert is_leap_year(year) is leap, (year, is_leap_year(year))
+          PY
+    tags: [github, git, bugfix]
+
+  - id: issue-12-feature
+    goal: >-
+      Implement the feature requested in ISSUE.md, following CONTRIBUTING.md. Leave the
+      result committed on the correct branch, ready for a pull request.
+    setup:
+      git_init: true
+      files:
+        ISSUE.md: |
+          # Issue #12: greet() should support a custom punctuation mark
+
+          `greeting.greet(name)` always ends with "!". Add an optional `punctuation`
+          parameter (default "!") so that `greet("Ada", punctuation="?") == "Hello, Ada?"`.
+          Existing calls must keep working.
+        CONTRIBUTING.md: |
+          # Contributing
+
+          - Work on a branch named `feature/issue-<number>` for features.
+          - New behaviour needs tests in the existing test file.
+          - Reference the issue in the commit message, e.g. `Add option (#12)`.
+          - Run `python3 test_greeting.py` before committing; commit all your changes.
+        greeting.py: |
+          def greet(name: str) -> str:
+              return f"Hello, {name}!"
+        test_greeting.py: |
+          from greeting import greet
+
+          assert greet("World") == "Hello, World!"
+          print("all tests passed")
+    allowed_tools: [filesystem, terminal, git]
+    expected_behavior: >-
+      Create feature/issue-12, add the parameter with a default, add a test, run the tests,
+      commit with "#12" in the message.
+    evaluators:
+      - type: completed
+        name: finished
+      - type: command
+        name: on_issue_branch
+        command: test "$(git rev-parse --abbrev-ref HEAD)" = feature/issue-12
+      - type: command
+        name: clean_worktree
+        command: test -z "$(git status --porcelain)"
+      - type: command
+        name: commit_references_issue
+        command: git log main..HEAD --format=%B | grep -q '#12'
+      - type: command
+        name: test_added
+        command: git diff main..HEAD -- test_greeting.py | grep -q '^+.*punctuation'
+      - type: command
+        name: tests_pass
+        command: python3 test_greeting.py
+      - type: command
+        name: hidden_behaviour
+        command: |
+          python3 - <<'PY'
+          from greeting import greet
+          assert greet("Ada") == "Hello, Ada!"
+          assert greet("Ada", punctuation="?") == "Hello, Ada?"
+          assert greet("Ada", ".") == "Hello, Ada."
+          PY
+    tags: [github, git, feature]

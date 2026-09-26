@@ -1,0 +1,104 @@
+# OFFLINE reference agent for the dogfooding program (scripted provider).
+#
+# Replays a known-good solution for every task in dogfood/benchmarks/coding.yaml.
+# Its results validate the benchmark (each task is solvable and its checks
+# accept a correct solution) and the AgentForge pipeline. They say nothing
+# about any model and are reported separately as OFFLINE results.
+name: dogfood-coding-offline
+description: Scripted reference solutions for the coding suite.
+model:
+  provider: scripted
+  model: scripted-reference-v1
+  options:
+    turns:
+    - text: No scripted solution matches this task.
+    rules:
+    - when: slugify\(\)
+      turns:
+      - text: Run the tests first to see the current state.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 test_text_utils.py
+      - text: slugify is not implemented yet. Reading the specification.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: text_utils.py
+      - text: Implementing slugify with a single regular expression.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: text_utils.py
+            content: |
+              import re
+
+
+              def slugify(text: str) -> str:
+                  """Convert text to a URL slug.
+
+                  Lowercase ASCII letters and digits are kept; every run of other
+                  characters becomes a single hyphen; leading and trailing hyphens
+                  are removed. Example: slugify("Hello, World!") == "hello-world"
+                  """
+                  return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+      - text: Verifying.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 test_text_utils.py
+      - text: 'Implemented slugify(): lowercase, replace runs of non [a-z0-9] characters with one hyphen,
+          strip hyphens. test_text_utils.py passes.'
+    - when: --lines
+      turns:
+      - text: Reading the script.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: wordcount.py
+      - text: Adding a --lines flag while keeping the default output.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: wordcount.py
+            content: |
+              """Count words (or lines) in a text file."""
+
+              import argparse
+
+
+              def main() -> None:
+                  parser = argparse.ArgumentParser(description=__doc__)
+                  parser.add_argument("path")
+                  parser.add_argument(
+                      "--lines", action="store_true", help="print the number of lines instead of words"
+                  )
+                  args = parser.parse_args()
+                  with open(args.path, encoding="utf-8") as handle:
+                      text = handle.read()
+                  print(len(text.splitlines()) if args.lines else len(text.split()))
+
+
+              if __name__ == "__main__":
+                  main()
+      - text: Checking both modes and the help text.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 wordcount.py sample.txt && python3 wordcount.py --lines sample.txt && python3
+              wordcount.py --help
+      - text: 'Added --lines (prints the line count; default still prints the word count: 6 words, 4 lines
+          for sample.txt) and documented it in --help.'
+tools:
+- filesystem
+- terminal
+limits:
+  max_steps: 20
+  timeout_seconds: 300
+memory:
+  persist: false
+sandbox:
+  kind: local
+labels:
+  program: dogfood
+  result_class: offline

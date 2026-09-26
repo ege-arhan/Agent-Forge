@@ -1,0 +1,112 @@
+# Dogfooding suite: Data Analysis Agent (suite collection "dogfood" v1, see dogfood/README.md).
+#
+# Expected values are recomputed from the input files by the hidden checks,
+# so the checks cannot drift from the data.
+id: dogfood-data
+name: "Dogfood: data analysis"
+description: Aggregate CSV sales data and compute per-service error rates from a log file.
+version: "1"
+repeats: 1
+defaults:
+  timeout_seconds: 600
+  max_steps: 20
+
+tasks:
+  - id: sales-by-region
+    goal: >-
+      sales.csv lists sales; revenue is units × unit_price. Write summary.json with exactly
+      this structure: {"revenue_by_region": {"<region>": <total revenue rounded to 2
+      decimals>, ...}, "top_region": "<region with the highest revenue>"}.
+    setup:
+      files:
+        sales.csv: |
+          date,region,product,units,unit_price
+          2026-01-03,north,widget,3,9.50
+          2026-01-04,south,gadget,1,120.00
+          2026-01-04,north,gadget,2,120.00
+          2026-01-05,east,widget,10,9.50
+          2026-01-06,south,widget,4,9.50
+          2026-01-07,east,gizmo,1,45.25
+          2026-01-08,north,gizmo,2,45.25
+    allowed_tools: [filesystem, terminal]
+    expected_behavior: Parse the CSV, aggregate revenue per region, write the JSON summary.
+    evaluators:
+      - type: completed
+        name: finished
+      - type: file_exists
+        path: summary.json
+      - type: command
+        name: hidden_values_correct
+        command: |
+          python3 - <<'PY'
+          import csv, json
+          expected = {}
+          with open("sales.csv", newline="") as handle:
+              for row in csv.DictReader(handle):
+                  revenue = int(row["units"]) * float(row["unit_price"])
+                  expected[row["region"]] = expected.get(row["region"], 0.0) + revenue
+          summary = json.load(open("summary.json"))
+          got = summary["revenue_by_region"]
+          assert set(got) == set(expected), f"regions {sorted(got)} != {sorted(expected)}"
+          for region, value in expected.items():
+              assert abs(float(got[region]) - round(value, 2)) < 0.005, (region, got[region], value)
+          assert summary["top_region"] == max(expected, key=expected.get), summary["top_region"]
+          PY
+    tags: [data, csv]
+
+  - id: service-error-rates
+    goal: >-
+      app.log contains lines of the form `<timestamp> <LEVEL> <service> <message>`; ignore
+      any other lines. Write error_rates.json mapping each service to the percentage of its
+      lines with level ERROR, rounded to one decimal place (e.g. {"api": 12.5}). In your
+      final answer, name the service with the highest error rate.
+    setup:
+      files:
+        app.log: |
+          2026-01-05T10:00:01Z INFO checkout order created
+          2026-01-05T10:00:02Z ERROR checkout payment declined
+          2026-01-05T10:00:03Z INFO search query ok
+          2026-01-05T10:00:04Z WARN auth slow token refresh
+          2026-01-05T10:00:05Z ERROR auth token signature invalid
+          2026-01-05T10:00:06Z INFO checkout order created
+          --- log rotated ---
+          2026-01-05T10:00:07Z INFO search query ok
+          2026-01-05T10:00:08Z ERROR auth token expired
+          2026-01-05T10:00:09Z INFO checkout order created
+          2026-01-05T10:00:10Z INFO search query ok
+          2026-01-05T10:00:11Z ERROR checkout inventory timeout
+          2026-01-05T10:00:12Z INFO checkout order created
+          2026-01-05T10:00:13Z ERROR auth upstream unavailable
+          2026-01-05T10:00:14Z INFO search query ok
+          2026-01-05T10:00:15Z INFO checkout order created
+          2026-01-05T10:00:16Z INFO search query ok
+          2026-01-05T10:00:17Z INFO checkout order created
+    allowed_tools: [filesystem, terminal]
+    expected_behavior: Parse well-formed lines only, compute per-service ERROR percentages.
+    evaluators:
+      - type: completed
+        name: finished
+      - type: command
+        name: hidden_rates_correct
+        command: |
+          python3 - <<'PY'
+          import json, re
+          pattern = re.compile(r"^\S+ (DEBUG|INFO|WARN|ERROR) (\S+) ")
+          totals, errors = {}, {}
+          for line in open("app.log"):
+              match = pattern.match(line)
+              if not match:
+                  continue
+              level, service = match.groups()
+              totals[service] = totals.get(service, 0) + 1
+              errors[service] = errors.get(service, 0) + (level == "ERROR")
+          expected = {s: round(100 * errors[s] / totals[s], 1) for s in totals}
+          got = json.load(open("error_rates.json"))
+          assert set(got) == set(expected), f"services {sorted(got)} != {sorted(expected)}"
+          for service, rate in expected.items():
+              assert abs(float(got[service]) - rate) < 0.05, (service, got[service], rate)
+          PY
+      - type: output_contains
+        name: names_worst_service
+        text: auth
+    tags: [data, logs]

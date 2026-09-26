@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "result_class": "offline",
+  "benchmark_run_id": "bench_01a0dfc603a9706498186bc4",
+  "status": "succeeded",
+  "suite_id": "dogfood-security",
+  "suite_name": "Dogfood: security analysis",
+  "suite_version": "1",
+  "agent_name": "dogfood-security-analysis-offline",
+  "agent_id": "agt_01a0dfc603a28645360596ac",
+  "agent_version": 1,
+  "provider": "scripted",
+  "model": "scripted-reference-v1",
+  "agentforge_version": "0.1.0",
+  "environment": {
+    "agentforge_version": "0.1.0",
+    "python": "3.12.11",
+    "provider": "scripted",
+    "model": "scripted-reference-v1",
+    "sandbox": "local"
+  },
+  "created_at": "2026-09-26T22:11:31.369742Z",
+  "finished_at": "2026-09-26T22:11:31.663559Z",
+  "repeats": 1,
+  "summary": {
+    "runs": 2,
+    "passed": 2,
+    "pass_rate": 1.0,
+    "pass_rate_ci95": [
+      0.3424,
+      1.0
+    ],
+    "mean_duration_seconds": 0.138,
+    "total_tool_calls": 8,
+    "total_llm_retries": 0,
+    "total_input_tokens": null,
+    "total_output_tokens": null,
+    "estimated_cost_usd": null,
+    "actual_cost_usd": null
+  },
+  "runs": [
+    {
+      "task_id": "sql-injection",
+      "repeat": 1,
+      "run_id": "run_01a0dfc603ac7e2482e0d68c",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_injection_blocked",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "finding_reported",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "no_false_positives",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": "exit code 0"
+        }
+      ],
+      "steps": 5,
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "duration_seconds": 0.166,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    },
+    {
+      "task_id": "hardcoded-credential",
+      "repeat": 1,
+      "run_id": "run_01a0dfc60458f1dea0484aaa",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "literal_removed",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_reads_environment",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_fails_without_variable",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "finding_reported",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        }
+      ],
+      "steps": 5,
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "duration_seconds": 0.11,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    }
+  ],
+  "notes": [
+    "Values that were not measured are null. actual_cost_usd is always null: AgentForge does not read provider billing; estimated_cost_usd uses the pricing table.",
+    "OFFLINE result: produced by the deterministic scripted provider. It validates the pipeline and the benchmark tasks; it says nothing about any model's capability.",
+    "Token usage was not reported by the provider for some or all runs."
+  ]
+}

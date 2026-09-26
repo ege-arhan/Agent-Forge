@@ -1,0 +1,363 @@
+{
+  "schema_version": 1,
+  "result_class": "offline",
+  "benchmark_run_id": "bench_01a0dfc606567f32e83e44ac",
+  "status": "succeeded",
+  "suite_id": "dogfood-coding",
+  "suite_name": "Dogfood: coding",
+  "suite_version": "1",
+  "agent_name": "dogfood-demo-coder",
+  "agent_id": "agt_01a0dfc6064fb96cb81f09f5",
+  "agent_version": 1,
+  "provider": "scripted",
+  "model": "scripted-reference-v1",
+  "agentforge_version": "0.1.0",
+  "environment": {
+    "agentforge_version": "0.1.0",
+    "python": "3.12.11",
+    "provider": "scripted",
+    "model": "scripted-reference-v1",
+    "sandbox": "local"
+  },
+  "created_at": "2026-09-26T22:11:32.054847Z",
+  "finished_at": "2026-09-26T22:11:33.136835Z",
+  "repeats": 3,
+  "summary": {
+    "runs": 6,
+    "passed": 0,
+    "pass_rate": 0.0,
+    "pass_rate_ci95": [
+      0.0,
+      0.3903
+    ],
+    "mean_duration_seconds": 0.173,
+    "total_tool_calls": 18,
+    "total_llm_retries": 0,
+    "total_input_tokens": null,
+    "total_output_tokens": null,
+    "estimated_cost_usd": null,
+    "actual_cost_usd": null
+  },
+  "runs": [
+    {
+      "task_id": "implement-slugify",
+      "repeat": 1,
+      "run_id": "run_01a0dfc60659f6e293d7bd48",
+      "status": "failed",
+      "success": false,
+      "score": 0.75,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": false,
+          "score": 0.0,
+          "required": true,
+          "details": "run status failed"
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        }
+      ],
+      "steps": 3,
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "duration_seconds": 0.104,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": "max_steps: reached the limit of 3 steps"
+    },
+    {
+      "task_id": "implement-slugify",
+      "repeat": 2,
+      "run_id": "run_01a0dfc607d8dde0ddb904fe",
+      "status": "failed",
+      "success": false,
+      "score": 0.75,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": false,
+          "score": 0.0,
+          "required": true,
+          "details": "run status failed"
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        }
+      ],
+      "steps": 3,
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "duration_seconds": 0.091,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": "max_steps: reached the limit of 3 steps"
+    },
+    {
+      "task_id": "implement-slugify",
+      "repeat": 3,
+      "run_id": "run_01a0dfc6092f7dd5e2161df9",
+      "status": "failed",
+      "success": false,
+      "score": 0.75,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": false,
+          "score": 0.0,
+          "required": true,
+          "details": "run status failed"
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        }
+      ],
+      "steps": 3,
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "duration_seconds": 0.093,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": "max_steps: reached the limit of 3 steps"
+    },
+    {
+      "task_id": "add-cli-flag",
+      "repeat": 1,
+      "run_id": "run_01a0dfc606c8a24ef14787c5",
+      "status": "failed",
+      "success": false,
+      "score": 0.8,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": false,
+          "score": 0.0,
+          "required": true,
+          "details": "run status failed"
+        },
+        {
+          "name": "words_unchanged",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "lines_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "help_documents_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_other_file",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        }
+      ],
+      "steps": 3,
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "duration_seconds": 0.266,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": "max_steps: reached the limit of 3 steps"
+    },
+    {
+      "task_id": "add-cli-flag",
+      "repeat": 2,
+      "run_id": "run_01a0dfc60839b7ded8b5f3aa",
+      "status": "failed",
+      "success": false,
+      "score": 0.8,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": false,
+          "score": 0.0,
+          "required": true,
+          "details": "run status failed"
+        },
+        {
+          "name": "words_unchanged",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "lines_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "help_documents_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_other_file",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        }
+      ],
+      "steps": 3,
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "duration_seconds": 0.24,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": "max_steps: reached the limit of 3 steps"
+    },
+    {
+      "task_id": "add-cli-flag",
+      "repeat": 3,
+      "run_id": "run_01a0dfc60992ef8559deb639",
+      "status": "failed",
+      "success": false,
+      "score": 0.8,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": false,
+          "score": 0.0,
+          "required": true,
+          "details": "run status failed"
+        },
+        {
+          "name": "words_unchanged",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "lines_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "help_documents_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_other_file",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        }
+      ],
+      "steps": 3,
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "duration_seconds": 0.246,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": "max_steps: reached the limit of 3 steps"
+    }
+  ],
+  "notes": [
+    "Values that were not measured are null. actual_cost_usd is always null: AgentForge does not read provider billing; estimated_cost_usd uses the pricing table.",
+    "OFFLINE result: produced by the deterministic scripted provider. It validates the pipeline and the benchmark tasks; it says nothing about any model's capability.",
+    "Token usage was not reported by the provider for some or all runs."
+  ]
+}

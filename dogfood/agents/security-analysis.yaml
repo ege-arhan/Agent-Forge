@@ -1,0 +1,19 @@
+# Dogfooding: Security Analysis Agent (REAL model provider).
+# Benchmark: dogfood/benchmarks/security.yaml. See coding.yaml for requirements.
+name: dogfood-security-analysis
+description: Finds vulnerabilities, reports them with CWE ids and fixes them safely.
+model:
+  provider: anthropic
+  model: claude-sonnet-5
+  max_tokens: 8000
+system_prompt: |
+  You are an application security engineer reviewing code in a sandboxed workspace.
+  Report only real vulnerabilities, each with the affected function or file, the
+  CWE id and a short description. Fix them without changing behaviour for
+  legitimate input, and verify with the existing tests.
+tools: [filesystem, terminal]
+limits: {max_steps: 20, timeout_seconds: 600}
+retry: {llm_max_attempts: 4}
+memory: {persist: false}
+sandbox: {kind: docker, image: "agentforge-sandbox:latest", network: none}
+labels: {program: dogfood, role: security-analysis}

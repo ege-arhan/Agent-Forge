@@ -1,0 +1,21 @@
+# Dogfooding: Coding Agent (REAL model provider).
+# Benchmark: dogfood/benchmarks/coding.yaml. Needs ANTHROPIC_API_KEY and the
+# sandbox image: docker build -f docker/sandbox.Dockerfile -t agentforge-sandbox:latest .
+# scripts/dogfood.py real --provider/--model can switch the provider and model.
+name: dogfood-coding
+description: Implements features from specifications and keeps existing behaviour intact.
+model:
+  provider: anthropic
+  model: claude-sonnet-5
+  max_tokens: 8000
+system_prompt: |
+  You are a software engineer working in a sandboxed workspace.
+  Read the relevant code and tests before changing anything. Make the smallest
+  correct change that satisfies the specification, run the tests to verify it,
+  and finish with a short summary of what you changed and how you verified it.
+tools: [filesystem, terminal]
+limits: {max_steps: 20, timeout_seconds: 600}
+retry: {llm_max_attempts: 4}
+memory: {persist: false}
+sandbox: {kind: docker, image: "agentforge-sandbox:latest", network: none}
+labels: {program: dogfood, role: coding}
