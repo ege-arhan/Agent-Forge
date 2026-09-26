@@ -46,6 +46,14 @@ All notable changes are documented here. The format follows
   `agentforge db upgrade` / `agentforge db current`.
 - Example agents, starter benchmark suite and experiments.
 
+### Security
+- Server-side policy for API-submitted configs and evaluators: prevents
+  sending server credentials to caller-chosen endpoints (`base_url`,
+  `api_key_env`, GitHub `api_url`/`token_env`), re-enabling private-network
+  HTTP, arbitrary-import evaluators and unapproved sandbox settings.
+- Request size limit, per-client rate limiting, background-task cap,
+  security headers and an audit log for state-changing API calls.
+
 ### Fixed
 - Sandboxed Python could execute stale bytecode after a same-second,
   same-size edit; sandboxes now set `PYTHONDONTWRITEBYTECODE=1`.

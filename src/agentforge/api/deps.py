@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import secrets
 from typing import Annotated
 
@@ -10,6 +11,24 @@ from fastapi import Depends, HTTPException, Request, status
 from agentforge.core.config import AgentConfig
 from agentforge.service import AgentForgeService
 from agentforge.storage import AgentRepository
+
+audit_logger = logging.getLogger("agentforge.audit")
+
+
+def audit(request: Request, action: str, **fields: object) -> None:
+    """Structured audit record of a state-changing API action."""
+    from agentforge.api.middleware import client_identity
+
+    audit_logger.info(
+        action,
+        # Nested so field names can never collide with LogRecord attributes.
+        extra={
+            "audit": True,
+            "action": action,
+            "client": client_identity(request),
+            "details": fields,
+        },
+    )
 
 
 def get_service(request: Request) -> AgentForgeService:

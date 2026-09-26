@@ -70,6 +70,42 @@ checkout inside its sandbox. Pushing and opening PRs are explicit opt-ins
 fails (unless `--allow-failing`), PRs are always drafts, and there is no merge
 operation in the client, the tools or the workflow.
 
+### API configuration policy
+
+Agent configs and evaluator specs submitted through the HTTP API are
+untrusted input. `agentforge/policy.py` rejects (HTTP 400,
+`code: policy_violation`) anything that could turn the server against itself:
+
+| Risk | Rule | Override |
+|---|---|---|
+| Sending a server credential to an attacker endpoint via `model.base_url` | custom `base_url` only for hosts in the allowlist when a credential would be sent (keyless `local` servers are allowed) | `AGENTFORGE_ALLOWED_PROVIDER_HOSTS` |
+| Using an arbitrary server variable as a credential (`api_key_env`, `github.token_env`) | only listed variables | `AGENTFORGE_ALLOWED_KEY_ENVS` (default: the provider keys and `GITHUB_TOKEN`) |
+| Redirecting the GitHub token (`tool_settings.github.api_url`) | only `api.github.com` or allowlisted hosts | `AGENTFORGE_ALLOWED_PROVIDER_HOSTS` |
+| Re-enabling SSRF (`http_request.allow_private_networks`) | rejected | `AGENTFORGE_ALLOW_PRIVATE_HTTP=true` |
+| Arbitrary imports (`type: python` evaluators) | rejected | `AGENTFORGE_ALLOW_PYTHON_EVALUATORS=true` |
+| LLM-judge evaluators with their own endpoint | same model rules as agents | — |
+| Git environment injection (`tool_settings.git.env`) | rejected | — |
+| Unisolated execution | `sandbox.kind: local` rejected when `AGENTFORGE_ALLOW_LOCAL_SANDBOX=false` | — |
+| Sandbox network access | `sandbox.network: bridge` rejected | `AGENTFORGE_ALLOW_SANDBOX_NETWORK=true` |
+
+The policy is checked when agents are created/updated and again whenever
+work starts (runs, re-runs, benchmarks, every experiment variant, GitHub
+tasks), so tightening settings also applies to stored agents. The CLI runs the
+operator's own files and does not apply it.
+
+### API transport controls
+
+- Request bodies above `AGENTFORGE_MAX_REQUEST_BYTES` (default 1 MB) → 413.
+- Mutating requests are rate-limited per client (bearer-token fingerprint, or
+  IP) with a sliding window, `AGENTFORGE_RATE_LIMIT_PER_MINUTE` (default 120)
+  → 429 with `Retry-After`. The limiter is in-process (per API instance).
+- At most `AGENTFORGE_MAX_QUEUED_RUNS` (default 100) background tasks → 429.
+- Security headers (`nosniff`, `DENY` framing, `no-referrer`, `no-store`).
+- Audit log: every state-changing call (agent create/update/delete, run
+  create/cancel/rerun, benchmark/experiment start, GitHub task) is logged on
+  the `agentforge.audit` logger with the client identity (token fingerprint,
+  never the token) and resource ids.
+
 ### Docker socket (Compose sandbox override)
 
 `docker-compose.sandbox.yml` mounts the host Docker socket so the API can start
@@ -80,12 +116,12 @@ recommended for multi-user deployments.
 
 ## Known limitations / planned hardening
 
-- No per-user authentication or authorisation (single shared API key).
+- No per-user authentication or authorisation (single shared API key); the
+  rate limiter is per process.
 - HTTP tool SSRF check is vulnerable to DNS rebinding between check and
   connect; mitigate with `allowed_hosts` and sandbox networking disabled.
 - No egress proxy/allowlist for sandboxes that enable `network: bridge`.
 - No gVisor/Firecracker option yet for stronger isolation.
-- Rate limiting of the API is not implemented.
 
 ## Supply chain
 

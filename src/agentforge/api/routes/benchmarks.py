@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 
-from agentforge.api.deps import ServiceDep, resolve_config
+from agentforge.api.deps import ServiceDep, audit, resolve_config
 from agentforge.api.schemas import BenchmarkRunCreate, ExperimentCreate, SuiteInfo
 from agentforge.benchmarks.runner import BenchmarkRun
 from agentforge.benchmarks.spec import BenchmarkSuite, discover_suites
@@ -60,12 +60,16 @@ async def get_suite(suite_id: str, service: ServiceDep) -> SuiteInfo:
 
 
 @router.post("/benchmarks/runs", response_model=BenchmarkRun, status_code=status.HTTP_202_ACCEPTED)
-async def start_benchmark(body: BenchmarkRunCreate, service: ServiceDep) -> BenchmarkRun:
+async def start_benchmark(
+    body: BenchmarkRunCreate, service: ServiceDep, request: Request
+) -> BenchmarkRun:
     _, suite = _suite(service, body.suite_id)
     config, _ = await resolve_config(service, body.agent_id, body.config)
-    return await service.start_benchmark(
+    bench = await service.start_benchmark(
         suite, config, repeats=body.repeats, task_ids=body.task_ids
     )
+    audit(request, "benchmark.start", benchmark_run_id=bench.id, suite=suite.id)
+    return bench
 
 
 @router.get("/benchmarks/runs", response_model=list[BenchmarkRun])
@@ -86,7 +90,9 @@ async def get_benchmark_run(bench_id: str, service: ServiceDep) -> BenchmarkRun:
 
 
 @router.post("/experiments", response_model=Experiment, status_code=status.HTTP_202_ACCEPTED)
-async def start_experiment(body: ExperimentCreate, service: ServiceDep) -> Experiment:
+async def start_experiment(
+    body: ExperimentCreate, service: ServiceDep, request: Request
+) -> Experiment:
     path, suite = _suite(service, body.suite_id)
     base, _ = await resolve_config(service, body.base_agent_id, body.base_config)
     spec = ExperimentSpec(
@@ -98,7 +104,9 @@ async def start_experiment(body: ExperimentCreate, service: ServiceDep) -> Exper
         repeats=body.repeats,
         task_ids=body.task_ids,
     )
-    return await service.start_experiment(spec, suite, base)
+    experiment = await service.start_experiment(spec, suite, base)
+    audit(request, "experiment.start", experiment_id=experiment.id, suite=suite.id)
+    return experiment
 
 
 @router.get("/experiments", response_model=list[Experiment])

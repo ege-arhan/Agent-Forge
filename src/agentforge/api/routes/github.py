@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from agentforge.api.deps import ServiceDep, resolve_config
+from agentforge.api.deps import ServiceDep, audit, resolve_config
 from agentforge.api.schemas import RunList, RunSummary
 from agentforge.core.config import AgentConfig
 from agentforge.core.models import Run
@@ -70,9 +70,9 @@ async def list_issues(  # noqa: PLR0917 - FastAPI parameters
 
 
 @router.post("/tasks", response_model=Run, status_code=status.HTTP_202_ACCEPTED)
-async def create_task(body: GitHubTaskCreate, service: ServiceDep) -> Run:
+async def create_task(body: GitHubTaskCreate, service: ServiceDep, request: Request) -> Run:
     config, agent_id = await resolve_config(service, body.agent_id, body.config)
-    return await service.start_github_task(
+    run = await service.start_github_task(
         repo=body.repo,
         issue_number=body.issue_number,
         config=config,
@@ -83,6 +83,16 @@ async def create_task(body: GitHubTaskCreate, service: ServiceDep) -> Run:
         open_pr=body.open_pr,
         allow_failing=body.allow_failing,
     )
+    audit(
+        request,
+        "github.task",
+        run_id=run.id,
+        repo=body.repo,
+        issue=body.issue_number,
+        push=body.push,
+        open_pr=body.open_pr,
+    )
+    return run
 
 
 @router.get("/tasks", response_model=RunList)

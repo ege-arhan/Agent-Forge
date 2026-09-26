@@ -12,10 +12,12 @@ from fastapi.responses import JSONResponse
 
 from agentforge import __version__
 from agentforge.api.deps import require_api_key
+from agentforge.api.middleware import HardeningMiddleware
 from agentforge.api.routes import agents, benchmarks, github, meta, metrics, runs
 from agentforge.core.errors import (
     AgentForgeError,
     BenchmarkError,
+    CapacityError,
     ConfigurationError,
     NotFoundError,
 )
@@ -52,6 +54,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.add_middleware(
+        HardeningMiddleware,
+        max_body_bytes=settings.max_request_bytes,
+        rate_limit_per_minute=settings.rate_limit_per_minute,
+    )
+    app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
@@ -67,6 +74,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(GitHubWorkflowError)
     async def _bad_config(request: Request, exc: AgentForgeError) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": exc.message, "code": exc.code})
+
+    @app.exception_handler(CapacityError)
+    async def _capacity(request: Request, exc: CapacityError) -> JSONResponse:
+        return JSONResponse(
+            status_code=429, content={"detail": exc.message}, headers={"Retry-After": "30"}
+        )
 
     @app.exception_handler(GitHubError)
     async def _github_error(request: Request, exc: GitHubError) -> JSONResponse:

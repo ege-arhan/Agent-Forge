@@ -38,11 +38,48 @@ class Settings(BaseSettings):
         description="Export finished runs as OpenTelemetry traces over OTLP/HTTP "
         "(configure with the standard OTEL_EXPORTER_OTLP_* variables).",
     )
+    # --- API policy (see agentforge/policy.py and SECURITY.md) ---
+    allowed_key_envs: list[str] = Field(
+        default_factory=lambda: [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "GEMINI_API_KEY",
+            "GITHUB_TOKEN",
+        ],
+        description="Environment variables API-submitted configs may use as credentials.",
+    )
+    allowed_provider_hosts: list[str] = Field(
+        default_factory=list,
+        description="Hosts that API-submitted configs may send credentials to via base_url.",
+    )
+    allow_private_http: bool = Field(
+        default=False, description="Allow API configs to let the HTTP tool reach private networks."
+    )
+    allow_python_evaluators: bool = Field(
+        default=False, description="Allow 'python' evaluators (arbitrary imports) via the API."
+    )
+    allow_sandbox_network: bool = Field(
+        default=False, description="Allow API configs to enable networking in Docker sandboxes."
+    )
+    max_request_bytes: int = Field(default=1_000_000, ge=1_024)
+    rate_limit_per_minute: int = Field(
+        default=120, ge=0, description="Mutating API requests per client per minute (0 = off)."
+    )
+    max_queued_runs: int = Field(
+        default=100, ge=1, description="Background tasks accepted beyond which the API returns 429."
+    )
     github_token_env: str = Field(
         default="GITHUB_TOKEN", description="Environment variable holding the GitHub token."
     )
 
-    @field_validator("denied_permissions", "cors_origins", mode="before")
+    @field_validator(
+        "denied_permissions",
+        "cors_origins",
+        "allowed_key_envs",
+        "allowed_provider_hosts",
+        mode="before",
+    )
     @classmethod
     def _split_csv(cls, value: object) -> object:
         if isinstance(value, str):

@@ -23,9 +23,11 @@ import httpx
 from agentforge.benchmarks.runner import BenchmarkRun, BenchmarkRunner
 from agentforge.benchmarks.spec import BenchmarkSuite
 from agentforge.core.config import AgentConfig
+from agentforge.core.errors import CapacityError
 from agentforge.core.models import Run, RunStatus
 from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.experiments import Experiment, ExperimentRunner, ExperimentSpec
+from agentforge.policy import ServerPolicy
 from agentforge.runtime.agent import AgentRuntime
 from agentforge.runtime.events import EventBroadcaster, LoggingObserver, RunObserver
 from agentforge.runtime.factory import prepare_run
@@ -55,6 +57,7 @@ class AgentForgeService:
             extra.append(self.tracing)
         self.recorder = StorageRecorder(db, extra_observers=extra)
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_runs)
+        self.policy = ServerPolicy(settings)
         self._tasks: dict[str, asyncio.Task[Any]] = {}
         self._runtimes: dict[str, AgentRuntime] = {}
         # Test/mirror hooks (never exposed through the API: the GitHub token is
@@ -87,6 +90,12 @@ class AgentForgeService:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
+    def _admit(self) -> None:
+        if len(self._tasks) >= self.settings.max_queued_runs:
+            raise CapacityError(
+                f"server is at capacity ({len(self._tasks)} queued or running tasks); retry later"
+            )
+
     def _spawn(self, key: str, coro: Coroutine[Any, Any, Any]) -> None:
         task = asyncio.create_task(coro, name=key)
         self._tasks[key] = task
@@ -110,6 +119,9 @@ class AgentForgeService:
         labels: dict[str, str] | None = None,
         parent_run_id: str | None = None,
     ) -> Run:
+        self.policy.check_agent(config)
+        self.policy.check_evaluators(evaluators or [])
+        self._admit()
         prepared = prepare_run(
             config,
             goal,
@@ -167,6 +179,8 @@ class AgentForgeService:
         repeats: int | None = None,
         task_ids: list[str] | None = None,
     ) -> BenchmarkRun:
+        self.policy.check_agent(config)
+        self._admit()
         if task_ids:
             for task_id in task_ids:
                 suite.task(task_id)
@@ -195,7 +209,8 @@ class AgentForgeService:
         from agentforge.experiments import variant_config
 
         for variant in spec.variants:
-            variant_config(base, variant)  # validate before accepting
+            self.policy.check_agent(variant_config(base, variant))  # validate before accepting
+        self._admit()
         experiment = Experiment(
             name=spec.name, description=spec.description, spec=spec, suite_id=suite.id
         )
@@ -240,6 +255,8 @@ class AgentForgeService:
         )
 
         parse_repo(repo)
+        self.policy.check_agent(config)
+        self._admit()
         if open_pr and not push:
             raise GitHubWorkflowError("open_pr requires push")
         run = Run(

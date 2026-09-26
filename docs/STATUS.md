@@ -23,7 +23,7 @@ Implemented:
 - See CHANGELOG.md [Unreleased] and TASKS.md "Done".
 
 Tests:
-- Python: 159 tests (unit, integration, e2e, docker) passing.
+- Python: 177 tests (unit, integration, e2e, docker) passing.
 - Integration + e2e also pass against PostgreSQL 16.
 - Docker sandbox tests pass against Docker 29.
 - Dashboard: ESLint, `tsc --noEmit`, 10 unit tests (node:test), production
@@ -47,7 +47,7 @@ Technical debt:
 - `service.py` executes work in-process (fine for one node).
 
 Next priority:
-- T-013a API hardening, T-013b sandbox egress control, T-014c release automation.
+- T-013b sandbox egress control, then T-014c release automation and T-015b beta readiness.
 
 Project health:
 - Green locally across backend and dashboard.

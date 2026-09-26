@@ -71,3 +71,9 @@ class RunCancelledError(AgentForgeError):
 
 class BenchmarkError(AgentForgeError):
     code = "benchmark_error"
+
+
+class CapacityError(AgentForgeError):
+    """The server is at capacity (too many queued background tasks)."""
+
+    code = "capacity"

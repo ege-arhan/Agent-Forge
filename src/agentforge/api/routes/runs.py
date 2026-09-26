@@ -10,7 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import StreamingResponse
 
-from agentforge.api.deps import ServiceDep, resolve_config
+from agentforge.api.deps import ServiceDep, audit, resolve_config
 from agentforge.api.schemas import RunCreate, RunList, RunSummary
 from agentforge.core.models import Run, RunStatus
 from agentforge.evaluation.base import EvaluatorSpec
@@ -21,11 +21,13 @@ HEARTBEAT_SECONDS = 15.0
 
 
 @router.post("", response_model=Run, status_code=status.HTTP_202_ACCEPTED)
-async def create_run(body: RunCreate, service: ServiceDep) -> Run:
+async def create_run(body: RunCreate, service: ServiceDep, request: Request) -> Run:
     config, agent_id = await resolve_config(service, body.agent_id, body.config)
-    return await service.start_run(
+    run = await service.start_run(
         config, body.goal, agent_id=agent_id, evaluators=body.evaluators, labels=body.labels
     )
+    audit(request, "run.create", run_id=run.id, agent=run.agent_name)
+    return run
 
 
 @router.get("", response_model=RunList)
@@ -53,16 +55,17 @@ async def get_run(run_id: str, service: ServiceDep) -> Run:
 
 
 @router.post("/{run_id}/cancel", response_model=Run)
-async def cancel_run(run_id: str, service: ServiceDep) -> Run:
+async def cancel_run(run_id: str, service: ServiceDep, request: Request) -> Run:
+    audit(request, "run.cancel", run_id=run_id)
     return await service.cancel_run(run_id)
 
 
 @router.post("/{run_id}/rerun", response_model=Run, status_code=status.HTTP_202_ACCEPTED)
-async def rerun(run_id: str, service: ServiceDep) -> Run:
+async def rerun(run_id: str, service: ServiceDep, request: Request) -> Run:
     """Reproduce a run: same goal and the exact agent config snapshot it used."""
     original = await service.runs.get(run_id)
     evaluators = [EvaluatorSpec.model_validate(spec) for spec in original.evaluators]
-    return await service.start_run(
+    run = await service.start_run(
         original.config,
         original.goal,
         agent_id=original.agent_id,
@@ -70,6 +73,8 @@ async def rerun(run_id: str, service: ServiceDep) -> Run:
         labels={**original.labels, "rerun_of": original.id},
         parent_run_id=original.id,
     )
+    audit(request, "run.rerun", run_id=run.id, parent_run_id=original.id)
+    return run
 
 
 @router.get("/{run_id}/events")
