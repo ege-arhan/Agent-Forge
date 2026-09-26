@@ -20,7 +20,11 @@ def rec(content: str, ns: str = "a") -> MemoryRecord:
 
 
 def test_lexical_rank_orders_by_relevance() -> None:
-    records = [rec("python tests use pytest"), rec("the database is postgres"), rec("pytest fixtures")]
+    records = [
+        rec("python tests use pytest"),
+        rec("the database is postgres"),
+        rec("pytest fixtures"),
+    ]
     ranked = lexical_rank("how do I run pytest tests", records, limit=5)
     assert [r.record.content for r in ranked][:1] == ["python tests use pytest"]
     assert all(r.record.content != "the database is postgres" for r in ranked)
@@ -62,16 +66,24 @@ def test_compact_history_elides_old_tool_output_only() -> None:
 def test_docker_run_args_are_hardened(workspace: Workspace) -> None:
     args = build_run_args(SandboxConfig(kind=SandboxKind.DOCKER), workspace, "c1", "1000:1000")
     joined = " ".join(args)
-    for flag in ["--network none", "--read-only", "--cap-drop ALL", "--security-opt no-new-privileges",
-                 "--pids-limit 256", "--memory 512m", "--user 1000:1000"]:
+    for flag in [
+        "--network none",
+        "--read-only",
+        "--cap-drop ALL",
+        "--security-opt no-new-privileges",
+        "--pids-limit 256",
+        "--memory 512m",
+        "--user 1000:1000",
+    ]:
         assert flag in joined, flag
     assert f"{workspace.root}:/workspace:rw" in args
     assert args[-3:] == ["python:3.12-slim", "sleep", "infinity"]
 
 
 def test_docker_exec_args() -> None:
-    args = build_exec_args("c1", ["sh", "-c", "ls"], workdir="/workspace/src", timeout=30.5,
-                           env={"A": "1"})
+    args = build_exec_args(
+        "c1", ["sh", "-c", "ls"], workdir="/workspace/src", timeout=30.5, env={"A": "1"}
+    )
     assert args[:5] == ["docker", "exec", "--interactive", "--workdir", "/workspace/src"]
     assert args[-3:] == ["sh", "-c", "ls"]
     assert "--env" in args and "A=1" in args
@@ -82,7 +94,9 @@ def test_docker_exec_args() -> None:
 
 def test_create_sandbox_policy(workspace: Workspace) -> None:
     assert isinstance(create_sandbox(SandboxConfig(), workspace), LocalSandbox)
-    assert isinstance(create_sandbox(SandboxConfig(kind=SandboxKind.DOCKER), workspace), DockerSandbox)
+    assert isinstance(
+        create_sandbox(SandboxConfig(kind=SandboxKind.DOCKER), workspace), DockerSandbox
+    )
     with pytest.raises(ConfigurationError):
         create_sandbox(SandboxConfig(), workspace, allow_local=False)
 
@@ -103,3 +117,19 @@ async def test_local_sandbox_output_cap(workspace: Workspace) -> None:
         ["sh", "-c", "yes | head -c 200000"], output_limit=1000
     )
     assert result.truncated and len(result.stdout) == 1000
+
+
+async def test_sandbox_does_not_serve_stale_python_bytecode(workspace: Workspace) -> None:
+    """Regression: editing a module within the same second (same size) and re-running it
+    used to execute the stale cached bytecode."""
+    sandbox = LocalSandbox(workspace)
+    workspace.write_files(
+        {"mod.py": "def f():\n    return 1\n", "main.py": "import mod\nprint(mod.f())\n"}
+    )
+    first = await sandbox.exec(["python3", "main.py"])
+    (workspace.root / "mod.py").write_text("def f():\n    return 2\n")
+    second = await sandbox.exec(["python3", "main.py"])
+    assert (first.stdout.strip(), second.stdout.strip()) == ("1", "2")
+    assert "PYTHONDONTWRITEBYTECODE=1" in " ".join(
+        build_run_args(SandboxConfig(kind=SandboxKind.DOCKER), workspace, "c", None)
+    )

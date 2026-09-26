@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     benchmarks_dir: Path = Field(default=Path("examples/benchmarks"))
     keep_workspaces: bool = True
+    github_token_env: str = Field(
+        default="GITHUB_TOKEN", description="Environment variable holding the GitHub token."
+    )
 
     @field_validator("denied_permissions", "cors_origins", mode="before")
     @classmethod

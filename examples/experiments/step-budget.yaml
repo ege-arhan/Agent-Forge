@@ -1,0 +1,16 @@
+# Pipeline demo experiment (offline, deterministic).
+#
+# Compares the scripted demo agent with and without a tight step budget. The
+# difference is by construction - this demonstrates experiment tracking and
+# comparison, not model quality. See model-comparison.yaml for a real one.
+name: step-budget-demo
+description: Effect of max_steps on the scripted demo agent (pipeline demo).
+benchmark: ../benchmarks/starter.yaml
+base_agent: ../agents/scripted-demo.yaml
+repeats: 2
+variants:
+  - name: baseline
+  - name: max-steps-2
+    description: Same agent limited to two steps per task.
+    overrides:
+      limits: {max_steps: 2}

@@ -1,0 +1,111 @@
+# Starter benchmark: small, deterministic software-engineering tasks.
+#
+# Every task defines its initial workspace, the tools the agent may use, the
+# expected behaviour and machine-checkable success criteria. Run it with:
+#
+#   agentforge bench run examples/benchmarks/starter.yaml --agent examples/agents/scripted-demo.yaml
+#
+# The scripted demo agent replays a fixed script; use a real provider config
+# (e.g. examples/agents/anthropic-coder.yaml) to measure an actual model.
+id: starter
+name: Starter engineering tasks
+description: File creation, bug fixing, data extraction and git workflow basics.
+version: "1"
+repeats: 1
+defaults:
+  timeout_seconds: 300
+  max_steps: 15
+
+tasks:
+  - id: create-greeting
+    goal: "Create a file named hello.txt containing exactly the text: Hello, AgentForge!"
+    allowed_tools: [filesystem]
+    expected_behavior: The agent writes hello.txt with the exact greeting and nothing else.
+    evaluators:
+      - type: file_exists
+        path: hello.txt
+      - type: file_contains
+        path: hello.txt
+        pattern: '^Hello, AgentForge!\s*$'
+    tags: [filesystem]
+
+  - id: fix-failing-test
+    goal: >-
+      The tests in test_calc.py fail. Find and fix the bug in calc.py so that
+      `python3 test_calc.py` succeeds. Do not modify the tests.
+    setup:
+      files:
+        calc.py: |
+          def add(a, b):
+              return a - b
+
+
+          def multiply(a, b):
+              return a * b
+        test_calc.py: |
+          from calc import add, multiply
+
+          assert add(2, 3) == 5, "add is broken"
+          assert add(-1, 1) == 0
+          assert multiply(3, 4) == 12
+          print("all tests passed")
+    allowed_tools: [filesystem, terminal]
+    expected_behavior: Run the tests, locate the bug in add(), fix it, re-run the tests.
+    evaluators:
+      - type: command
+        name: tests_pass
+        command: python3 test_calc.py
+      - type: file_contains
+        name: tests_untouched
+        path: test_calc.py
+        text: 'assert add(2, 3) == 5, "add is broken"'
+      - type: tool_used
+        name: verified_with_tests
+        tool: run_command
+        required: false
+        weight: 0.5
+    tags: [debugging, python]
+
+  - id: count-csv-rows
+    goal: >-
+      Count the data rows (excluding the header) in data.csv and write just the
+      number to answer.txt.
+    setup:
+      files:
+        data.csv: |
+          id,name,score
+          1,ada,91
+          2,grace,88
+          3,linus,75
+          4,margaret,97
+          5,barbara,84
+    allowed_tools: [filesystem]
+    expected_behavior: Read the CSV, count 5 data rows, write "5" to answer.txt.
+    evaluators:
+      - type: file_contains
+        path: answer.txt
+        pattern: '^\s*5\s*$'
+    tags: [data]
+
+  - id: git-feature-branch
+    goal: >-
+      Create a git branch named feature/readme, add a README.md containing a
+      one-paragraph project description, and commit it on that branch.
+    setup:
+      git_init: true
+      files:
+        app.py: |
+          print("hello")
+    allowed_tools: [filesystem, git]
+    expected_behavior: Branch, write README.md, commit; the working tree ends clean.
+    evaluators:
+      - type: command
+        name: on_feature_branch
+        command: test "$(git rev-parse --abbrev-ref HEAD)" = feature/readme
+      - type: command
+        name: readme_committed
+        command: git log --oneline -1 -- README.md | grep -q .
+      - type: command
+        name: clean_tree
+        command: test -z "$(git status --porcelain)"
+    tags: [git]

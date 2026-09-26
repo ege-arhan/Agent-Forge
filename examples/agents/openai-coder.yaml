@@ -1,0 +1,14 @@
+# Coding agent using the OpenAI Chat Completions API.
+# Requires: pip install 'agentforge[openai]' and OPENAI_API_KEY.
+# Set model.model to a tool-calling capable model available to your account.
+name: openai-coder
+description: Software-engineering agent using an OpenAI model.
+model:
+  provider: openai
+  model: YOUR_OPENAI_MODEL
+  max_tokens: 8000
+tools: [filesystem, terminal, git]
+limits:
+  max_steps: 30
+sandbox:
+  kind: docker

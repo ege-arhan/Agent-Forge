@@ -34,7 +34,10 @@ class Recorder:
 
 def write_turns(path: str = "out.txt", content: str = "hello") -> list[dict[str, Any]]:
     return [
-        {"text": "writing", "tool_calls": [{"name": "write_file", "arguments": {"path": path, "content": content}}]},
+        {
+            "text": "writing",
+            "tool_calls": [{"name": "write_file", "arguments": {"path": path, "content": content}}],
+        },
         {"text": "All done."},
     ]
 
@@ -91,7 +94,9 @@ async def test_llm_non_retryable_error_fails_run(settings: Settings) -> None:
 
 async def test_llm_retries_exhausted(settings: Settings) -> None:
     turns = [{"error": {"message": "503", "retryable": True}}] * 5
-    config = scripted_config(turns, retry=RetryPolicy(llm_max_attempts=2, backoff_initial_seconds=0))
+    config = scripted_config(
+        turns, retry=RetryPolicy(llm_max_attempts=2, backoff_initial_seconds=0)
+    )
     run = await run_agent(config, "g", settings=settings)
     assert run.status == RunStatus.FAILED
     assert run.error is not None and run.error.retryable
@@ -136,7 +141,11 @@ async def test_cancel_before_start(settings: Settings) -> None:
 async def test_evaluation_retry_gives_feedback_and_recovers(settings: Settings) -> None:
     turns = [
         {"text": "I think it's done."},
-        {"tool_calls": [{"name": "write_file", "arguments": {"path": "a.txt", "content": "fixed"}}]},
+        {
+            "tool_calls": [
+                {"name": "write_file", "arguments": {"path": "a.txt", "content": "fixed"}}
+            ]
+        },
         {"text": "Now really done."},
     ]
     config = scripted_config(turns, retry=RetryPolicy(evaluation_retries=1))
@@ -150,7 +159,9 @@ async def test_evaluation_retry_gives_feedback_and_recovers(settings: Settings) 
     assert run.result == "Now really done."
 
 
-async def test_failed_evaluation_without_retries_still_succeeds_execution(settings: Settings) -> None:
+async def test_failed_evaluation_without_retries_still_succeeds_execution(
+    settings: Settings,
+) -> None:
     run = await run_agent(
         scripted_config([{"text": "done"}]),
         "g",
@@ -187,7 +198,9 @@ async def test_tool_call_budget(settings: Settings) -> None:
         {"tool_calls": [{"name": "list_directory", "arguments": {}}] * 3},
         {"text": "done"},
     ]
-    run = await run_agent(scripted_config(turns, limits=RunLimits(max_tool_calls=2)), "g", settings=settings)
+    run = await run_agent(
+        scripted_config(turns, limits=RunLimits(max_tool_calls=2)), "g", settings=settings
+    )
     statuses = [c.status for c in run.steps[0].tool_calls]
     assert statuses == [ToolCallStatus.SUCCESS, ToolCallStatus.SUCCESS, ToolCallStatus.DENIED]
 
@@ -211,7 +224,8 @@ class CapturingProvider(LLMProvider):
     async def complete(self, request: CompletionRequest) -> CompletionResponse:
         self.requests.append(request)
         return CompletionResponse(
-            message=Message(role=Role.ASSISTANT, content=[]) if self.stop == StopReason.REFUSAL
+            message=Message(role=Role.ASSISTANT, content=[])
+            if self.stop == StopReason.REFUSAL
             else Message.assistant("final"),
             stop_reason=self.stop,
             model="m",
@@ -221,13 +235,19 @@ class CapturingProvider(LLMProvider):
 async def test_memory_recall_injected_and_summary_persisted(settings: Settings) -> None:
     store = InMemoryMemoryStore()
     await store.add(
-        MemoryRecord(scope=MemoryScope.AGENT, namespace="agt_1", content="Deployment uses make deploy")
+        MemoryRecord(
+            scope=MemoryScope.AGENT, namespace="agt_1", content="Deployment uses make deploy"
+        )
     )
     provider = CapturingProvider()
     config = scripted_config([], memory={"persist": True})
     prepared = prepare_run(
-        config, "how do I run deployment?", agent_id="agt_1", settings=settings,
-        memory=store, provider=provider,
+        config,
+        "how do I run deployment?",
+        agent_id="agt_1",
+        settings=settings,
+        memory=store,
+        provider=provider,
     )
     run = await prepared.execute()
     assert "Deployment uses make deploy" in (provider.requests[0].system or "")
@@ -250,7 +270,9 @@ async def test_observer_failure_does_not_break_run(settings: Settings) -> None:
         async def on_event(self, event: RunEvent, run: Any) -> None:
             raise RuntimeError("observer bug")
 
-    run = await run_agent(scripted_config(write_turns()), "g", settings=settings, observers=[Broken()])
+    run = await run_agent(
+        scripted_config(write_turns()), "g", settings=settings, observers=[Broken()]
+    )
     assert run.status == RunStatus.SUCCEEDED
 
 
@@ -268,5 +290,7 @@ async def test_llm_error_type_from_provider_code(settings: Settings) -> None:
         async def complete(self, request: CompletionRequest) -> CompletionResponse:
             raise LLMError("nope", retryable=False, code="authentication")
 
-    run = await prepare_run(scripted_config([]), "g", settings=settings, provider=Failing()).execute()
+    run = await prepare_run(
+        scripted_config([]), "g", settings=settings, provider=Failing()
+    ).execute()
     assert run.error is not None and run.error.type == "llm.authentication"

@@ -8,7 +8,13 @@ from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.memory.base import MemoryRecord, MemoryScope
 from agentforge.runtime.factory import prepare_run
 from agentforge.settings import Settings
-from agentforge.storage import AgentRepository, Database, PersistenceObserver, RunRepository, SqlMemoryStore
+from agentforge.storage import (
+    AgentRepository,
+    Database,
+    PersistenceObserver,
+    RunRepository,
+    SqlMemoryStore,
+)
 from tests.conftest import scripted_config
 
 pytestmark = pytest.mark.integration

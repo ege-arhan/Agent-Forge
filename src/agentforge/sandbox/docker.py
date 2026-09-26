@@ -26,7 +26,7 @@ from agentforge.core.config import SandboxConfig
 from agentforge.core.errors import SandboxError
 from agentforge.core.ids import new_id
 from agentforge.sandbox.base import DEFAULT_OUTPUT_LIMIT, ExecResult, Sandbox
-from agentforge.sandbox.local import run_process
+from agentforge.sandbox.local import SANDBOX_ENV_DEFAULTS, run_process
 from agentforge.sandbox.workspace import Workspace
 
 CONTAINER_WORKDIR = "/workspace"
@@ -70,6 +70,8 @@ def build_run_args(
         "--env",
         f"HOME={CONTAINER_WORKDIR}",
     ]
+    for key, value in SANDBOX_ENV_DEFAULTS.items():
+        args += ["--env", f"{key}={value}"]
     if user:
         args += ["--user", user]
     args += [config.image, "sleep", "infinity"]

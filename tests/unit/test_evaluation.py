@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+
 import pytest
 
 from agentforge.core.config import AgentConfig, ModelConfig
@@ -32,7 +33,9 @@ from agentforge.sandbox.local import LocalSandbox
 from agentforge.sandbox.workspace import Workspace
 
 
-def make_run(result: str | None = "The answer is 42", status: RunStatus = RunStatus.SUCCEEDED) -> Run:
+def make_run(
+    result: str | None = "The answer is 42", status: RunStatus = RunStatus.SUCCEEDED
+) -> Run:
     return Run(
         agent_name="a",
         config=AgentConfig(name="a", model=ModelConfig(provider="scripted")),
@@ -48,8 +51,17 @@ def ctx(run: Run, workspace: Workspace) -> EvaluationContext:
 
 def test_builtin_evaluators_registered() -> None:
     names = set(available_evaluators())
-    assert {"completed", "output_contains", "output_matches", "file_exists", "file_contains",
-            "command", "max_steps", "tool_used", "llm_judge"} <= names
+    assert {
+        "completed",
+        "output_contains",
+        "output_matches",
+        "file_exists",
+        "file_contains",
+        "command",
+        "max_steps",
+        "tool_used",
+        "llm_judge",
+    } <= names
 
 
 async def test_output_evaluators(workspace: Workspace) -> None:
@@ -172,16 +184,28 @@ def test_compute_metrics_from_records() -> None:
     run.started_at, run.finished_at = now, now + timedelta(seconds=2.5)
 
     def llm(attempts: int, cost: float | None) -> LLMCallRecord:
-        return LLMCallRecord(provider="p", model="m", started_at=now, finished_at=now,
-                             latency_ms=5, attempts=attempts, cost_usd=cost)
+        return LLMCallRecord(
+            provider="p",
+            model="m",
+            started_at=now,
+            finished_at=now,
+            latency_ms=5,
+            attempts=attempts,
+            cost_usd=cost,
+        )
 
     def tool(status: ToolCallStatus) -> ToolCallRecord:
-        return ToolCallRecord(id="c", tool="t", status=status, started_at=now,
-                              finished_at=now, duration_ms=1)
+        return ToolCallRecord(
+            id="c", tool="t", status=status, started_at=now, finished_at=now, duration_ms=1
+        )
 
     run.steps = [
-        Step(index=0, kind=StepKind.ACTION, llm_call=llm(2, 0.01),
-             tool_calls=[tool(ToolCallStatus.SUCCESS), tool(ToolCallStatus.ERROR)]),
+        Step(
+            index=0,
+            kind=StepKind.ACTION,
+            llm_call=llm(2, 0.01),
+            tool_calls=[tool(ToolCallStatus.SUCCESS), tool(ToolCallStatus.ERROR)],
+        ),
         Step(index=1, kind=StepKind.ACTION, llm_call=llm(1, 0.02)),
         Step(index=2, kind=StepKind.EVALUATION),
     ]

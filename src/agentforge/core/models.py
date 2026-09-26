@@ -193,6 +193,9 @@ class Run(BaseModel):
     parent_run_id: str | None = Field(
         default=None, description="Set when this run reproduces or retries another run."
     )
+    evaluators: list[dict[str, Any]] = Field(
+        default_factory=list, description="Evaluator specs used, stored for reproducibility."
+    )
 
     @property
     def tool_calls(self) -> list[ToolCallRecord]:

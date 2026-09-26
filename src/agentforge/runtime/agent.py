@@ -103,6 +103,7 @@ class AgentRuntime:
         Re-raises ``asyncio.CancelledError`` after recording cancellation.
         """
         evaluators = evaluators or []
+        run.evaluators = [spec.model_dump(mode="json") for spec in evaluators]
         run.status = RunStatus.RUNNING
         run.started_at = utcnow()
         run.workspace = str(self.deps.workspace.root)

@@ -1,0 +1,16 @@
+# Compare two Claude models and a planning strategy on the starter suite.
+# Requires ANTHROPIC_API_KEY; costs real money. Results are specific to this
+# suite, these prompts and this number of repeats - not a general ranking.
+name: claude-model-comparison
+description: Opus vs Sonnet, and ReAct vs plan-and-execute, on starter tasks.
+benchmark: ../benchmarks/starter.yaml
+base_agent: ../agents/anthropic-coder.yaml
+repeats: 3
+variants:
+  - name: opus-react
+  - name: sonnet-react
+    overrides:
+      model: {model: claude-sonnet-5}
+  - name: opus-plan-execute
+    overrides:
+      planner: {strategy: plan_execute}

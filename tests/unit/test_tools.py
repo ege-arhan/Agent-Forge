@@ -15,7 +15,13 @@ from agentforge.llm.types import ToolUsePart
 from agentforge.observability.redaction import REDACTED
 from agentforge.sandbox.workspace import Workspace
 from agentforge.tools.base import Permission, Tool, ToolContext, ToolInput, ToolOutput
-from agentforge.tools.builtin.filesystem import EditFile, ListDirectory, ReadFile, SearchFiles, WriteFile
+from agentforge.tools.builtin.filesystem import (
+    EditFile,
+    ListDirectory,
+    ReadFile,
+    SearchFiles,
+    WriteFile,
+)
 from agentforge.tools.builtin.git import GitBranch, GitCommit, GitDiff, GitLog, GitStatus
 from agentforge.tools.builtin.github import GitHubCreatePullRequest, GitHubGetIssue
 from agentforge.tools.builtin.http import HttpRequest, host_allowed
@@ -118,7 +124,9 @@ async def test_executor_validates_input(tool_ctx: ToolContext) -> None:
     record, result = await executor.execute(call("echo", wrong=1))
     assert record.status == ToolCallStatus.INVALID_INPUT
     assert "text" in result.content
-    record, _ = await executor.execute(ToolUsePart(id="x", name="echo", arguments={"__invalid_json__": "{"}))
+    record, _ = await executor.execute(
+        ToolUsePart(id="x", name="echo", arguments={"__invalid_json__": "{"})
+    )
     assert record.status == ToolCallStatus.INVALID_INPUT
 
 
@@ -167,16 +175,22 @@ def test_truncate_keeps_head_and_tail() -> None:
 
 # ----------------------------------------------------------------- filesystem
 async def test_filesystem_tools(tool_ctx: ToolContext) -> None:
-    ex = ToolExecutor([ReadFile(), WriteFile(), EditFile(), ListDirectory(), SearchFiles()], tool_ctx)
+    ex = ToolExecutor(
+        [ReadFile(), WriteFile(), EditFile(), ListDirectory(), SearchFiles()], tool_ctx
+    )
     rec, _ = await ex.execute(call("write_file", path="src/app.py", content="x = 1\ny = 2\n"))
     assert rec.status == ToolCallStatus.SUCCESS
     rec, res = await ex.execute(call("read_file", path="src/app.py"))
     assert "1\tx = 1" in res.content
     rec, res = await ex.execute(call("read_file", path="src/app.py", start_line=2, max_lines=1))
     assert "y = 2" in res.content and "x = 1" not in res.content
-    rec, _ = await ex.execute(call("edit_file", path="src/app.py", old_text="y = 2", new_text="y = 3"))
+    rec, _ = await ex.execute(
+        call("edit_file", path="src/app.py", old_text="y = 2", new_text="y = 3")
+    )
     assert (tool_ctx.workspace.root / "src/app.py").read_text() == "x = 1\ny = 3\n"
-    rec, res = await ex.execute(call("edit_file", path="src/app.py", old_text="missing", new_text=""))
+    rec, res = await ex.execute(
+        call("edit_file", path="src/app.py", old_text="missing", new_text="")
+    )
     assert rec.status == ToolCallStatus.ERROR
     rec, res = await ex.execute(call("list_directory", recursive=True))
     assert res.content.splitlines() == ["src/", "src/app.py"]
@@ -192,7 +206,9 @@ async def test_edit_file_ambiguous(tool_ctx: ToolContext) -> None:
     ex = ToolExecutor([EditFile()], tool_ctx)
     rec, _ = await ex.execute(call("edit_file", path="f.txt", old_text="a", new_text="b"))
     assert rec.status == ToolCallStatus.ERROR
-    rec, _ = await ex.execute(call("edit_file", path="f.txt", old_text="a", new_text="b", replace_all=True))
+    rec, _ = await ex.execute(
+        call("edit_file", path="f.txt", old_text="a", new_text="b", replace_all=True)
+    )
     assert (tool_ctx.workspace.root / "f.txt").read_text() == "b b b"
 
 
@@ -204,7 +220,9 @@ async def test_run_command_captures_output_and_exit_code(tool_ctx: ToolContext) 
     assert "exit_code: 3" in res.content and "hi" in res.content and "err" in res.content
 
 
-async def test_run_command_does_not_leak_environment(tool_ctx: ToolContext, monkeypatch: Any) -> None:
+async def test_run_command_does_not_leak_environment(
+    tool_ctx: ToolContext, monkeypatch: Any
+) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "should-not-be-visible")
     ex = ToolExecutor([RunCommand()], tool_ctx)
     _, res = await ex.execute(call("run_command", command="env"))
@@ -223,7 +241,9 @@ async def test_run_command_timeout_kills_process(tool_ctx: ToolContext) -> None:
 # ------------------------------------------------------------------------ git
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 async def test_git_tools_workflow(tool_ctx: ToolContext) -> None:
-    ex = ToolExecutor([GitStatus(), GitDiff(), GitLog(), GitCommit(), GitBranch(), WriteFile()], tool_ctx)
+    ex = ToolExecutor(
+        [GitStatus(), GitDiff(), GitLog(), GitCommit(), GitBranch(), WriteFile()], tool_ctx
+    )
     await tool_ctx.sandbox.exec(["git", "init", "-q", "-b", "main"])
     await ex.execute(call("write_file", path="a.txt", content="one\n"))
     rec, res = await ex.execute(call("git_status"))
@@ -274,7 +294,9 @@ async def test_http_request_success(tool_ctx: ToolContext, monkeypatch: Any) -> 
 
 
 async def test_http_blocks_private_addresses(tool_ctx: ToolContext, monkeypatch: Any) -> None:
-    monkeypatch.setattr(HttpRequest, "transport", httpx.MockTransport(lambda r: httpx.Response(200)))
+    monkeypatch.setattr(
+        HttpRequest, "transport", httpx.MockTransport(lambda r: httpx.Response(200))
+    )
     monkeypatch.setattr(HttpRequest, "resolver", staticmethod(_private))
     ex = ToolExecutor([HttpRequest()], tool_ctx)
     rec, _ = await ex.execute(call("http_request", url="http://internal.example/"))
@@ -300,10 +322,14 @@ async def test_http_blocks_redirect_to_private(tool_ctx: ToolContext, monkeypatc
 
 async def test_http_allowlist_and_truncation(tool_ctx: ToolContext, monkeypatch: Any) -> None:
     monkeypatch.setattr(
-        HttpRequest, "transport", httpx.MockTransport(lambda r: httpx.Response(200, text="z" * 5000))
+        HttpRequest,
+        "transport",
+        httpx.MockTransport(lambda r: httpx.Response(200, text="z" * 5000)),
     )
     monkeypatch.setattr(HttpRequest, "resolver", staticmethod(_public))
-    tool_ctx.settings = {"http_request": {"allowed_hosts": ["example.com"], "max_response_bytes": 100}}
+    tool_ctx.settings = {
+        "http_request": {"allowed_hosts": ["example.com"], "max_response_bytes": 100}
+    }
     ex = ToolExecutor([HttpRequest()], tool_ctx)
     rec, _ = await ex.execute(call("http_request", url="https://other.com/"))
     assert rec.status == ToolCallStatus.DENIED
@@ -324,17 +350,29 @@ async def test_github_tools_enforce_allowlist_and_open_draft_prs(
             body = json.loads(request.content)
             return httpx.Response(
                 201,
-                json={"number": 7, "title": body["title"], "html_url": "https://gh/pr/7",
-                      "state": "open", "draft": body["draft"], "head": {"ref": body["head"]},
-                      "base": {"ref": body["base"]}},
+                json={
+                    "number": 7,
+                    "title": body["title"],
+                    "html_url": "https://gh/pr/7",
+                    "state": "open",
+                    "draft": body["draft"],
+                    "head": {"ref": body["head"]},
+                    "base": {"ref": body["base"]},
+                },
             )
         if request.url.path.endswith("/comments"):
             return httpx.Response(200, json=[{"user": {"login": "bob"}, "body": "please fix"}])
         return httpx.Response(
             200,
-            json={"number": 3, "title": "Bug", "body": "It breaks", "state": "open",
-                  "html_url": "https://gh/issues/3", "labels": [{"name": "bug"}],
-                  "user": {"login": "alice"}},
+            json={
+                "number": 3,
+                "title": "Bug",
+                "body": "It breaks",
+                "state": "open",
+                "html_url": "https://gh/issues/3",
+                "labels": [{"name": "bug"}],
+                "user": {"login": "alice"},
+            },
         )
 
     monkeypatch.setattr(GitHubGetIssue, "transport", httpx.MockTransport(handler))

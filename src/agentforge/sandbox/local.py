@@ -15,6 +15,11 @@ from agentforge.sandbox.base import DEFAULT_OUTPUT_LIMIT, ExecResult, Sandbox, r
 # in particular API keys and tokens held by the AgentForge process - is dropped.
 _PASSTHROUGH_ENV = ("PATH", "LANG", "LC_ALL", "TZ", "TERM")
 
+# Defaults for every sandboxed process. Agents edit and re-run code within the
+# same second; Python's mtime-based bytecode cache can then serve stale code
+# (same size, same mtime second), so bytecode writing is disabled.
+SANDBOX_ENV_DEFAULTS = {"PYTHONDONTWRITEBYTECODE": "1", "PYTHONUNBUFFERED": "1"}
+
 
 async def run_process(
     argv: list[str],
@@ -108,6 +113,7 @@ class LocalSandbox(Sandbox):
             raise SandboxError("empty command")
         workdir = self.workspace.resolve(cwd)
         child_env = {k: os.environ[k] for k in _PASSTHROUGH_ENV if k in os.environ}
+        child_env.update(SANDBOX_ENV_DEFAULTS)
         child_env["HOME"] = str(self.workspace.root)
         child_env.update(env or {})
         return await run_process(

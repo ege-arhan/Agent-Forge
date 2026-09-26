@@ -265,6 +265,7 @@ def _run_values(run: Run) -> dict[str, Any]:
         "score": run.evaluation.score if run.evaluation else None,
         "provider": run.config.model.provider,
         "model": run.config.model.model,
+        "evaluators": run.evaluators,
     }
 
 
@@ -290,6 +291,7 @@ def _run(row: RunRow) -> Run:
             "workspace": row.workspace,
             "labels": row.labels,
             "parent_run_id": row.parent_run_id,
+            "evaluators": row.evaluators or [],
         }
     )
 

@@ -1,0 +1,13 @@
+# A local model served by Ollama (or any OpenAI-compatible server: vLLM,
+# LM Studio, llama.cpp). No API key needed. Pull a tool-calling model first,
+# e.g. `ollama pull <model>`, and set model.model accordingly.
+name: local-agent
+model:
+  provider: local
+  model: YOUR_LOCAL_MODEL
+  base_url: http://localhost:11434/v1
+tools: [filesystem, terminal]
+limits:
+  max_steps: 20
+sandbox:
+  kind: local

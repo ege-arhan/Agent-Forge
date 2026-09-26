@@ -1,0 +1,21 @@
+# Agent that turns a GitHub issue into a draft pull request.
+# Used by `agentforge github solve`. Requires GITHUB_TOKEN with repo scope
+# and a provider key. The PR is always opened as a draft for human review;
+# AgentForge never merges.
+name: github-issue-solver
+model:
+  provider: anthropic
+  model: claude-opus-5
+  max_tokens: 16000
+system_prompt: |
+  You are fixing a GitHub issue in a checked-out repository. Read the issue,
+  explore the code, implement a focused fix with tests where appropriate, run
+  the test suite, and commit your change with a descriptive message. Do not
+  push or open pull requests yourself; AgentForge handles that after review
+  of your commit.
+tools: [filesystem, terminal, git]
+limits:
+  max_steps: 40
+  timeout_seconds: 1800
+sandbox:
+  kind: docker

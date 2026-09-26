@@ -1,0 +1,9 @@
+# Any model hosted on OpenRouter (OpenAI-compatible API).
+# Requires: pip install 'agentforge[openai]' and OPENROUTER_API_KEY.
+name: openrouter-agent
+model:
+  provider: openrouter
+  model: YOUR_OPENROUTER_MODEL_ID   # e.g. vendor/model-name from openrouter.ai/models
+tools: [filesystem, terminal]
+sandbox:
+  kind: docker

@@ -1,0 +1,9 @@
+# Google Gemini through its OpenAI-compatible endpoint.
+# Requires: pip install 'agentforge[openai]' and GEMINI_API_KEY.
+name: gemini-agent
+model:
+  provider: gemini
+  model: YOUR_GEMINI_MODEL
+tools: [filesystem, terminal]
+sandbox:
+  kind: docker

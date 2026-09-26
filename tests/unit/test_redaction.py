@@ -43,7 +43,9 @@ def test_from_environment_picks_credential_like_names() -> None:
     redactor = Redactor.from_environment(
         {"MY_API_KEY": "value-1234567", "HOME": "/home/someone-long"}
     )
-    assert redactor.redact_text("value-1234567 /home/someone-long") == f"{REDACTED} /home/someone-long"
+    assert (
+        redactor.redact_text("value-1234567 /home/someone-long") == f"{REDACTED} /home/someone-long"
+    )
 
 
 def test_json_formatter_redacts_extra_fields() -> None:

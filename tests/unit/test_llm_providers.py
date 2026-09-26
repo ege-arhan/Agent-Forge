@@ -38,7 +38,9 @@ CONVERSATION = [
     Message(
         role=Role.ASSISTANT,
         content=[
-            ProviderPart(provider="anthropic", data={"type": "thinking", "thinking": "", "signature": "s"}),
+            ProviderPart(
+                provider="anthropic", data={"type": "thinking", "thinking": "", "signature": "s"}
+            ),
             TextPart(text="Reading."),
             ToolUsePart(id="tu_1", name="read_file", arguments={"path": "a.txt"}),
         ],
@@ -73,10 +75,16 @@ def test_to_anthropic_messages_translates_all_parts() -> None:
     assistant = out[1]["content"]
     assert assistant[0]["type"] == "thinking"  # opaque block echoed back unchanged
     assert assistant[2] == {
-        "type": "tool_use", "id": "tu_1", "name": "read_file", "input": {"path": "a.txt"}
+        "type": "tool_use",
+        "id": "tu_1",
+        "name": "read_file",
+        "input": {"path": "a.txt"},
     }
     assert out[2]["content"][0] == {
-        "type": "tool_result", "tool_use_id": "tu_1", "content": "hello", "is_error": False
+        "type": "tool_result",
+        "tool_use_id": "tu_1",
+        "content": "hello",
+        "is_error": False,
     }
 
 
@@ -133,8 +141,13 @@ async def test_anthropic_complete_parses_tool_use_and_usage() -> None:
 
 @pytest.mark.parametrize(
     ("status", "retryable", "code"),
-    [(429, True, "rate_limit"), (500, True, "api_status"), (529, True, "api_status"),
-     (400, False, "api_status"), (401, False, "authentication")],
+    [
+        (429, True, "rate_limit"),
+        (500, True, "api_status"),
+        (529, True, "api_status"),
+        (400, False, "api_status"),
+        (401, False, "authentication"),
+    ],
 )
 async def test_anthropic_errors_are_classified(status: int, retryable: bool, code: str) -> None:
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -170,7 +183,8 @@ def test_to_openai_messages_splits_tool_results() -> None:
     out = to_openai_messages("sys", CONVERSATION)
     assert out[0] == {"role": "system", "content": "sys"}
     assert out[2]["tool_calls"][0]["function"] == {
-        "name": "read_file", "arguments": json.dumps({"path": "a.txt"})
+        "name": "read_file",
+        "arguments": json.dumps({"path": "a.txt"}),
     }
     assert out[3] == {"role": "tool", "tool_call_id": "tu_1", "content": "hello"}
 
@@ -215,7 +229,9 @@ async def test_openai_complete_parses_tool_calls() -> None:
 
     provider = OpenAICompatibleProvider(PRESETS["openai"], client=openai_client(handler))
     response = await provider.complete(
-        CompletionRequest(model="gpt-test", messages=[Message.user("hi")], tools=TOOLS, max_tokens=50)
+        CompletionRequest(
+            model="gpt-test", messages=[Message.user("hi")], tools=TOOLS, max_tokens=50
+        )
     )
     assert seen["body"]["max_completion_tokens"] == 50
     assert seen["body"]["tools"][0]["function"]["name"] == "read_file"
@@ -234,9 +250,17 @@ async def test_openai_compat_presets_use_max_tokens_param() -> None:
         return httpx2.Response(
             200,
             json={
-                "id": "x", "object": "chat.completion", "created": 1, "model": "m",
-                "choices": [{"index": 0, "finish_reason": "stop",
-                             "message": {"role": "assistant", "content": "done"}}],
+                "id": "x",
+                "object": "chat.completion",
+                "created": 1,
+                "model": "m",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "done"},
+                    }
+                ],
             },
         )
 
@@ -294,7 +318,12 @@ def test_local_provider_needs_no_key() -> None:
 # ----------------------------------------------------------------------- scripted
 async def test_scripted_provider_replays_turns() -> None:
     provider = ScriptedProvider.from_options(
-        {"turns": [{"text": "a", "tool_calls": [{"name": "t", "arguments": {"x": 1}}]}, {"text": "b"}]}
+        {
+            "turns": [
+                {"text": "a", "tool_calls": [{"name": "t", "arguments": {"x": 1}}]},
+                {"text": "b"},
+            ]
+        }
     )
     history = [Message.user("goal")]
     first = await provider.complete(CompletionRequest(model="", messages=history))
@@ -307,9 +336,14 @@ async def test_scripted_provider_replays_turns() -> None:
 
 async def test_scripted_rules_select_by_goal() -> None:
     provider = ScriptedProvider.from_options(
-        {"turns": [{"text": "default"}], "rules": [{"when": "special", "turns": [{"text": "rule"}]}]}
+        {
+            "turns": [{"text": "default"}],
+            "rules": [{"when": "special", "turns": [{"text": "rule"}]}],
+        }
     )
-    special = await provider.complete(CompletionRequest(model="", messages=[Message.user("a special goal")]))
+    special = await provider.complete(
+        CompletionRequest(model="", messages=[Message.user("a special goal")])
+    )
     other = await provider.complete(CompletionRequest(model="", messages=[Message.user("other")]))
     assert (special.message.text, other.message.text) == ("rule", "default")
 
@@ -326,7 +360,9 @@ async def test_scripted_error_turn_then_recovers() -> None:
 
 async def test_scripted_exhausted_modes() -> None:
     finish = ScriptedProvider.from_options({"turns": []})
-    assert (await finish.complete(CompletionRequest(model="", messages=[Message.user("g")]))).message.text
+    assert (
+        await finish.complete(CompletionRequest(model="", messages=[Message.user("g")]))
+    ).message.text
     error = ScriptedProvider.from_options({"turns": [], "on_exhausted": "error"})
     with pytest.raises(LLMError):
         await error.complete(CompletionRequest(model="", messages=[Message.user("g")]))
