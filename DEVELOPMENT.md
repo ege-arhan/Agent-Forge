@@ -58,6 +58,22 @@ Review the generated file (JSONB variants need `sa.Text()`), then run the
 tests: `tests/integration/test_migrations.py` fails if models and migrations
 diverge (on SQLite locally and on PostgreSQL in CI).
 
+## Releasing
+
+1. Bump the version in `pyproject.toml`, `src/agentforge/__init__.py` and
+   `web/package.json` (a unit test enforces that they match).
+2. Move the `## [Unreleased]` entries in `CHANGELOG.md` under
+   `## [X.Y.Z] - YYYY-MM-DD`.
+3. Merge, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+`.github/workflows/release.yml` then verifies the version strings, builds the
+wheel and sdist, publishes `agentforge-api`, `agentforge-web` and
+`agentforge-sandbox` images to GHCR (`ghcr.io/<owner>/...:X.Y.Z` and `:X.Y`),
+and creates a **draft** GitHub release with the changelog section and
+distribution files attached. A maintainer reviews and publishes the draft.
+PyPI publishing is not configured (it needs a trusted publisher set up by the
+repository owner).
+
 ## Adding things
 
 - **Tool:** subclass `Tool[YourInput]` (see `tools/builtin/filesystem.py`),

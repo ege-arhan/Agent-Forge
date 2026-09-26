@@ -2,7 +2,7 @@
 
 Date: 2026-09-26
 
-Current milestone: 14 — CI/CD & developer experience (0–13 complete)
+Current milestone: 15 — Public beta (Milestones 0–14 complete)
 
 Latest work branch: `claude/focused-newton-j0z9l1` (no `main` branch exists
 yet; see "Known issues").
@@ -23,7 +23,7 @@ Implemented:
 - See CHANGELOG.md [Unreleased] and TASKS.md "Done".
 
 Tests:
-- Python: 183 tests (unit, integration, e2e, docker) passing.
+- Python: 185 tests (unit, integration, e2e, docker) passing.
 - Integration + e2e also pass against PostgreSQL 16.
 - Docker sandbox tests pass against Docker 29.
 - Dashboard: ESLint, `tsc --noEmit`, 10 unit tests (node:test), production
@@ -47,7 +47,7 @@ Technical debt:
 - `service.py` executes work in-process (fine for one node).
 
 Next priority:
-- T-014c release automation, then T-015b public beta readiness.
+- T-015b public beta readiness (CONTRIBUTING, templates, walkthrough, v0.2.0).
 
 Project health:
 - Green locally across backend and dashboard.

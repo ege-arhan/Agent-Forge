@@ -9,16 +9,9 @@ _None open. Continue with P1 in roadmap order._
 
 ## P1 — Important
 
-### T-014c Release automation
-- **Status:** todo
-- **Description:** tag-triggered workflow that builds the wheel/sdist and
-  container images, publishes images to GHCR (and optionally PyPI with
-  trusted publishing), and drafts GitHub release notes from CHANGELOG.md.
-  Publishing requires owner approval of registries/credentials.
-
 ### T-015b Public beta readiness
 - **Status:** todo
-- **Dependencies:** T-013b, T-014c
+- **Dependencies:** none (T-013b, T-014c done)
 - **Description:** end-to-end demo script/video instructions, getting-started
   walkthrough verified from a clean machine, docs review against actual
   behaviour, issue/PR templates, CONTRIBUTING.md, version 0.2.0 tag.
@@ -85,6 +78,7 @@ _None open. Continue with P1 in roadmap order._
 | T-014a | CI green on GitHub | CI (lint, mypy, tests 3.12/3.13, PostgreSQL, Docker sandbox, dashboard, image builds) and Security (pip-audit, ruff S, gitleaks, CodeQL) all passing |
 | T-012 | OpenTelemetry + metrics | `agentforge[otel]`, run → step → chat/execute_tool spans with GenAI attributes from recorded timestamps (no args/outputs exported), `AGENTFORGE_OTEL_ENABLED`; `/api/v1/metrics` Prometheus text; tested with in-memory exporter |
 | T-014b | Database migrations | Alembic env + initial revision, automatic upgrade in API/CLI, `db upgrade`/`db current`, legacy-DB detection, model/migration drift test on SQLite + PostgreSQL, packaged in wheel |
+| T-014c | Release automation | tag-triggered workflow: version check, wheel/sdist, GHCR images (api/web/sandbox), draft GitHub release with CHANGELOG notes; `scripts/release_notes.py` + tests. PyPI publishing needs owner-configured trusted publisher |
 | T-013b | Sandbox egress control | operator networks + `sandbox.proxy`, allowlisting egress proxy (stdlib, `python -m agentforge.sandbox.egress_proxy`), `sandbox.runtime` (gVisor), policy allowlists, Compose recipe; unit tests + real-Docker test (allowed host reachable, others 403, no direct route) |
 | T-013a | API hardening | server policy for submitted configs/evaluators (credential exfiltration, SSRF, arbitrary imports, sandbox), body size limit, per-client rate limit, queue cap, security headers, audit log; 18 tests |
 | T-010b | GitHub API + dashboard | `/github/status`, repo, issues, tasks (background workflow with pre-created run); Repositories and GitHub tasks pages; e2e tested with mocked GitHub + local bare remote |

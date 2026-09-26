@@ -44,6 +44,7 @@ All notable changes are documented here. The format follows
   endpoint.
 - Alembic database migrations applied automatically by the API and CLI;
   `agentforge db upgrade` / `agentforge db current`.
+- Tag-triggered release workflow (draft GitHub release, GHCR images).
 - Example agents, starter benchmark suite and experiments.
 
 ### Security

@@ -20,13 +20,13 @@ latest session report and `TASKS.md` for task-level detail).
 | 11 | Web dashboard | ✅ Done — enhancements tracked in T-011b |
 | 12 | Observability (structured logs, events/SSE, OpenTelemetry traces, Prometheus metrics) | ✅ Done |
 | 13 | Security hardening (API policy, limits, audit, sandbox egress control, gVisor option) | ✅ Done — see SECURITY.md limitations |
-| 14 | CI/CD and developer experience | 🟡 CI + security green on GitHub, Alembic migrations done; release automation pending |
+| 14 | CI/CD and developer experience (CI, security scans, migrations, release workflow) | ✅ Done |
 | 15 | Public beta | ⏳ Planned |
 | 16 | Portfolio-quality release (screenshots, demo, polished docs) | ⏳ Planned |
 
 ## Next up (in order)
 
-1. Release workflow and container publishing (M14, T-014c).
-2. Public beta readiness (M15, T-015b).
+1. Public beta readiness (M15, T-015b): CONTRIBUTING, templates, clean-machine
+   walkthrough, docs review, v0.2.0.
 3. Public beta checklist (M15).
 4. Real-model benchmark results with methodology (needs keys; T-009b).
