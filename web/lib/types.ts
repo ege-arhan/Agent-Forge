@@ -276,6 +276,11 @@ export interface BenchmarkRun {
   experiment_id: string | null;
   variant: string | null;
   environment: Record<string, unknown>;
+  agent_id?: string | null;
+  agent_version?: number | null;
+  result_class?: ResultClass;
+  /** Snapshot of the suite definition the run used. */
+  suite: { id: string; name: string; version: string };
 }
 
 export interface VariantResult {
@@ -354,4 +359,141 @@ export interface Health {
   status: string;
   version: string;
   database: string;
+}
+
+// ------------------------------------------------------------ improvement loop
+
+/** Offline (scripted provider) and real-model results are never mixed. */
+export type ResultClass = "offline" | "real";
+
+export type AgentVersionSource = "created" | "updated" | "improvement" | "revert";
+
+export interface AgentVersion {
+  agent_id: string;
+  version: number;
+  config: AgentConfig;
+  source: AgentVersionSource;
+  change_summary: string;
+  improvement_id: string | null;
+  parent_version: number | null;
+  created_at: string;
+}
+
+export interface TaskFailure {
+  task_id: string;
+  repeat: number;
+  run_id: string;
+  category: string;
+  secondary: string[];
+  summary: string;
+  evidence: string[];
+}
+
+export interface FailureAnalysis {
+  benchmark_run_id: string;
+  suite_id: string;
+  suite_version: string;
+  result_class: ResultClass;
+  agent_name: string;
+  agent_id: string | null;
+  agent_version: number | null;
+  runs: number;
+  passed: number;
+  failed: number;
+  categories: Record<string, number>;
+  tool_issues: Record<string, Record<string, number>>;
+  tasks: { task_id: string; runs: number; passed: number; categories: Record<string, number> }[];
+  failures: TaskFailure[];
+}
+
+export interface ProposedChange {
+  id: string;
+  path: string;
+  operation: "set" | "append";
+  value: unknown;
+  current: unknown;
+  rationale: string;
+  addresses: string[];
+  evidence: string[];
+}
+
+export interface ImprovementProposal {
+  proposer: string;
+  changes: ProposedChange[];
+  notes: string[];
+}
+
+export type Verdict = "improved" | "regressed" | "unchanged" | "inconclusive" | "not_comparable";
+
+export interface ComparisonSide {
+  benchmark_run_id: string;
+  agent_name: string;
+  agent_version: number | null;
+  provider: string;
+  model: string;
+  runs: number;
+  passed: number;
+  pass_rate: number;
+  pass_rate_ci95: [number, number] | null;
+  mean_score: number;
+  mean_steps: number | null;
+  mean_duration_seconds: number | null;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cost_usd: number | null;
+}
+
+export interface BenchmarkComparison {
+  baseline_id: string;
+  candidate_id: string;
+  suite_id: string;
+  suite_version: string;
+  result_class: ResultClass;
+  comparable: boolean;
+  reasons: string[];
+  notes: string[];
+  baseline: ComparisonSide | null;
+  candidate: ComparisonSide | null;
+  pass_rate_delta: number | null;
+  mean_score_delta: number | null;
+  mean_steps_delta: number | null;
+  significant: boolean;
+  verdict: Verdict;
+  tasks: {
+    task_id: string;
+    baseline_passed: number;
+    baseline_runs: number;
+    candidate_passed: number;
+    candidate_runs: number;
+    pass_rate_delta: number;
+    change: "fixed" | "broken" | "better" | "worse" | "unchanged";
+  }[];
+  categories: { category: string; baseline: number; candidate: number }[];
+}
+
+export type CycleStatus = "proposed" | "applied" | "evaluating" | "evaluated" | "rejected" | "failed";
+
+export interface ImprovementCycle {
+  id: string;
+  agent_id: string;
+  agent_name: string;
+  status: CycleStatus;
+  suite_id: string;
+  suite_version: string;
+  result_class: ResultClass;
+  task_ids: string[];
+  repeats: number;
+  from_version: number;
+  to_version: number | null;
+  reverted_to_version: number | null;
+  baseline_benchmark_run_id: string;
+  candidate_benchmark_run_id: string | null;
+  analysis: FailureAnalysis;
+  proposal: ImprovementProposal;
+  applied_change_ids: string[];
+  comparison: BenchmarkComparison | null;
+  notes: string;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
 }
