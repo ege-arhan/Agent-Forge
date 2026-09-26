@@ -20,6 +20,7 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --extra all --no-install-project
 COPY src ./src
 COPY examples ./examples
+COPY dogfood ./dogfood
 RUN uv sync --frozen --no-dev --extra all
 
 RUN useradd --create-home --uid 10001 agentforge \
@@ -29,7 +30,7 @@ USER agentforge
 
 ENV PATH=/app/.venv/bin:$PATH \
     AGENTFORGE_DATA_DIR=/data \
-    AGENTFORGE_BENCHMARKS_DIR=/app/examples/benchmarks
+    AGENTFORGE_BENCHMARKS_DIR=/app/examples/benchmarks:/app/dogfood/benchmarks
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \

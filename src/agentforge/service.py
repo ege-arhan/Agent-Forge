@@ -20,7 +20,7 @@ from typing import Any
 
 import httpx
 
-from agentforge.benchmarks.runner import BenchmarkRun, BenchmarkRunner
+from agentforge.benchmarks.runner import BenchmarkRun, BenchmarkRunner, environment_info
 from agentforge.benchmarks.spec import BenchmarkSuite
 from agentforge.core.config import AgentConfig
 from agentforge.core.errors import CapacityError
@@ -28,6 +28,8 @@ from agentforge.core.ids import utcnow
 from agentforge.core.models import ErrorInfo, Run, RunStatus
 from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.experiments import Experiment, ExperimentRunner, ExperimentSpec
+from agentforge.improvement.cycle import ImprovementCycle
+from agentforge.improvement.loop import ImprovementLoop
 from agentforge.policy import ServerPolicy
 from agentforge.runtime.agent import AgentRuntime
 from agentforge.runtime.events import EventBroadcaster, LoggingObserver, RunObserver
@@ -59,6 +61,7 @@ class AgentForgeService:
         self.recorder = StorageRecorder(db, extra_observers=extra)
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_runs)
         self.policy = ServerPolicy(settings)
+        self.improvements = ImprovementLoop(db, policy=self.policy)
         self._tasks: dict[str, asyncio.Task[Any]] = {}
         self._runtimes: dict[str, AgentRuntime] = {}
         # Test/mirror hooks (never exposed through the API: the GitHub token is
@@ -81,6 +84,14 @@ class AgentForgeService:
         interrupted = await self.runs.mark_interrupted()
         if interrupted:
             logger.warning("marked %d interrupted runs as failed", interrupted)
+        benchmarks = await self.recorder.benchmarks.mark_interrupted()
+        cycles = await self.improvements.cycles.mark_interrupted()
+        if benchmarks or cycles:
+            logger.warning(
+                "marked %d interrupted benchmark runs and %d improvement evaluations as failed",
+                benchmarks,
+                cycles,
+            )
 
     async def shutdown(self) -> None:
         for runtime in self._runtimes.values():
@@ -181,6 +192,8 @@ class AgentForgeService:
         *,
         repeats: int | None = None,
         task_ids: list[str] | None = None,
+        agent_id: str | None = None,
+        agent_version: int | None = None,
     ) -> BenchmarkRun:
         self.policy.check_agent(config)
         self._admit()
@@ -194,6 +207,9 @@ class AgentForgeService:
             agent_config=config,
             suite=suite,
             repeats=repeats or suite.repeats,
+            environment=environment_info(config),
+            agent_id=agent_id,
+            agent_version=agent_version,
         )
         await self.recorder.save_benchmark(bench)
 
@@ -226,6 +242,31 @@ class AgentForgeService:
 
         self._spawn(experiment.id, _execute())
         return experiment
+
+    async def start_improvement_evaluation(self, cycle_id: str) -> ImprovementCycle:
+        """Benchmark an improvement cycle's new agent version in the background."""
+        self._admit()
+        loop = self.improvements
+        cycle, bench, config = await loop.start_evaluation(cycle_id)
+
+        async def _execute() -> None:
+            async with self._semaphore:
+                try:
+                    result = await self._benchmark_runner().run(
+                        bench.suite,
+                        config,
+                        repeats=cycle.repeats,
+                        task_ids=cycle.task_ids,
+                        bench=bench,
+                    )
+                except Exception as exc:
+                    logger.exception("improvement evaluation %s failed", cycle.id)
+                    await loop.finish_evaluation(cycle, None, f"{type(exc).__name__}: {exc}")
+                    return
+                await loop.finish_evaluation(cycle, result)
+
+        self._spawn(cycle.id, _execute())
+        return cycle
 
     # ----------------------------------------------------------------- github
     def github_token(self) -> str | None:

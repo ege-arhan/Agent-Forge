@@ -191,12 +191,31 @@ async def cmd_bench_run(args: argparse.Namespace) -> int:
     settings = get_settings()
     suite = load_suite(args.suite)
     config = load_agent_config(args.agent)
+    if args.no_db and (args.save_agent or args.report):
+        print("error: --save-agent and --report need the database", file=sys.stderr)
+        return EXIT_USAGE
     db = None if args.no_db else await _open_db(settings)
     recorder = StorageRecorder(db) if db is not None else None
     try:
+        agent = None
+        if db is not None and args.save_agent:
+            from agentforge.storage import AgentRepository
+
+            agent = await AgentRepository(db).register(config)
+            print(f"agent {agent.name} v{agent.version} ({agent.id})", file=sys.stderr)
         bench = await BenchmarkRunner(
             settings, recorder=recorder, concurrency=args.concurrency
-        ).run(suite, config, repeats=args.repeats, task_ids=args.task or None)
+        ).run(
+            suite,
+            config,
+            repeats=args.repeats,
+            task_ids=args.task or None,
+            agent_id=agent.id if agent else None,
+            agent_version=agent.version if agent else None,
+        )
+        if db is not None and args.report:
+            path = await _save_report(db, bench.id, Path(args.report))
+            print(f"report: {path}", file=sys.stderr)
     finally:
         if db is not None:
             await db.dispose()
@@ -206,6 +225,7 @@ async def cmd_bench_run(args: argparse.Namespace) -> int:
     s = bench.summary
     print(
         f"benchmark {bench.id}  suite={suite.id}  agent={config.name}  status={bench.status.value}"
+        f"  results={bench.result_class.value.upper()}"
     )
     header = ("task", "repeat", "status", "pass", "score", "steps", "time")
     print("{:<28} {:>6} {:<10} {:<5} {:>6} {:>5} {:>7}".format(*header))
@@ -229,11 +249,63 @@ async def cmd_bench_run(args: argparse.Namespace) -> int:
     return EXIT_OK if bench.status == RunStatus.SUCCEEDED else EXIT_FAILED
 
 
+async def _report(db: Any, bench_id: str) -> Any:
+    from agentforge.benchmarks.report import build_report
+    from agentforge.storage import RunRepository
+    from agentforge.storage.tracking import BenchmarkRepository
+
+    bench = await BenchmarkRepository(db).get(bench_id)
+    page = await RunRepository(db).list(benchmark_run_id=bench.id, limit=len(bench.results) + 50)
+    return build_report(bench, {run.id: run for run in page.items})
+
+
+async def _save_report(db: Any, bench_id: str, root: Path) -> Path:
+    from agentforge.benchmarks.report import save_report
+
+    return save_report(root, await _report(db, bench_id))
+
+
+async def cmd_bench_report(args: argparse.Namespace) -> int:
+    from agentforge.benchmarks.report import render_markdown, save_report
+    from agentforge.settings import get_settings
+
+    db = await _open_db(get_settings())
+    try:
+        report = await _report(db, args.benchmark_run_id)
+    finally:
+        await db.dispose()
+    if args.out:
+        print(save_report(Path(args.out), report))
+    elif args.json:
+        print(report.model_dump_json(indent=2))
+    else:
+        print(render_markdown(report))
+    return EXIT_OK
+
+
+async def cmd_bench_compare(args: argparse.Namespace) -> int:
+    from agentforge.improvement.loop import ImprovementLoop
+    from agentforge.settings import get_settings
+
+    db = await _open_db(get_settings())
+    try:
+        comparison = await ImprovementLoop(db).compare(args.baseline, args.candidate)
+    finally:
+        await db.dispose()
+    if args.json:
+        print(comparison.model_dump_json(indent=2))
+    else:
+        from agentforge.improvement.cli import print_comparison
+
+        print_comparison(comparison)
+    return EXIT_OK if comparison.comparable else EXIT_FAILED
+
+
 def cmd_bench_list(args: argparse.Namespace) -> int:
     from agentforge.benchmarks import discover_suites
     from agentforge.settings import get_settings
 
-    directory = args.dir or get_settings().benchmarks_dir
+    directory = args.dir or get_settings().benchmark_dirs
     for suite_id, (path, suite) in discover_suites(directory).items():
         print(f"{suite_id:<24} {len(suite.tasks):>3} tasks  {path}  {suite.name}")
     return EXIT_OK
@@ -327,9 +399,7 @@ async def cmd_agents_create(args: argparse.Namespace) -> int:
     config = load_agent_config(args.file)
     db = await _open_db(get_settings())
     try:
-        repo = AgentRepository(db)
-        existing = await repo.get_by_name(config.name)
-        agent = await repo.update(existing.id, config) if existing else await repo.create(config)
+        agent = await AgentRepository(db).register(config)
     finally:
         await db.dispose()
     print(f"{agent.id}  {agent.name}  v{agent.version}")
@@ -445,7 +515,25 @@ def build_parser() -> argparse.ArgumentParser:
     bench_run.add_argument("-c", "--concurrency", type=int, default=1)
     bench_run.add_argument("--json", action="store_true")
     bench_run.add_argument("--no-db", action="store_true")
+    bench_run.add_argument(
+        "--save-agent",
+        action="store_true",
+        help="store the agent (new version if its config changed) and link the benchmark to it",
+    )
+    bench_run.add_argument(
+        "--report", metavar="DIR", help="write a JSON+Markdown report under DIR/<offline|real>/"
+    )
     bench_run.set_defaults(handler=cmd_bench_run)
+    bench_report = bench.add_parser("report", help="result report of a stored benchmark run")
+    bench_report.add_argument("benchmark_run_id")
+    bench_report.add_argument("--out", metavar="DIR", help="save under DIR/<offline|real>/")
+    bench_report.add_argument("--json", action="store_true")
+    bench_report.set_defaults(handler=cmd_bench_report)
+    bench_compare = bench.add_parser("compare", help="compare two runs of the same suite")
+    bench_compare.add_argument("baseline")
+    bench_compare.add_argument("candidate")
+    bench_compare.add_argument("--json", action="store_true")
+    bench_compare.set_defaults(handler=cmd_bench_compare)
     bench_list = bench.add_parser("list", help="list suites in a directory")
     bench_list.add_argument("dir", nargs="?")
     bench_list.set_defaults(handler=cmd_bench_list)
@@ -489,8 +577,10 @@ def build_parser() -> argparse.ArgumentParser:
     db.add_parser("init", help="alias for upgrade").set_defaults(handler=cmd_db_upgrade)
     db.add_parser("current", help="show the schema revision").set_defaults(handler=cmd_db_current)
 
+    from agentforge.improvement.cli import register as register_improve
     from agentforge.integrations.github.cli import register as register_github
 
+    register_improve(sub)
     register_github(sub)
     return parser
 

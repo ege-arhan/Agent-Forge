@@ -27,6 +27,7 @@ from sqlalchemy import (
     String,
     Text,
     TypeDecorator,
+    UniqueConstraint,
     event,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -82,6 +83,23 @@ class AgentRow(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(_tz())
     updated_at: Mapped[datetime] = mapped_column(_tz())
+
+
+class AgentVersionRow(Base):
+    __tablename__ = "agent_versions"
+    __table_args__ = (UniqueConstraint("agent_id", "version", name="uq_agent_versions_version"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("agents.id", ondelete="CASCADE"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer)
+    config: Mapped[dict[str, Any]] = mapped_column(JSONType)
+    source: Mapped[str] = mapped_column(String(16))
+    change_summary: Mapped[str] = mapped_column(Text, default="")
+    improvement_id: Mapped[str | None] = mapped_column(String(64))
+    parent_version: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(_tz())
 
 
 class RunRow(Base):
@@ -167,6 +185,11 @@ class BenchmarkRunRow(Base):
     experiment_id: Mapped[str | None] = mapped_column(String(64), index=True)
     variant: Mapped[str | None] = mapped_column(String(128))
     environment: Mapped[dict[str, Any]] = mapped_column(JSONType)
+    agent_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("agents.id", ondelete="SET NULL"), index=True
+    )
+    agent_version: Mapped[int | None] = mapped_column(Integer)
+    result_class: Mapped[str] = mapped_column(String(16), index=True, default="real")
 
 
 class ExperimentRow(Base):
@@ -180,6 +203,25 @@ class ExperimentRow(Base):
     finished_at: Mapped[datetime | None] = mapped_column(_tz())
     spec: Mapped[dict[str, Any]] = mapped_column(JSONType)
     summary: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+
+
+class ImprovementCycleRow(Base):
+    __tablename__ = "improvement_cycles"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    agent_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("agents.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(16))
+    suite_id: Mapped[str] = mapped_column(String(128))
+    result_class: Mapped[str] = mapped_column(String(16))
+    from_version: Mapped[int] = mapped_column(Integer)
+    to_version: Mapped[int | None] = mapped_column(Integer)
+    baseline_benchmark_run_id: Mapped[str] = mapped_column(String(64))
+    candidate_benchmark_run_id: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(_tz(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(_tz())
+    data: Mapped[dict[str, Any]] = mapped_column(JSONType)
 
 
 class Database:

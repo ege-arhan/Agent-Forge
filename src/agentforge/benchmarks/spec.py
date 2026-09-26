@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
@@ -101,13 +102,25 @@ def load_suite(path: str | Path) -> BenchmarkSuite:
         raise BenchmarkError(f"invalid benchmark suite {path}: {exc}") from exc
 
 
-def discover_suites(directory: str | Path) -> dict[str, tuple[Path, BenchmarkSuite]]:
-    """Load every ``*.yaml``/``*.yml`` suite in a directory, keyed by suite id."""
+def discover_suites(
+    directories: str | Path | Sequence[str | Path],
+) -> dict[str, tuple[Path, BenchmarkSuite]]:
+    """Load every ``*.yaml``/``*.yml`` suite in one or more directories, keyed by suite id.
+
+    Suite ids must be unique across directories.
+    """
+    if isinstance(directories, str | Path):
+        directories = [directories]
     found: dict[str, tuple[Path, BenchmarkSuite]] = {}
-    root = Path(directory)
-    if not root.is_dir():
-        return found
-    for path in sorted([*root.glob("*.yaml"), *root.glob("*.yml")]):
-        suite = load_suite(path)
-        found[suite.id] = (path, suite)
+    for directory in directories:
+        root = Path(directory)
+        if not root.is_dir():
+            continue
+        for path in sorted([*root.glob("*.yaml"), *root.glob("*.yml")]):
+            suite = load_suite(path)
+            if suite.id in found:
+                raise BenchmarkError(
+                    f"duplicate benchmark suite id '{suite.id}' in {found[suite.id][0]} and {path}"
+                )
+            found[suite.id] = (path, suite)
     return found

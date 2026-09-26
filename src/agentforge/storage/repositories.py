@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -11,10 +12,11 @@ from sqlalchemy import case, delete, func, select
 from agentforge.core.config import AgentConfig
 from agentforge.core.errors import NotFoundError
 from agentforge.core.ids import utcnow
-from agentforge.core.models import Agent, Run, RunStatus
+from agentforge.core.models import Agent, AgentVersion, AgentVersionSource, Run, RunStatus
 from agentforge.memory.base import MemoryRecord, MemoryScope, MemoryStore
 from agentforge.storage.db import (
     AgentRow,
+    AgentVersionRow,
     Database,
     MemoryRow,
     RunRow,
@@ -34,10 +36,12 @@ def _dump(model: Any) -> Any:
 
 
 class AgentRepository:
+    """Stored agents. Every create/update also records an immutable version snapshot."""
+
     def __init__(self, db: Database) -> None:
         self.db = db
 
-    async def create(self, config: AgentConfig) -> Agent:
+    async def create(self, config: AgentConfig, *, change_summary: str = "") -> Agent:
         agent = Agent(config=config)
         async with self.db.transaction() as session:
             existing = await session.scalar(select(AgentRow.id).where(AgentRow.name == config.name))
@@ -54,25 +58,77 @@ class AgentRepository:
                     updated_at=agent.updated_at,
                 )
             )
+            await session.flush()
+            session.add(
+                _version_row(
+                    AgentVersion(
+                        agent_id=agent.id,
+                        version=agent.version,
+                        config=config,
+                        source=AgentVersionSource.CREATED,
+                        change_summary=change_summary,
+                        created_at=agent.created_at,
+                    )
+                )
+            )
         return agent
 
-    async def update(self, agent_id: str, config: AgentConfig) -> Agent:
+    async def update(
+        self,
+        agent_id: str,
+        config: AgentConfig,
+        *,
+        change_summary: str = "",
+        source: AgentVersionSource = AgentVersionSource.UPDATED,
+        improvement_id: str | None = None,
+        parent_version: int | None = None,
+    ) -> Agent:
+        """Store ``config`` as a new version.
+
+        An update that does not change the configuration is a no-op and keeps
+        the current version, so re-registering the same file is reproducible.
+        """
         async with self.db.transaction() as session:
             row = await session.get(AgentRow, agent_id)
             if row is None:
                 raise NotFoundError(f"agent {agent_id} not found")
+            new_config = config.model_dump(mode="json")
+            if new_config == row.config:
+                return _agent(row)
             if config.name != row.name:
                 clash = await session.scalar(
                     select(AgentRow.id).where(AgentRow.name == config.name)
                 )
                 if clash:
                     raise ValueError(f"an agent named '{config.name}' already exists")
+            previous = row.version
             row.name = config.name
             row.description = config.description
-            row.config = config.model_dump(mode="json")
+            row.config = new_config
             row.version += 1
             row.updated_at = utcnow()
+            session.add(
+                _version_row(
+                    AgentVersion(
+                        agent_id=row.id,
+                        version=row.version,
+                        config=config,
+                        source=source,
+                        change_summary=change_summary,
+                        improvement_id=improvement_id,
+                        parent_version=parent_version if parent_version is not None else previous,
+                        created_at=row.updated_at,
+                    )
+                )
+            )
             return _agent(row)
+
+    async def register(self, config: AgentConfig, *, change_summary: str = "") -> Agent:
+        """Create the agent, or store ``config`` as its next version (no-op if unchanged)."""
+        existing = await self.get_by_name(config.name)
+        if existing is None:
+            return await self.create(config, change_summary=change_summary)
+        return await self.update(existing.id, config, change_summary=change_summary)
 
     async def get(self, agent_id: str) -> Agent:
         async with self.db.session() as session:
@@ -80,6 +136,11 @@ class AgentRepository:
         if row is None:
             raise NotFoundError(f"agent {agent_id} not found")
         return _agent(row)
+
+    async def resolve(self, ref: str) -> Agent:
+        """Look an agent up by id or name."""
+        agent = await self.get_by_name(ref)
+        return agent if agent is not None else await self.get(ref)
 
     async def get_by_name(self, name: str) -> Agent | None:
         async with self.db.session() as session:
@@ -97,6 +158,56 @@ class AgentRepository:
             if row is None:
                 raise NotFoundError(f"agent {agent_id} not found")
             await session.delete(row)
+
+    async def versions(self, agent_id: str) -> builtins.list[AgentVersion]:
+        """Version history, newest first."""
+        await self.get(agent_id)
+        async with self.db.session() as session:
+            rows = (
+                await session.scalars(
+                    select(AgentVersionRow)
+                    .where(AgentVersionRow.agent_id == agent_id)
+                    .order_by(AgentVersionRow.version.desc())
+                )
+            ).all()
+        return [_version(r) for r in rows]
+
+    async def get_version(self, agent_id: str, version: int) -> AgentVersion:
+        async with self.db.session() as session:
+            row = await session.scalar(
+                select(AgentVersionRow).where(
+                    AgentVersionRow.agent_id == agent_id, AgentVersionRow.version == version
+                )
+            )
+        if row is None:
+            raise NotFoundError(f"agent {agent_id} has no stored version {version}")
+        return _version(row)
+
+
+def _version_row(version: AgentVersion) -> AgentVersionRow:
+    return AgentVersionRow(
+        agent_id=version.agent_id,
+        version=version.version,
+        config=version.config.model_dump(mode="json"),
+        source=version.source.value,
+        change_summary=version.change_summary,
+        improvement_id=version.improvement_id,
+        parent_version=version.parent_version,
+        created_at=version.created_at,
+    )
+
+
+def _version(row: AgentVersionRow) -> AgentVersion:
+    return AgentVersion(
+        agent_id=row.agent_id,
+        version=row.version,
+        config=AgentConfig.model_validate(row.config),
+        source=AgentVersionSource(row.source),
+        change_summary=row.change_summary,
+        improvement_id=row.improvement_id,
+        parent_version=row.parent_version,
+        created_at=row.created_at,
+    )
 
 
 def _agent(row: AgentRow) -> Agent:

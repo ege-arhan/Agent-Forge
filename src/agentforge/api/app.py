@@ -13,12 +13,13 @@ from fastapi.responses import JSONResponse
 from agentforge import __version__
 from agentforge.api.deps import require_api_key
 from agentforge.api.middleware import HardeningMiddleware
-from agentforge.api.routes import agents, benchmarks, github, meta, metrics, runs
+from agentforge.api.routes import agents, benchmarks, github, improvements, meta, metrics, runs
 from agentforge.core.errors import (
     AgentForgeError,
     BenchmarkError,
     CapacityError,
     ConfigurationError,
+    ImprovementError,
     NotFoundError,
 )
 from agentforge.integrations.github.client import GitHubError
@@ -75,6 +76,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def _bad_config(request: Request, exc: AgentForgeError) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": exc.message, "code": exc.code})
 
+    @app.exception_handler(ImprovementError)
+    async def _conflict(request: Request, exc: ImprovementError) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": exc.message, "code": exc.code})
+
     @app.exception_handler(CapacityError)
     async def _capacity(request: Request, exc: CapacityError) -> JSONResponse:
         return JSONResponse(
@@ -96,6 +101,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     protected = [Depends(require_api_key)]
     app.include_router(meta.public, prefix=API_PREFIX)
-    for module in (meta, metrics, agents, runs, benchmarks, github):
+    for module in (meta, metrics, agents, runs, benchmarks, improvements, github):
         app.include_router(module.router, prefix=API_PREFIX, dependencies=protected)
     return app
