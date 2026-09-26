@@ -10,11 +10,15 @@ _None open. Continue with P1 in roadmap order._
 ## P1 — Important
 
 ### T-015b Public beta readiness
-- **Status:** todo
-- **Dependencies:** none (T-013b, T-014c done)
-- **Description:** end-to-end demo script/video instructions, getting-started
-  walkthrough verified from a clean machine, docs review against actual
-  behaviour, issue/PR templates, CONTRIBUTING.md, version 0.2.0 tag.
+- **Status:** in-progress
+- **Dependencies:** none
+- **Done:** CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates,
+  clean-clone walkthrough of the README quick start (verified), example
+  agents fixed to use the sandbox image with git/pytest, test that every
+  example config/suite/experiment stays valid.
+- **Remaining:** owner decision to cut `v0.2.0` (bump versions, move the
+  changelog section, push the tag — this publishes GHCR images and drafts a
+  release); a `main` branch / default-branch decision (see docs/STATUS.md).
 
 ### T-009b Real-model benchmark results
 - **Status:** blocked (needs API keys / budget approval from the owner)

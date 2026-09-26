@@ -7,3 +7,4 @@ model:
 tools: [filesystem, terminal]
 sandbox:
   kind: docker
+  image: agentforge-sandbox:latest   # includes git and pytest; see docker/sandbox.Dockerfile

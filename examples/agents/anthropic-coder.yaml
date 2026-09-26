@@ -22,5 +22,5 @@ memory:
   persist: true
 sandbox:
   kind: docker          # agent-generated commands run in a locked-down container
-  image: python:3.12-slim
+  image: agentforge-sandbox:latest   # docker build -f docker/sandbox.Dockerfile -t agentforge-sandbox:latest .
   network: none

@@ -19,3 +19,4 @@ limits:
   timeout_seconds: 1800
 sandbox:
   kind: docker
+  image: agentforge-sandbox:latest   # includes git and pytest; see docker/sandbox.Dockerfile

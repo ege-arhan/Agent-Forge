@@ -45,6 +45,7 @@ All notable changes are documented here. The format follows
 - Alembic database migrations applied automatically by the API and CLI;
   `agentforge db upgrade` / `agentforge db current`.
 - Tag-triggered release workflow (draft GitHub release, GHCR images).
+- CONTRIBUTING.md, code of conduct, issue and pull request templates.
 - Example agents, starter benchmark suite and experiments.
 
 ### Security
@@ -69,3 +70,5 @@ All notable changes are documented here. The format follows
 - Cancelling a run not held by the current process left `finished_at` empty.
 - The run event stream could stay open after a run finished when a slow
   client's queue was full.
+- Real-model example agents used a sandbox image without git/pytest; they now
+  use the provided `agentforge-sandbox` image.

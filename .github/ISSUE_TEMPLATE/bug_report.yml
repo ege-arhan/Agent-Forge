@@ -1,0 +1,31 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the command or API call, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: A minimal agent config / suite / command. Remove API keys and tokens.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or run record
+      description: e.g. `agentforge runs show <id> --json` (check it contains no secrets).
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `agentforge --version`, plus Python/OS and sandbox kind.
+    validations:
+      required: true

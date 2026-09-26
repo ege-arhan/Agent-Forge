@@ -23,7 +23,7 @@ Implemented:
 - See CHANGELOG.md [Unreleased] and TASKS.md "Done".
 
 Tests:
-- Python: 188 tests (unit, integration, e2e, docker) passing.
+- Python: 198 tests (unit, integration, e2e, docker) passing.
 - Integration + e2e also pass against PostgreSQL 16.
 - Docker sandbox tests pass against Docker 29.
 - Dashboard: ESLint, `tsc --noEmit`, 10 unit tests (node:test), production

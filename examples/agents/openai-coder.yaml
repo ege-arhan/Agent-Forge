@@ -12,3 +12,4 @@ limits:
   max_steps: 30
 sandbox:
   kind: docker
+  image: agentforge-sandbox:latest   # includes git and pytest; see docker/sandbox.Dockerfile

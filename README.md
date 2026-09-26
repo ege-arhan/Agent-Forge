@@ -105,10 +105,15 @@ agentforge run examples/agents/anthropic-coder.yaml \
   --eval '{"type": "command", "command": "python3 -m pytest -q"}'
 ```
 
-(`anthropic-coder.yaml` uses the Docker sandbox; build the sandbox image first
-with `docker build -f docker/sandbox.Dockerfile -t agentforge-sandbox:latest .`
-and set `sandbox.image`, or switch `sandbox.kind` to `local` for trusted
-experiments.)
+The real-model example agents run commands in the Docker sandbox using an
+image with Python, git and pytest. Build it once:
+
+```bash
+docker build -f docker/sandbox.Dockerfile -t agentforge-sandbox:latest .
+```
+
+(or switch `sandbox.kind` to `local` for trusted experiments on your own
+machine — the local sandbox provides no isolation).
 
 ## Creating an agent
 
