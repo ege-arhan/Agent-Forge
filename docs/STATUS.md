@@ -2,49 +2,54 @@
 
 Date: 2026-09-26
 
-Current milestone: 11 — Web dashboard (Milestones 0–10 core complete)
+Current milestone: 12 — Observability (Milestones 0–11 complete)
 
 Latest work branch: `claude/focused-newton-j0z9l1` (no `main` branch exists
 yet; see "Known issues").
 
 Completed:
-- M0 repository foundation (uv, ruff, mypy --strict, pytest, src layout, license)
+- M0 repository foundation (uv, ruff, mypy --strict, pytest, src layout, Apache-2.0)
 - M1 core domain models and configuration
-- M2 provider abstraction: Anthropic, OpenAI, OpenRouter, Gemini (OpenAI-compatible), local, scripted
+- M2 providers: Anthropic, OpenAI, OpenRouter, Gemini (OpenAI-compatible), local, scripted
 - M3 agent runtime (retries, timeouts, cancellation, budgets, plan_execute, evaluation retries, events)
 - M4 tool registry + executor + filesystem/terminal/git/http/github/memory tools
-- M5 sandboxes (local, hardened Docker — verified against a real daemon)
-- M6 memory (compaction, persistent memory, recall, tools)
-- M7 evaluation engine and metrics
-- M8 benchmark engine; M9 experiment tracking
-- M10 GitHub client, tools and issue → draft PR workflow (CLI); API/dashboard pages pending
+- M5 sandboxes (local; hardened Docker verified against a real daemon)
+- M6 memory; M7 evaluation; M8 benchmarks; M9 experiments
+- M10 GitHub: client, tools, issue → draft PR workflow via CLI, API and dashboard
+- M11 web dashboard (Next.js 16, TypeScript, Tailwind 4), light/dark
 - HTTP API, CLI, Docker images, Compose, CI + security workflows, docs
 
 Implemented:
 - See CHANGELOG.md [Unreleased] and TASKS.md "Done".
 
 Tests:
-- 151 tests (unit, integration, e2e, docker); all passing locally.
-- Coverage 89% (`uv run pytest --cov`).
-- Integration + e2e suites also pass against PostgreSQL 16.
-- Docker sandbox tests pass against Docker 29 (network isolation, read-only
-  root, no capabilities, env isolation, timeouts, PID limit, full agent run).
-- ruff, ruff format, mypy --strict: clean. pip-audit: no known vulnerabilities.
+- Python: 153 tests (unit, integration, e2e, docker) passing; 89% coverage.
+- Integration + e2e also pass against PostgreSQL 16.
+- Docker sandbox tests pass against Docker 29.
+- Dashboard: ESLint, `tsc --noEmit`, 10 unit tests (node:test), production
+  build; all pages rendered in Chromium (light/dark, 1440px and 390px) with no
+  console errors and no horizontal overflow.
+- ruff, ruff format, mypy --strict clean; pip-audit: no known vulnerabilities.
 
 Known issues:
-- CI workflows have not yet run on GitHub (T-014a).
-- The Dockerfile apt layer could not be verified in the dev sandbox (Debian
-  mirrors blocked); the rest of the image was built and smoke-tested.
+- No CI run has appeared on GitHub yet (T-014a) — Actions may need enabling.
+- Not verifiable in the dev sandbox: API Dockerfile apt layer (Debian mirrors
+  blocked), dashboard image (Docker Hub rate limit). CI builds both.
 - No `main` branch yet; work lives on the session branch.
 - No database migrations; schema changes require recreating the DB (T-014b).
+  This session added columns (`runs.cost_usd`, `input_tokens`,
+  `output_tokens`, `evaluators`) — delete `.agentforge/agentforge.db` if an
+  older local database exists.
 - No real-model benchmark results yet (needs API keys; T-009b).
 
 Technical debt:
-- Label-based run filtering (for GitHub tasks) not yet indexed.
-- `service.py` runs work in-process (fine for one node).
+- ESLint pinned to 9.x (eslint-plugin-react incompatible with ESLint 10).
+- Vitest cannot be installed with npm 10.9 (resolver crash); web unit tests
+  use node:test with type stripping.
+- `service.py` executes work in-process (fine for one node).
 
 Next priority:
-- T-011 web dashboard, then T-010b GitHub API/dashboard, T-012 OpenTelemetry.
+- T-014a CI on GitHub, T-012 OpenTelemetry + metrics, T-014b migrations.
 
 Project health:
-- Green locally: lint, types, 151 tests, dependency audit.
+- Green locally across backend and dashboard.

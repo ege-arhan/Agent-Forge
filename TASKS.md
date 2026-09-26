@@ -5,48 +5,21 @@ only mark `done` when implemented, tested and documented.
 
 ## P0 — Critical
 
-### T-011 Web dashboard (Milestone 11)
-- **Status:** in-progress
-- **Dependencies:** HTTP API (done)
-- **Description:** Next.js + TypeScript + Tailwind dashboard in `web/`:
-  overview (active runs, success/pass rates, recent runs, cost), agents list
-  and detail, runs list and run detail (steps, thoughts, tool calls with
-  arguments/outputs, errors, evaluation), benchmarks (suites, history, run
-  detail), experiments (comparison table), settings (providers, tools,
-  evaluators, API connection).
-- **Implementation notes:** App Router, client-side fetching against
-  `NEXT_PUBLIC_API_URL` (default `http://localhost:8000`), optional API key
-  stored in localStorage. Dense, developer-oriented UI; no marketing visuals.
-- **Tests:** type check + lint + production build in CI; component smoke tests.
-- **Remaining work:** everything (started after this file was written — see
-  docs/STATUS.md for current state).
-
 ### T-014a CI green on GitHub
-- **Status:** todo (workflows written; first run pending)
+- **Status:** todo (workflows written; no run has appeared on GitHub yet —
+  check that Actions are enabled for the repository)
 - **Dependencies:** none
 - **Description:** Verify `.github/workflows/ci.yml` and `security.yml` pass on
   GitHub runners (lint, mypy, tests on 3.12/3.13, PostgreSQL job, Docker
   sandbox job, image builds, pip-audit, gitleaks, CodeQL).
-- **Implementation notes:** The Dockerfile's apt layer and GitHub-hosted
-  actions could not be exercised in the development sandbox (Debian mirrors
-  and ghcr.io blocked there); everything else was verified locally.
+- **Implementation notes:** The API Dockerfile's apt layer, the dashboard
+  image (Docker Hub rate limit) and GitHub-hosted actions could not be
+  exercised in the development sandbox; everything else was verified locally
+  (API image built without the apt layer and smoke-tested).
 - **Tests:** CI itself.
 - **Remaining work:** check the first CI run and fix failures.
 
 ## P1 — Important
-
-### T-010b GitHub integration: API + dashboard
-- **Status:** todo
-- **Dependencies:** T-011
-- **Description:** Endpoints to inspect a repository, list issues, start an
-  issue task (background `solve_issue`), list GitHub tasks (runs labelled
-  `github_issue`); dashboard pages *Repositories* and *GitHub tasks*.
-- **Implementation notes:** reuse `integrations/github/workflow.py`; run via
-  `AgentForgeService`; store `pr_url` label; label filtering currently happens
-  in Python — add an indexed column if it becomes hot.
-- **Tests:** API tests with mocked GitHub + local bare remote (pattern in
-  `tests/integration/test_github_workflow.py`).
-- **Remaining work:** all.
 
 ### T-012 OpenTelemetry tracing and metrics
 - **Status:** todo
@@ -83,6 +56,16 @@ only mark `done` when implemented, tested and documented.
 
 ### T-002b Native Gemini adapter
 - **Status:** todo — currently served by the OpenAI-compatible endpoint.
+
+### T-011b Dashboard enhancements
+- **Status:** todo
+- **Description:** live trace via SSE instead of polling; component tests
+  (React Testing Library once the npm/vitest resolver issue is resolved —
+  `npm install vitest` currently crashes npm 10.9 with "Cannot read properties
+  of null (reading 'edgesOut')"); YAML import in the agent form; run
+  comparison view (two runs side by side); cost/time charts over time.
+- **Tech debt:** ESLint pinned to 9.x because `eslint-plugin-react` (via
+  `eslint-config-next` 16.3) fails on ESLint 10.
 
 ### T-006b Vector memory store
 - **Status:** todo — implement `MemoryStore` with embeddings (pgvector or a
@@ -122,3 +105,5 @@ only mark `done` when implemented, tested and documented.
 | T-CLI | CLI | run, serve, bench, experiment, runs, agents, tools, providers, db, github |
 | T-DOCKER | Containers | API image, sandbox image, Compose (+ sandbox override) |
 | T-CI | CI/security workflows | written (see T-014a for verification) |
+| T-011 | Web dashboard | Next.js 16 + TS + Tailwind 4; pages: dashboard, agents(+detail), runs(+detail trace), benchmarks(+detail), experiments(+detail), repositories, GitHub tasks, settings; light/dark; validated palette; lint/types/unit tests/build; screenshots in docs/screenshots |
+| T-010b | GitHub API + dashboard | `/github/status`, repo, issues, tasks (background workflow with pre-created run); Repositories and GitHub tasks pages; e2e tested with mocked GitHub + local bare remote |

@@ -32,7 +32,13 @@ All notable changes are documented here. The format follows
 - `agentforge` CLI.
 - GitHub integration: REST client, tools, issue → branch → commit → draft PR
   workflow (never merges).
-- Docker images, Compose setup, CI and security workflows.
+- Web dashboard (Next.js, TypeScript, Tailwind): overview, agents, runs with
+  execution-trace viewer, benchmarks, experiments with confidence intervals,
+  repositories, GitHub tasks, settings; light and dark themes.
+- GitHub API endpoints: repository inspection, issues, background issue tasks.
+- `/stats` reports known cost, runs with unknown pricing and token totals.
+- Docker images (API, sandbox, dashboard), Compose setup, CI and security
+  workflows.
 - Example agents, starter benchmark suite and experiments.
 
 ### Fixed

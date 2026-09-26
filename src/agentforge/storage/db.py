@@ -114,6 +114,9 @@ class RunRow(Base):
     model: Mapped[str] = mapped_column(String(200), default="")
     benchmark_run_id: Mapped[str | None] = mapped_column(String(64), index=True)
     evaluators: Mapped[list[Any]] = mapped_column(JSONType, default=list)
+    cost_usd: Mapped[float | None] = mapped_column(Float)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class ToolCallRow(Base):

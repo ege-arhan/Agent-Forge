@@ -21,6 +21,13 @@ from agentforge.storage.db import (
     ToolCallRow,
 )
 
+TERMINAL_STATUSES = (
+    RunStatus.SUCCEEDED,
+    RunStatus.FAILED,
+    RunStatus.CANCELLED,
+    RunStatus.TIMED_OUT,
+)
+
 
 def _dump(model: Any) -> Any:
     return model.model_dump(mode="json") if model is not None else None
@@ -215,6 +222,18 @@ class RunRepository:
                 eval_query = eval_query.where(RunRow.created_at >= since)
             evaluated, passed, avg_score = (await session.execute(eval_query)).one()
 
+            cost_query = select(
+                func.sum(RunRow.cost_usd),
+                func.sum(case((RunRow.cost_usd.is_(None), 1), else_=0)),
+                func.sum(RunRow.input_tokens),
+                func.sum(RunRow.output_tokens),
+            ).where(RunRow.status.in_([s.value for s in TERMINAL_STATUSES]))
+            if since is not None:
+                cost_query = cost_query.where(RunRow.created_at >= since)
+            known_cost, unknown_cost, input_tokens, output_tokens = (
+                await session.execute(cost_query)
+            ).one()
+
             tool_query = select(ToolCallRow.tool, ToolCallRow.status, func.count()).group_by(
                 ToolCallRow.tool, ToolCallRow.status
             )
@@ -241,6 +260,10 @@ class RunRepository:
             ),
             "mean_evaluation_score": round(float(avg_score), 4) if avg_score is not None else None,
             "tool_calls": tools,
+            "known_cost_usd": round(float(known_cost), 6) if known_cost is not None else 0.0,
+            "runs_with_unknown_cost": int(unknown_cost or 0),
+            "input_tokens": int(input_tokens or 0),
+            "output_tokens": int(output_tokens or 0),
         }
 
 
@@ -269,6 +292,9 @@ def _run_values(run: Run) -> dict[str, Any]:
         "provider": run.config.model.provider,
         "model": run.config.model.model,
         "evaluators": run.evaluators,
+        "cost_usd": run.metrics.cost_usd,
+        "input_tokens": run.usage.input_tokens,
+        "output_tokens": run.usage.output_tokens,
     }
 
 

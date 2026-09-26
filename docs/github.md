@@ -50,7 +50,17 @@ agentforge github solve owner/repo 42 \
 Without `--push` the branch stays in the local run workspace
 (`.agentforge/workspaces/<run-id>`) for inspection.
 
-## Planned
+## API and dashboard
 
-API endpoints and dashboard pages for repositories and GitHub tasks
-(TASKS.md T-010b).
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/github/status` | whether a token is configured (never returns it) |
+| `GET /api/v1/github/repos/{owner}/{repo}` | repository metadata |
+| `GET /api/v1/github/repos/{owner}/{repo}/issues` | issues (`state`, `labels`, `limit`) |
+| `POST /api/v1/github/tasks` | start the workflow in the background: `{repo, issue_number, agent_id or config, base_branch?, test_command?, push, open_pr, allow_failing}` → the run record |
+| `GET /api/v1/github/tasks` | runs created from issues |
+
+The clone/push remote is always `https://github.com/<repo>.git`; it is not a
+request parameter, because the token is sent to that remote. The dashboard's
+*Repositories* page drives the same endpoints and *GitHub tasks* lists results
+with branch, commit count and draft-PR link.

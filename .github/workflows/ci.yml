@@ -121,3 +121,26 @@ jobs:
           docker run -d --name af -p 8000:8000 agentforge:ci
           for i in $(seq 1 30); do curl -sf http://localhost:8000/api/v1/health && exit 0; sleep 1; done
           docker logs af; exit 1
+
+  web:
+    name: Dashboard (lint, types, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - name: Build dashboard image
+        run: docker build -t agentforge-web:ci .

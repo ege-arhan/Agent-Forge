@@ -12,9 +12,11 @@ GitHub issues into draft pull requests for human review.
 It is an engineering tool, not a chatbot: runs are recorded, reproducible and
 measurable.
 
-> Status: alpha (pre-release). Core engine, API, CLI, benchmarks and GitHub
-> workflow are implemented and tested; the web dashboard is in progress. See
-> [ROADMAP.md](ROADMAP.md) and [docs/STATUS.md](docs/STATUS.md).
+> Status: alpha (pre-release). Core engine, API, CLI, dashboard, benchmarks and
+> GitHub workflow are implemented and tested. See [ROADMAP.md](ROADMAP.md) and
+> [docs/STATUS.md](docs/STATUS.md).
+
+![Dashboard overview](docs/screenshots/dashboard-light.png)
 
 ## Features
 
@@ -39,13 +41,15 @@ measurable.
   that compare models, prompts, tools or strategies against a baseline.
 - **GitHub**: issue → repository analysis → implementation → tests →
   evaluation → branch → commit → **draft** PR. AgentForge never merges.
-- **Interfaces**: CLI, REST API with live server-sent events, web dashboard
-  (in progress).
+- **Interfaces**: CLI, REST API with live server-sent events, and a web
+  dashboard with execution traces, evaluation results, benchmark history and
+  experiment comparisons.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
+    WEB[Dashboard] --> API
     CLI & API --> RT[Agent Runtime]
     RT --> LLM[LLM providers]
     RT --> EX[Tool executor] --> SB[Sandbox]
@@ -71,11 +75,11 @@ source .venv/bin/activate
 Extras: `anthropic`, `openai` (also used for OpenRouter, Gemini and local
 servers), `postgres`, `all`.
 
-With Docker Compose (API + PostgreSQL):
+With Docker Compose (API + PostgreSQL + dashboard):
 
 ```bash
 cp .env.example .env            # add provider keys
-docker compose up --build       # API on http://127.0.0.1:8000 (docs at /docs)
+docker compose up --build       # dashboard http://localhost:3000, API http://localhost:8000/docs
 ```
 
 ## Quick start (offline, no API key)
@@ -200,6 +204,31 @@ base config (model, prompt, tools, planner, limits) against the first variant.
 Results describe those configurations on that suite — they are not general
 model rankings. See [docs/benchmarks.md](docs/benchmarks.md).
 
+## Dashboard
+
+A Next.js + TypeScript + Tailwind dashboard in [`web/`](web) (UI primitives
+follow shadcn/ui conventions):
+
+| Page | Shows |
+|---|---|
+| Dashboard | runs, active runs, evaluation pass rate, completion rate, known cost, recent runs, tool reliability, recent benchmarks |
+| Agents / agent detail | stored configs, start a run with evaluators, the agent's runs |
+| Runs / run detail | filterable run list; trace of every step (model turn, tool calls with arguments and outputs, evaluations, errors), metrics, config snapshot, cancel and re-run; live updates while running |
+| Benchmarks / benchmark detail | suites and tasks, start a benchmark, history, per-task pass rates, results linked to runs, environment |
+| Experiments / experiment detail | start an experiment, variant comparison with 95% intervals and deltas, per-task matrix |
+| Repositories | inspect a GitHub repository, pick an issue, start an issue task |
+| GitHub tasks | issue tasks with branch, commits and draft-PR links |
+| Settings | API URL/key, providers, tools, evaluators |
+
+```bash
+agentforge serve                       # API on :8000
+cd web && npm ci && npm run dev        # dashboard on :3000
+```
+
+| Run detail (dark) | Experiment comparison |
+|---|---|
+| ![Run detail](docs/screenshots/run-detail-dark.png) | ![Experiment](docs/screenshots/experiment-light.png) |
+
 ## GitHub integration
 
 ```bash
@@ -208,6 +237,9 @@ agentforge github issues owner/repo
 agentforge github solve owner/repo 42 -a examples/agents/github-issue-solver.yaml \
   --test-command "pytest -q" --push --open-pr
 ```
+
+The same workflow is available from the dashboard (*Repositories*) and the API
+(`POST /api/v1/github/tasks`).
 
 AgentForge clones the repository, creates `agentforge/issue-42-<slug>`, runs
 the agent (which never sees the token), verifies commits and tests, and — only
@@ -229,13 +261,14 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pyt
 ```
 
 See [DEVELOPMENT.md](DEVELOPMENT.md). CI runs lint, strict type checking,
-tests on Python 3.12/3.13, PostgreSQL and Docker-sandbox tests, image builds,
-dependency audit, secret scanning and CodeQL.
+tests on Python 3.12/3.13, PostgreSQL and Docker-sandbox tests, dashboard lint/
+type check/tests/build, image builds, dependency audit, secret scanning and
+CodeQL.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md). Next: web dashboard,
-GitHub API/dashboard pages, OpenTelemetry export, migrations, public beta.
+See [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md). Next: OpenTelemetry
+export and metrics, database migrations, security hardening, public beta.
 
 ## License
 

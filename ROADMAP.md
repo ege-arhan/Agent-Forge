@@ -16,8 +16,8 @@ latest session report and `TASKS.md` for task-level detail).
 | 7 | Evaluation engine (built-in + custom + LLM judge, metrics) | ✅ Done |
 | 8 | Benchmark engine (suites, repeats, statistics, storage) | ✅ Done |
 | 9 | Experiment tracking (variants, comparison, storage) | ✅ Done |
-| 10 | GitHub integration (client, tools, issue → draft PR workflow) | ✅ Core done — API endpoints + dashboard page pending |
-| 11 | Web dashboard | 🚧 In progress |
+| 10 | GitHub integration (client, tools, issue → draft PR workflow, API, dashboard) | ✅ Done |
+| 11 | Web dashboard | ✅ Done — enhancements tracked in T-011b |
 | 12 | Observability (structured logs ✅, events/SSE ✅, OpenTelemetry export, metrics endpoint) | 🟡 Partial |
 | 13 | Security hardening | 🟡 Partial — see SECURITY.md "planned hardening" |
 | 14 | CI/CD and developer experience | 🟡 CI workflows written; Alembic migrations, release automation pending |
@@ -26,9 +26,8 @@ latest session report and `TASKS.md` for task-level detail).
 
 ## Next up (in order)
 
-1. Dashboard (M11): runs list/detail with trace viewer, agents, benchmarks,
-   experiments, stats overview.
-2. GitHub API endpoints + dashboard page (finish M10).
-3. OpenTelemetry trace export and Prometheus-style metrics (M12).
-4. Alembic migrations; release workflow; container publishing (M14).
-5. Security hardening items (M13), then public beta checklist (M15).
+1. Get CI green on GitHub (T-014a).
+2. OpenTelemetry trace export and Prometheus-style metrics (M12, T-012).
+3. Alembic migrations; release workflow; container publishing (M14).
+4. Security hardening items (M13), then public beta checklist (M15).
+5. Real-model benchmark results with methodology (needs keys; T-009b).
