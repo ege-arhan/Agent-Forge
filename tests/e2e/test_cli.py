@@ -222,7 +222,9 @@ def test_dogfood_script(
 
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     assert module.main(["--results", str(results), "real", "--provider", "anthropic"]) == 0
-    assert "not run — ANTHROPIC_API_KEY is not set" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "not run — no credentials for provider 'anthropic'" in out
+    assert "ANTHROPIC_API_KEY" not in out
     assert not (results / "real").exists()
     assert module.main(["--results", str(results), "real", "--provider", "local"]) == 0
     assert "needs --base-url" in capsys.readouterr().out

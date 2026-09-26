@@ -193,7 +193,11 @@ def _credentials_problem(provider: str, base_url: str | None) -> str | None:
     if provider == "local":
         return None if base_url else "the local provider needs --base-url"
     if info.api_key_env and not os.environ.get(info.api_key_env):
-        return f"{info.api_key_env} is not set"
+        # Name only the provider: nothing derived from credential settings is printed.
+        return (
+            f"no credentials for provider '{provider}' "
+            "(see `agentforge providers` for the environment variable)"
+        )
     return None
 
 
