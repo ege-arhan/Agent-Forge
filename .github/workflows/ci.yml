@@ -55,7 +55,7 @@ jobs:
       - run: uv sync --all-extras
       - name: Unit, integration and end-to-end tests
         run: uv run pytest -m "not docker" --cov --cov-report=term-missing:skip-covered --cov-report=xml
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.python == '3.12'
         with:
           name: coverage
