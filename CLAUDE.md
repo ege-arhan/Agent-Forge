@@ -44,13 +44,26 @@ cd web && npm ci && npm run dev      # dashboard on :3000 (expects the API on :8
 In cloud sessions without a Docker daemon, `dockerd &` usually works; Debian
 apt mirrors and ghcr.io may be blocked by the environment's network policy.
 
-## Branches
+## Branches and continuity (important)
 
-- Work happens on the branch named by the session instructions
-  (`claude/<name>`). Never push to other branches without permission.
-- If `main` does not contain the latest work, check `git branch -a` and the
-  most recently updated `claude/*` branch; `docs/STATUS.md` records which
-  branch holds the latest state.
+Each cloud session works on its own designated branch (`claude/<name>`) and
+must never push to other branches without permission. Sessions do not merge
+each other's work, so **a new session must start from the latest work**, not
+from whatever branch was checked out:
+
+```bash
+git fetch origin
+# Latest work = the branch in docs/STATUS.md "Latest work branch" on the most
+# recently updated claude/* branch. Find candidates:
+git for-each-ref --sort=-committerdate --format='%(committerdate:iso) %(refname:short)' refs/remotes/origin/claude | head
+# Then base your designated branch on it (history is preserved; no force):
+git checkout -B <your-designated-branch> origin/<latest-claude-branch>
+```
+
+Before ending, set "Latest work branch" in `docs/STATUS.md` to your branch.
+If a `main` branch exists and contains the latest work, start from `main`
+instead. Never merge pull requests (including Dependabot's) without the
+owner's approval.
 
 ## Conventions
 

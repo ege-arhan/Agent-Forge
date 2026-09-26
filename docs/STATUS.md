@@ -4,8 +4,8 @@ Date: 2026-09-26
 
 Current milestone: 15 — Public beta (Milestones 0–14 complete)
 
-Latest work branch: `claude/focused-newton-j0z9l1` (no `main` branch exists
-yet; see "Known issues").
+Latest work branch: `claude/focused-newton-j0z9l1` (this is also the
+repository's default branch; no `main` branch exists yet).
 
 Completed:
 - M0 repository foundation (uv, ruff, mypy --strict, pytest, src layout, Apache-2.0)
@@ -35,7 +35,10 @@ Known issues:
 - (resolved) CI and Security workflows are green on GitHub.
 - Not verifiable in the dev sandbox: API Dockerfile apt layer (Debian mirrors
   blocked), dashboard image (Docker Hub rate limit). CI builds both.
-- No `main` branch yet; work lives on the session branch.
+- No `main` branch yet; work lives on session branches chained as described
+  in CLAUDE.md ("Branches and continuity"). Owner decision pending on a
+  `main` + pull-request workflow.
+- Seven Dependabot PRs (#1–#7) target the session branch; left for the owner.
 - Databases created before migrations existed (earlier builds of this
   session) are rejected with a clear message; recreate them.
 - No real-model benchmark results yet (needs API keys; T-009b).
