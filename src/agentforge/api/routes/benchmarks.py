@@ -67,8 +67,14 @@ async def start_benchmark(
     body: BenchmarkRunCreate, service: ServiceDep, request: Request
 ) -> BenchmarkRun:
     _, suite = _suite(service, body.suite_id)
-    config, agent_id = await resolve_config(service, body.agent_id, body.config)
-    version = (await AgentRepository(service.db).get(agent_id)).version if agent_id else None
+    agent_id: str | None = None
+    version: int | None = None
+    if body.agent_id is not None:
+        # One snapshot: the config that runs and the version recorded must match.
+        agent = await AgentRepository(service.db).get(body.agent_id)
+        config, agent_id, version = agent.config, agent.id, agent.version
+    else:
+        config, _ = await resolve_config(service, None, body.config)
     bench = await service.start_benchmark(
         suite,
         config,

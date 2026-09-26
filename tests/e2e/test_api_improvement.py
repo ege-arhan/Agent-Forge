@@ -154,3 +154,18 @@ def test_update_agent_records_change_summary(client: TestClient) -> None:
     assert same["version"] == 2
     latest = client.get(f"{API}/agents/{agent['id']}/versions").json()[0]
     assert (latest["version"], latest["change_summary"]) == (2, "clarify")
+
+
+def test_benchmark_records_the_version_whose_config_it_ran(client: TestClient) -> None:
+    """Regression: config and agent_version come from the same stored snapshot."""
+    agent = client.post(f"{API}/agents", json=demo_agent()).json()
+    config = {**demo_agent(), "description": "second", "limits": {"max_steps": 20}}
+    assert client.put(f"{API}/agents/{agent['id']}", json=config).json()["version"] == 2
+    response = client.post(
+        f"{API}/benchmarks/runs",
+        json={"suite_id": "dogfood-coding", "agent_id": agent["id"], "task_ids": ["add-cli-flag"]},
+    )
+    bench = response.json()
+    assert bench["agent_version"] == 2
+    assert bench["agent_config"]["limits"]["max_steps"] == 20
+    wait_for(client, f"{API}/benchmarks/runs/{bench['id']}", terminal)

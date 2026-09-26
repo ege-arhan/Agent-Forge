@@ -89,7 +89,9 @@ class AgentRepository:
         the current version, so re-registering the same file is reproducible.
         """
         async with self.db.transaction() as session:
-            row = await session.get(AgentRow, agent_id)
+            # Lock the row so concurrent updates allocate distinct versions
+            # (SQLite already serialises writes; PostgreSQL needs FOR UPDATE).
+            row = await session.get(AgentRow, agent_id, with_for_update=True)
             if row is None:
                 raise NotFoundError(f"agent {agent_id} not found")
             new_config = config.model_dump(mode="json")

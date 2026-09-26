@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -62,6 +63,19 @@ async def test_agent_versions_are_recorded(db: Database) -> None:
     await repo.delete(agent.id)
     with pytest.raises(NotFoundError):
         await repo.versions(agent.id)
+
+
+async def test_concurrent_agent_updates_get_distinct_versions(db: Database) -> None:
+    """Regression: parallel updates must not collide on (agent_id, version)."""
+    repo = AgentRepository(db)
+    config = scripted_config([], name="racy")
+    agent = await repo.create(config)
+    updates = [
+        repo.update(agent.id, config.model_copy(update={"description": f"d{i}"})) for i in range(6)
+    ]
+    results = await asyncio.gather(*updates)
+    assert sorted(a.version for a in results) == [2, 3, 4, 5, 6, 7]
+    assert [v.version for v in await repo.versions(agent.id)] == [7, 6, 5, 4, 3, 2, 1]
 
 
 async def test_migration_backfills_versions_and_result_class(settings: Settings) -> None:
