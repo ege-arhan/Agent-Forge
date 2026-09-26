@@ -92,6 +92,8 @@ async def stream_events(run_id: str, request: Request, service: ServiceDep) -> S
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_SECONDS)
                 except TimeoutError:
+                    if not service.is_active(run_id):
+                        return  # finished while we waited: never leave a client hanging
                     yield ": keep-alive\n\n"
                     continue
                 if event is None:

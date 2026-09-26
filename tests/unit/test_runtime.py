@@ -294,3 +294,19 @@ async def test_llm_error_type_from_provider_code(settings: Settings) -> None:
         scripted_config([]), "g", settings=settings, provider=Failing()
     ).execute()
     assert run.error is not None and run.error.type == "llm.authentication"
+
+
+async def test_broadcaster_end_marker_survives_full_queue() -> None:
+    """Regression: a full subscriber queue dropped the end-of-stream marker."""
+    from agentforge.runtime.events import EventBroadcaster
+
+    broadcaster = EventBroadcaster(max_queue=2)
+    run = type("R", (), {"id": "run_x"})()
+    queue = broadcaster.subscribe("run_x")
+    for i in range(5):
+        await broadcaster.on_event(RunEvent(run_id="run_x", type=f"step.{i}"), run)
+    await broadcaster.on_event(RunEvent(run_id="run_x", type="run.finished"), run)
+    items = []
+    while not queue.empty():
+        items.append(queue.get_nowait())
+    assert items[-1] is None

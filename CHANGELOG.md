@@ -64,3 +64,8 @@ All notable changes are documented here. The format follows
 - Benchmark limits overrode stricter agent limits; they now act as caps.
 - Timestamps lost their timezone on SQLite; all stored datetimes are now
   timezone-aware UTC.
+- Benchmark tasks whose setup failed referenced a run that was never stored;
+  the failed run is now recorded.
+- Cancelling a run not held by the current process left `finished_at` empty.
+- The run event stream could stay open after a run finished when a slow
+  client's queue was full.

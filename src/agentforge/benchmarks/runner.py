@@ -17,9 +17,9 @@ from agentforge.benchmarks.stats import mean, rounded, stddev, wilson_interval
 from agentforge.core.config import AgentConfig
 from agentforge.core.errors import BenchmarkError
 from agentforge.core.ids import new_id, utcnow
-from agentforge.core.models import Run, RunStatus
+from agentforge.core.models import ErrorInfo, Run, RunStatus
 from agentforge.memory.base import MemoryStore
-from agentforge.runtime.events import RunObserver
+from agentforge.runtime.events import RunEvent, RunObserver, notify
 from agentforge.runtime.factory import prepare_run
 from agentforge.settings import Settings
 
@@ -299,8 +299,15 @@ class BenchmarkRunner:
         if setup_error is not None:
             run = prepared.run
             run.status = RunStatus.FAILED
+            run.started_at = run.finished_at = utcnow()
+            run.error = ErrorInfo(type="setup", message=f"task setup failed: {setup_error}")
             await prepared.provider.aclose()
             await prepared.runtime.deps.sandbox.close()
+            # Record the failed run like any other so results never reference
+            # a run that does not exist.
+            await notify(
+                prepared.runtime.deps.observers, RunEvent(run_id=run.id, type="run.finished"), run
+            )
             return TaskRunResult(
                 task_id=task.id,
                 repeat=repeat,
@@ -308,7 +315,7 @@ class BenchmarkRunner:
                 status=RunStatus.FAILED,
                 passed=False,
                 score=0.0,
-                error=f"task setup failed: {setup_error}",
+                error=run.error.message,
             )
         run = await prepared.execute(task.evaluators)
         return result_from_run(task.id, repeat, run)

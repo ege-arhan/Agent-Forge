@@ -190,3 +190,28 @@ async def test_experiment_compares_variants(settings: Settings, db: Database) ->
     assert [v.variant for v in stored.variants] == ["baseline", "max-steps-2"]
     benches = await recorder.benchmarks.list(experiment_id=experiment.id)
     assert len(benches) == 2
+
+
+async def test_setup_failure_run_is_persisted(settings: Settings, db: Database) -> None:
+    """Regression: a task whose setup failed referenced a run id that was never stored."""
+    suite = BenchmarkSuite.model_validate(
+        {
+            "id": "setup",
+            "name": "s",
+            "tasks": [
+                {
+                    "id": "t",
+                    "goal": "g",
+                    "setup": {"commands": ["exit 7"]},
+                    "evaluators": [{"type": "completed"}],
+                }
+            ],
+        }
+    )
+    config = load_agent_config(EXAMPLES / "agents" / "scripted-demo.yaml")
+    recorder = StorageRecorder(db)
+    bench = await BenchmarkRunner(settings, recorder=recorder).run(suite, config)
+    stored = await RunRepository(db).get(bench.results[0].run_id)
+    assert stored.status == RunStatus.FAILED
+    assert stored.error is not None and "setup failed" in stored.error.message
+    assert stored.finished_at is not None

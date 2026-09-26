@@ -24,7 +24,8 @@ from agentforge.benchmarks.runner import BenchmarkRun, BenchmarkRunner
 from agentforge.benchmarks.spec import BenchmarkSuite
 from agentforge.core.config import AgentConfig
 from agentforge.core.errors import CapacityError
-from agentforge.core.models import Run, RunStatus
+from agentforge.core.ids import utcnow
+from agentforge.core.models import ErrorInfo, Run, RunStatus
 from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.experiments import Experiment, ExperimentRunner, ExperimentSpec
 from agentforge.policy import ServerPolicy
@@ -153,6 +154,8 @@ class AgentForgeService:
         if runtime is None or task is None:
             # Not running in this process (e.g. queued before a restart).
             run.status = RunStatus.CANCELLED
+            run.finished_at = run.finished_at or utcnow()
+            run.error = run.error or ErrorInfo(type="cancelled", message="run cancelled by user")
             await self.runs.save(run)
             return run
         runtime.cancel()
@@ -246,7 +249,6 @@ class AgentForgeService:
         open_pr: bool = False,
         allow_failing: bool = False,
     ) -> Run:
-        from agentforge.core.models import ErrorInfo
         from agentforge.integrations.github.client import parse_repo
         from agentforge.integrations.github.workflow import (
             GitHubWorkflowError,

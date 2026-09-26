@@ -60,8 +60,12 @@ class EventBroadcaster:
         for queue in list(self._subscribers.get(run.id, ())):
             if not queue.full():  # slow consumer: drop rather than block the run
                 queue.put_nowait(event)
-            if event.type == "run.finished" and not queue.full():
-                queue.put_nowait(None)  # end-of-stream marker
+            if event.type == "run.finished":
+                # The end-of-stream marker must always arrive, even for a slow
+                # consumer: make room by discarding the oldest queued event.
+                if queue.full():
+                    queue.get_nowait()
+                queue.put_nowait(None)
 
 
 async def notify(observers: list[RunObserver], event: RunEvent, run: Run) -> None:

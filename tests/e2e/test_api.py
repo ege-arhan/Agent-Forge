@@ -202,3 +202,17 @@ def test_prometheus_metrics(client: TestClient) -> None:
     assert 'agentforge_run_duration_seconds_count{status="succeeded"} 1' in body
     assert 'agentforge_tool_calls{status="success",tool="write_file"} 1' in body
     assert "agentforge_runs_unknown_cost 0" in body
+
+
+def test_cancel_orphaned_run_sets_finished_at(client: TestClient) -> None:
+    """Regression: cancelling a run not held by this process left finished_at empty."""
+    from agentforge.core.config import AgentConfig
+    from agentforge.core.models import Run, RunStatus
+
+    service = client.app.state.service  # type: ignore[attr-defined]
+    run = Run(agent_name="x", config=AgentConfig.model_validate(demo_config()), goal="orphan")
+    run.status = RunStatus.RUNNING
+    client.portal.call(service.runs.save, run)  # type: ignore[union-attr]
+    body = client.post(f"{API}/runs/{run.id}/cancel").json()
+    assert body["status"] == "cancelled"
+    assert body["finished_at"] is not None
