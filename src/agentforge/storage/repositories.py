@@ -153,6 +153,7 @@ class RunRepository:
         status: RunStatus | None = None,
         agent_id: str | None = None,
         benchmark_run_id: str | None = None,
+        label: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> RunPage:
@@ -165,6 +166,8 @@ class RunRepository:
             filters.append(RunRow.agent_id == agent_id)
         if benchmark_run_id is not None:
             filters.append(RunRow.benchmark_run_id == benchmark_run_id)
+        if label is not None:
+            filters.append(RunRow.labels[label].as_string().is_not(None))
         for condition in filters:
             query = query.where(condition)
             count = count.where(condition)

@@ -12,13 +12,15 @@ from fastapi.responses import JSONResponse
 
 from agentforge import __version__
 from agentforge.api.deps import require_api_key
-from agentforge.api.routes import agents, benchmarks, meta, runs
+from agentforge.api.routes import agents, benchmarks, github, meta, runs
 from agentforge.core.errors import (
     AgentForgeError,
     BenchmarkError,
     ConfigurationError,
     NotFoundError,
 )
+from agentforge.integrations.github.client import GitHubError
+from agentforge.integrations.github.workflow import GitHubWorkflowError
 from agentforge.observability.logging import configure_logging
 from agentforge.service import AgentForgeService
 from agentforge.settings import Settings, get_settings
@@ -62,8 +64,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(ConfigurationError)
     @app.exception_handler(BenchmarkError)
+    @app.exception_handler(GitHubWorkflowError)
     async def _bad_config(request: Request, exc: AgentForgeError) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": exc.message, "code": exc.code})
+
+    @app.exception_handler(GitHubError)
+    async def _github_error(request: Request, exc: GitHubError) -> JSONResponse:
+        status_code = 502 if exc.status_code is None or exc.status_code >= 500 else exc.status_code
+        if status_code == 401:
+            status_code = 502  # upstream credential problem, not the caller's
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
     @app.exception_handler(ValueError)
     async def _value_error(request: Request, exc: ValueError) -> JSONResponse:
@@ -73,6 +83,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     protected = [Depends(require_api_key)]
     app.include_router(meta.public, prefix=API_PREFIX)
-    for module in (meta, agents, runs, benchmarks):
+    for module in (meta, agents, runs, benchmarks, github):
         app.include_router(module.router, prefix=API_PREFIX, dependencies=protected)
     return app

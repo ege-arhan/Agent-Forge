@@ -14,8 +14,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import Coroutine
+import os
+from collections.abc import Callable, Coroutine
 from typing import Any
+
+import httpx
 
 from agentforge.benchmarks.runner import BenchmarkRun, BenchmarkRunner
 from agentforge.benchmarks.spec import BenchmarkSuite
@@ -46,6 +49,10 @@ class AgentForgeService:
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_runs)
         self._tasks: dict[str, asyncio.Task[Any]] = {}
         self._runtimes: dict[str, AgentRuntime] = {}
+        # Test/mirror hooks (never exposed through the API: the GitHub token is
+        # sent to the clone remote, so callers must not choose it).
+        self.github_transport: httpx.AsyncBaseTransport | None = None
+        self.github_remote_for: Callable[[str], str] | None = None
 
     async def startup(self) -> None:
         await self.db.create_all()
@@ -183,3 +190,88 @@ class AgentForgeService:
 
         self._spawn(experiment.id, _execute())
         return experiment
+
+    # ----------------------------------------------------------------- github
+    def github_token(self) -> str | None:
+        return os.environ.get(self.settings.github_token_env)
+
+    def github_client(self) -> Any:
+        from agentforge.integrations.github.client import GitHubClient
+
+        return GitHubClient(self.github_token(), transport=self.github_transport)
+
+    async def start_github_task(
+        self,
+        *,
+        repo: str,
+        issue_number: int,
+        config: AgentConfig,
+        agent_id: str | None = None,
+        base_branch: str | None = None,
+        test_command: str | None = None,
+        push: bool = False,
+        open_pr: bool = False,
+        allow_failing: bool = False,
+    ) -> Run:
+        from agentforge.core.models import ErrorInfo
+        from agentforge.integrations.github.client import parse_repo
+        from agentforge.integrations.github.workflow import (
+            GitHubWorkflowError,
+            IssueTaskRequest,
+            solve_issue,
+        )
+
+        parse_repo(repo)
+        if open_pr and not push:
+            raise GitHubWorkflowError("open_pr requires push")
+        run = Run(
+            agent_id=agent_id,
+            agent_name=config.name,
+            config=config,
+            goal=f"Resolve GitHub issue {repo}#{issue_number}",
+            labels={**config.labels, "github_repo": repo, "github_issue": str(issue_number)},
+        )
+        await self.runs.save(run)
+        request = IssueTaskRequest(
+            repo=repo,
+            issue_number=issue_number,
+            config=config,
+            base_branch=base_branch,
+            test_command=test_command,
+            push=push,
+            open_pr=open_pr,
+            allow_failing=allow_failing,
+            agent_id=agent_id,
+            remote_url=self.github_remote_for(repo) if self.github_remote_for else None,
+        )
+
+        async def _execute() -> None:
+            async with self._semaphore:
+                try:
+                    async with self.github_client() as client:
+                        result = await solve_issue(
+                            request,
+                            settings=self.settings,
+                            client=client,
+                            token=self.github_token(),
+                            observers=[PersistenceObserver(self.runs), self.broadcaster],
+                            memory=self.memory,
+                            run=run,
+                        )
+                    if result.pr_url:
+                        run.labels["pr_url"] = result.pr_url
+                    if result.pushed:
+                        run.labels["pushed"] = "true"
+                    run.labels["commits"] = str(result.commits)
+                    await self.runs.save(run)
+                except Exception as exc:
+                    logger.warning("github task for %s#%s failed: %s", repo, issue_number, exc)
+                    if not run.status.is_terminal:
+                        run.status = RunStatus.FAILED
+                    run.error = run.error or ErrorInfo(
+                        type="github", message=getattr(exc, "message", str(exc))
+                    )
+                    await self.runs.save(run)
+
+        self._spawn(run.id, _execute())
+        return run

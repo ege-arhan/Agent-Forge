@@ -171,6 +171,22 @@ class GitRunner:
         return result
 
 
+async def _checkout(git: GitRunner, remote: str, base: str, branch: str, workspace: Path) -> None:
+    await git(
+        "clone",
+        "--quiet",
+        "--branch",
+        base,
+        remote,
+        str(workspace),
+        cwd=workspace.parent,
+        auth=True,
+    )
+    await git("config", "user.name", AGENT_IDENTITY[0], cwd=workspace)
+    await git("config", "user.email", AGENT_IDENTITY[1], cwd=workspace)
+    await git("switch", "-c", branch, cwd=workspace)
+
+
 async def solve_issue(
     request: IssueTaskRequest,
     *,
@@ -180,7 +196,9 @@ async def solve_issue(
     observers: list[RunObserver] | None = None,
     memory: MemoryStore | None = None,
     env: dict[str, str] | None = None,
+    run: Run | None = None,
 ) -> IssueTaskResult:
+    """Execute the workflow. Pass ``run`` to fill in a pre-created (pending) run record."""
     if request.open_pr and not request.push:
         raise GitHubWorkflowError("opening a pull request requires pushing the branch (--push)")
     owner, name = parse_repo(request.repo)
@@ -208,30 +226,28 @@ async def solve_issue(
         evaluators.insert(
             0, EvaluatorSpec(type="command", name="tests", command=request.test_command)
         )
+    goal = build_goal(request.repo, issue, comments, request.test_command)
+    labels = {"github_repo": request.repo, "github_issue": str(issue.number), "branch": branch}
+    if run is not None:
+        run.goal = goal
+        run.labels.update(labels)
     prepared = prepare_run(
         request.config,
-        build_goal(request.repo, issue, comments, request.test_command),
+        goal,
         agent_id=request.agent_id,
         settings=settings,
         memory=memory,
         observers=observers,
         env=env,
-        labels={"github_repo": request.repo, "github_issue": str(issue.number), "branch": branch},
+        labels=labels,
+        run=run,
     )
     workspace = prepared.runtime.deps.workspace.root
-    await git(
-        "clone",
-        "--quiet",
-        "--branch",
-        base,
-        remote,
-        str(workspace),
-        cwd=workspace.parent,
-        auth=True,
-    )
-    await git("config", "user.name", AGENT_IDENTITY[0], cwd=workspace)
-    await git("config", "user.email", AGENT_IDENTITY[1], cwd=workspace)
-    await git("switch", "-c", branch, cwd=workspace)
+    try:
+        await _checkout(git, remote, base, branch, workspace)
+    except BaseException:
+        await prepared.provider.aclose()
+        raise
 
     run = await prepared.execute(evaluators)
     result = IssueTaskResult(run=run, issue=issue, branch=branch, base_branch=base, commits=0)
