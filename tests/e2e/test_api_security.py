@@ -233,3 +233,20 @@ def test_audit_log(client: TestClient) -> None:
     record = next(r for r in records if getattr(r, "action", None) == "agent.create")
     assert record.client.startswith("key:") and "abc" not in record.client  # type: ignore[attr-defined]
     assert record.details["name"] == "scripted-demo"  # type: ignore[attr-defined]
+
+
+def test_sandbox_network_and_runtime_policy(settings: Settings) -> None:
+    policy = ServerPolicy(settings)
+
+    def config(**sandbox: Any) -> AgentConfig:
+        data = demo_config()
+        data["sandbox"] = {"kind": "docker", **sandbox}
+        return AgentConfig.model_validate(data)
+
+    with pytest.raises(PolicyViolationError, match="not allowed"):
+        policy.check_agent(config(network="agentforge-egress"))
+    settings.allowed_sandbox_networks = ["agentforge-egress"]
+    policy.check_agent(config(network="agentforge-egress", proxy="http://egress:3128"))
+    policy.check_agent(config(runtime="runsc"))
+    with pytest.raises(PolicyViolationError, match="runtime"):
+        policy.check_agent(config(runtime="custom-runtime"))

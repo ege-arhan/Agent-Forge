@@ -5,10 +5,7 @@ only mark `done` when implemented, tested and documented.
 
 ## P0 — Critical
 
-### T-013b Sandbox egress control
-- **Status:** todo
-- **Description:** Optional egress allowlist proxy for `network: bridge`
-  sandboxes; document gVisor (`--runtime runsc`) option and add config field.
+_None open. Continue with P1 in roadmap order._
 
 ## P1 — Important
 
@@ -88,5 +85,6 @@ only mark `done` when implemented, tested and documented.
 | T-014a | CI green on GitHub | CI (lint, mypy, tests 3.12/3.13, PostgreSQL, Docker sandbox, dashboard, image builds) and Security (pip-audit, ruff S, gitleaks, CodeQL) all passing |
 | T-012 | OpenTelemetry + metrics | `agentforge[otel]`, run → step → chat/execute_tool spans with GenAI attributes from recorded timestamps (no args/outputs exported), `AGENTFORGE_OTEL_ENABLED`; `/api/v1/metrics` Prometheus text; tested with in-memory exporter |
 | T-014b | Database migrations | Alembic env + initial revision, automatic upgrade in API/CLI, `db upgrade`/`db current`, legacy-DB detection, model/migration drift test on SQLite + PostgreSQL, packaged in wheel |
+| T-013b | Sandbox egress control | operator networks + `sandbox.proxy`, allowlisting egress proxy (stdlib, `python -m agentforge.sandbox.egress_proxy`), `sandbox.runtime` (gVisor), policy allowlists, Compose recipe; unit tests + real-Docker test (allowed host reachable, others 403, no direct route) |
 | T-013a | API hardening | server policy for submitted configs/evaluators (credential exfiltration, SSRF, arbitrary imports, sandbox), body size limit, per-client rate limit, queue cap, security headers, audit log; 18 tests |
 | T-010b | GitHub API + dashboard | `/github/status`, repo, issues, tasks (background workflow with pre-created run); Repositories and GitHub tasks pages; e2e tested with mocked GitHub + local bare remote |

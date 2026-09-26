@@ -1,0 +1,33 @@
+# Override: controlled egress for Docker sandboxes (use with docker-compose.sandbox.yml).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.sandbox.yml -f docker-compose.egress.yml up
+#
+# Sandboxes attach to the internal network "agentforge-egress", which has no
+# route to the outside. The egress proxy is attached to both networks and only
+# forwards to the hosts in --allow. Agent configs opt in with:
+#
+#   sandbox: {kind: docker, network: agentforge-egress, proxy: "http://egress:3128"}
+services:
+  egress:
+    build: .
+    command:
+      - python
+      - -m
+      - agentforge.sandbox.egress_proxy
+      - --allow
+      - ${AGENTFORGE_EGRESS_ALLOW:-pypi.org,files.pythonhosted.org}
+      - --port
+      - "3128"
+    networks:
+      default: {}
+      agentforge-egress:
+        aliases: [egress]
+
+  api:
+    environment:
+      AGENTFORGE_ALLOWED_SANDBOX_NETWORKS: agentforge-egress
+
+networks:
+  agentforge-egress:
+    name: agentforge-egress
+    internal: true

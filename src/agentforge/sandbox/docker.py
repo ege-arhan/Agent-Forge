@@ -72,6 +72,11 @@ def build_run_args(
     ]
     for key, value in SANDBOX_ENV_DEFAULTS.items():
         args += ["--env", f"{key}={value}"]
+    if config.runtime:
+        args += ["--runtime", config.runtime]
+    if config.proxy:
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            args += ["--env", f"{key}={config.proxy}"]
     if user:
         args += ["--user", user]
     args += [config.image, "sleep", "infinity"]

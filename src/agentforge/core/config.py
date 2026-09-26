@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -97,14 +97,43 @@ class SandboxKind(StrEnum):
     DOCKER = "docker"
 
 
+_DOCKER_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+_PROXY_RE = re.compile(r"^https?://[A-Za-z0-9_.:\[\]-]+/?$")
+
+
 class SandboxConfig(_Strict):
     kind: SandboxKind = SandboxKind.LOCAL
     image: str = "python:3.12-slim"
-    network: Literal["none", "bridge"] = "none"
+    network: str = Field(
+        default="none",
+        description="'none' (default), 'bridge', or the name of an operator-created Docker "
+        "network (e.g. an internal network behind an egress proxy).",
+    )
+    runtime: str | None = Field(
+        default=None, description="Docker runtime, e.g. 'runsc' for gVisor isolation."
+    )
+    proxy: str | None = Field(
+        default=None,
+        description="HTTP(S) proxy URL injected into the sandbox (e.g. the egress proxy).",
+    )
     memory: str = "512m"
     cpus: float = Field(default=1.0, gt=0, le=64)
     pids_limit: int = Field(default=256, ge=16, le=65_536)
     command_timeout_seconds: float = Field(default=120.0, gt=0, le=3_600)
+
+    @field_validator("network", "runtime")
+    @classmethod
+    def _docker_name(cls, value: str | None) -> str | None:
+        if value is not None and not _DOCKER_NAME_RE.match(value):
+            raise ValueError("must be a valid Docker network/runtime name")
+        return value
+
+    @field_validator("proxy")
+    @classmethod
+    def _proxy_url(cls, value: str | None) -> str | None:
+        if value is not None and not _PROXY_RE.match(value):
+            raise ValueError("proxy must look like http://host:port")
+        return value
 
 
 class AgentConfig(_Strict):

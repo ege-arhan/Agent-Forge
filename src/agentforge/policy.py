@@ -101,8 +101,24 @@ class ServerPolicy:
             raise PolicyViolationError(
                 "the local (unisolated) sandbox is disabled on this server; use sandbox.kind=docker"
             )
-        if config.sandbox.network != "none" and not self.settings.allow_sandbox_network:
-            raise PolicyViolationError("sandbox networking is disabled on this server")
+        sandbox = config.sandbox
+        if sandbox.network == "bridge" and not self.settings.allow_sandbox_network:
+            raise PolicyViolationError(
+                "unrestricted sandbox networking is disabled on this server "
+                "(use an allowed egress network or AGENTFORGE_ALLOW_SANDBOX_NETWORK)"
+            )
+        if (
+            sandbox.network not in ("none", "bridge")
+            and sandbox.network not in self.settings.allowed_sandbox_networks
+        ):
+            raise PolicyViolationError(
+                f"sandbox network '{sandbox.network}' is not allowed "
+                "(AGENTFORGE_ALLOWED_SANDBOX_NETWORKS)"
+            )
+        if sandbox.runtime is not None and sandbox.runtime not in (
+            self.settings.allowed_sandbox_runtimes
+        ):
+            raise PolicyViolationError(f"sandbox runtime '{sandbox.runtime}' is not allowed")
 
     # ---------------------------------------------------------- evaluators
     def check_evaluators(self, specs: list[EvaluatorSpec]) -> None:

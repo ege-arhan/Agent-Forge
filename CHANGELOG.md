@@ -51,6 +51,9 @@ All notable changes are documented here. The format follows
   sending server credentials to caller-chosen endpoints (`base_url`,
   `api_key_env`, GitHub `api_url`/`token_env`), re-enabling private-network
   HTTP, arbitrary-import evaluators and unapproved sandbox settings.
+- Sandbox egress control: operator-defined internal networks with an
+  allowlisting egress proxy (`agentforge.sandbox.egress_proxy`), sandbox proxy
+  settings and a selectable Docker runtime (e.g. gVisor `runsc`).
 - Request size limit, per-client rate limiting, background-task cap,
   security headers and an audit log for state-changing API calls.
 

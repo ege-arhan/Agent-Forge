@@ -2,7 +2,7 @@
 
 Date: 2026-09-26
 
-Current milestone: 13 — Security hardening (0–12 complete; 14 mostly complete)
+Current milestone: 14 — CI/CD & developer experience (0–13 complete)
 
 Latest work branch: `claude/focused-newton-j0z9l1` (no `main` branch exists
 yet; see "Known issues").
@@ -23,7 +23,7 @@ Implemented:
 - See CHANGELOG.md [Unreleased] and TASKS.md "Done".
 
 Tests:
-- Python: 177 tests (unit, integration, e2e, docker) passing.
+- Python: 183 tests (unit, integration, e2e, docker) passing.
 - Integration + e2e also pass against PostgreSQL 16.
 - Docker sandbox tests pass against Docker 29.
 - Dashboard: ESLint, `tsc --noEmit`, 10 unit tests (node:test), production
@@ -47,7 +47,7 @@ Technical debt:
 - `service.py` executes work in-process (fine for one node).
 
 Next priority:
-- T-013b sandbox egress control, then T-014c release automation and T-015b beta readiness.
+- T-014c release automation, then T-015b public beta readiness.
 
 Project health:
 - Green locally across backend and dashboard.

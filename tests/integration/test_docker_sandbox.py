@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-from collections.abc import AsyncIterator
+import time
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
@@ -135,3 +136,93 @@ async def test_agent_run_in_docker_sandbox(settings: Settings) -> None:
     )
     assert listing.stdout.strip() == ""
     assert Path(run.workspace or "").joinpath("app.py").exists()
+
+
+def _docker(*args: str) -> str:
+    return subprocess.run(
+        ["docker", *args], check=True, capture_output=True, text=True, timeout=120
+    ).stdout.strip()
+
+
+@pytest.fixture
+def egress_setup() -> Iterator[str]:
+    """internal network <-> egress proxy <-> 'outside' network with an origin server."""
+    suffix = os.urandom(3).hex()
+    internal, outside = f"af-int-{suffix}", f"af-out-{suffix}"
+    proxy_file = Path(__file__).resolve().parents[2] / "src/agentforge/sandbox/egress_proxy.py"
+    containers = [f"af-origin-{suffix}", f"af-egress-{suffix}"]
+    _docker("network", "create", "--internal", internal)
+    _docker("network", "create", outside)
+    try:
+        _docker(
+            "run",
+            "-d",
+            "--rm",
+            "--name",
+            containers[0],
+            "--network",
+            outside,
+            "--network-alias",
+            "origin",
+            IMAGE,
+            "python3",
+            "-m",
+            "http.server",
+            "8080",
+        )
+        _docker(
+            "run",
+            "-d",
+            "--rm",
+            "--name",
+            containers[1],
+            "--network",
+            outside,
+            "-v",
+            f"{proxy_file}:/proxy.py:ro",
+            IMAGE,
+            "python3",
+            "/proxy.py",
+            "--allow",
+            "origin",
+            "--ports",
+            "8080",
+            "--port",
+            "3128",
+        )
+        _docker("network", "connect", "--alias", "egress", internal, containers[1])
+        time.sleep(1.5)
+        yield internal
+    finally:
+        for name in containers:
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True, check=False)
+        for net in (internal, outside):
+            subprocess.run(["docker", "network", "rm", net], capture_output=True, check=False)
+
+
+async def test_egress_proxy_allows_only_listed_hosts(
+    workspace: Workspace, egress_setup: str
+) -> None:
+    config = SandboxConfig(
+        kind=SandboxKind.DOCKER, image=IMAGE, network=egress_setup, proxy="http://egress:3128"
+    )
+    fetch = (
+        "import urllib.request,sys; print(urllib.request.urlopen(sys.argv[1], timeout=10).status)"
+    )
+    async with DockerSandbox(workspace, config) as box:
+        allowed = await box.exec(["python3", "-c", fetch, "http://origin:8080/"], timeout=30)
+        assert allowed.ok, allowed.stderr
+        assert allowed.stdout.strip() == "200"
+        blocked = await box.exec(["python3", "-c", fetch, "http://example.com/"], timeout=30)
+        assert not blocked.ok
+        assert "403" in blocked.stderr
+        # bypassing the proxy fails: the internal network has no route out
+        direct = await box.exec(
+            [
+                "python3",
+                "-c",
+                "import socket; socket.create_connection(('1.1.1.1', 80), timeout=5)",
+            ],
+            timeout=30,
+        )
+        assert not direct.ok

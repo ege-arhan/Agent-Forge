@@ -60,7 +60,17 @@ class Settings(BaseSettings):
         default=False, description="Allow 'python' evaluators (arbitrary imports) via the API."
     )
     allow_sandbox_network: bool = Field(
-        default=False, description="Allow API configs to enable networking in Docker sandboxes."
+        default=False,
+        description="Allow API configs to use sandbox.network 'bridge' (unrestricted egress).",
+    )
+    allowed_sandbox_networks: list[str] = Field(
+        default_factory=list,
+        description="Operator-created Docker networks API configs may attach sandboxes to "
+        "(e.g. an internal network behind the egress proxy).",
+    )
+    allowed_sandbox_runtimes: list[str] = Field(
+        default_factory=lambda: ["runc", "runsc"],
+        description="Docker runtimes API configs may request.",
     )
     max_request_bytes: int = Field(default=1_000_000, ge=1_024)
     rate_limit_per_minute: int = Field(
@@ -78,6 +88,8 @@ class Settings(BaseSettings):
         "cors_origins",
         "allowed_key_envs",
         "allowed_provider_hosts",
+        "allowed_sandbox_networks",
+        "allowed_sandbox_runtimes",
         mode="before",
     )
     @classmethod

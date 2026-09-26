@@ -39,6 +39,29 @@ public issue.
   Use it only for trusted development. Disable it on shared servers with
   `AGENTFORGE_ALLOW_LOCAL_SANDBOX=false`.
 
+### Sandbox egress control
+
+- `sandbox.network: none` (default) — no network at all.
+- `sandbox.network: <operator network>` + `sandbox.proxy` — attach to an
+  operator-created *internal* Docker network whose only way out is the
+  allowlisting egress proxy (`python -m agentforge.sandbox.egress_proxy
+  --allow pypi.org,files.pythonhosted.org`). HTTPS is tunnelled (CONNECT)
+  only to allowlisted hosts and ports; plain HTTP likewise; everything else
+  gets 403, and direct connections have no route. Verified against a real
+  Docker daemon in `tests/integration/test_docker_sandbox.py`. Compose recipe:
+  `docker-compose.egress.yml`. API configs may only use networks listed in
+  `AGENTFORGE_ALLOWED_SANDBOX_NETWORKS`.
+- `sandbox.network: bridge` — unrestricted egress; rejected for API configs
+  unless `AGENTFORGE_ALLOW_SANDBOX_NETWORK=true`.
+- `sandbox.runtime` selects a Docker runtime, e.g. `runsc` (gVisor) for a
+  user-space kernel between the agent and the host. The runtime must be
+  installed on the Docker host; API configs are limited to
+  `AGENTFORGE_ALLOWED_SANDBOX_RUNTIMES` (default `runc,runsc`).
+
+Limitations: the proxy does not inspect TLS (it cannot restrict paths on an
+allowed HTTPS host) and allowlisted hosts can still be used to exfiltrate data
+the agent can read (e.g. by uploading a package).
+
 ### Secrets
 
 - Child processes receive only `PATH`, `LANG`, `LC_ALL`, `TZ`, `TERM`,
@@ -120,8 +143,8 @@ recommended for multi-user deployments.
   rate limiter is per process.
 - HTTP tool SSRF check is vulnerable to DNS rebinding between check and
   connect; mitigate with `allowed_hosts` and sandbox networking disabled.
-- No egress proxy/allowlist for sandboxes that enable `network: bridge`.
-- No gVisor/Firecracker option yet for stronger isolation.
+- gVisor is supported via `sandbox.runtime: runsc` but not exercised in CI;
+  no Firecracker/microVM option.
 
 ## Supply chain
 
