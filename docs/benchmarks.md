@@ -47,6 +47,34 @@ tool calls, tool success rate, LLM retries, tokens, cost, error) and a summary:
 - total tokens and total cost (`null` unless every run's cost is known),
 - per-task pass rate, mean score and spread.
 
+### Result classes and reports
+
+Every benchmark run has a `result_class`: `offline` for the scripted provider,
+`real` for model providers. It is derived from the agent config, and offline
+and real results are never mixed: filters (`result_class=`), reports and the
+dashboard keep them apart, and comparisons across classes are refused.
+
+`agentforge bench report BENCH_ID [--out DIR]` (or `bench run … --report DIR`,
+`GET /benchmarks/runs/{id}/report`) produces a publication record per task
+run: success, each check's result, tool calls and errors, duration, LLM and
+evaluation retries, token usage (`null` when the provider reported none),
+estimated cost from the pricing table and `actual_cost_usd` (always `null`:
+AgentForge does not read provider billing). Saved reports go to
+`DIR/<offline|real>/<suite>-v<version>/`.
+
+`bench run --save-agent` stores the agent (a new version only if the config
+changed) and links the benchmark to that version, which the
+[improvement loop](improvement.md) builds on. `agentforge bench compare A B`
+compares two runs of the same suite version.
+
+## Dogfooding suites
+
+`dogfood/benchmarks/` holds the suites AgentForge uses to validate itself
+(coding, debugging, data analysis, security analysis, GitHub issue solving):
+see [dogfood/README.md](../dogfood/README.md). They are discovered by default
+alongside `examples/benchmarks` (`AGENTFORGE_BENCHMARKS_DIR` accepts several
+directories separated by `:`).
+
 ## Experiments
 
 ```yaml
@@ -83,9 +111,14 @@ Each variant stores its provider/model, full config and environment
 ```bash
 agentforge bench list examples/benchmarks
 agentforge bench run SUITE.yaml -a AGENT.yaml [-r REPEATS] [-t TASK]... [-c CONCURRENCY] [--json]
+                     [--save-agent] [--report DIR]
+agentforge bench report BENCH_ID [--out DIR] [--json]
+agentforge bench compare BASELINE_ID CANDIDATE_ID [--json]
 agentforge experiment run EXPERIMENT.yaml [--json]
 ```
 
 API: `GET /api/v1/benchmarks/suites`, `POST /api/v1/benchmarks/runs`,
-`GET /api/v1/benchmarks/runs[/{id}]`, `POST /api/v1/experiments`,
-`GET /api/v1/experiments[/{id}]` (includes the comparison).
+`GET /api/v1/benchmarks/runs[/{id}]`, `GET /api/v1/benchmarks/runs/{id}/report`,
+`GET /api/v1/benchmarks/runs/{id}/analysis`, `GET /api/v1/benchmarks/compare`,
+`POST /api/v1/experiments`, `GET /api/v1/experiments[/{id}]` (includes the
+comparison).

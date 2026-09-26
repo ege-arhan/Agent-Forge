@@ -39,6 +39,17 @@ measurable.
 - **Benchmarks & experiments**: YAML suites with initial state, allowed tools
   and success criteria; repeated runs with confidence intervals; experiments
   that compare models, prompts, tools or strategies against a baseline.
+- **Agent improvement loop**: agent version → benchmark → evaluation →
+  failure analysis → improvement proposal → new version → benchmark again →
+  comparison, with the full history kept (immutable agent versions, suite
+  snapshots, analyses, proposals, verdicts). See
+  [docs/improvement.md](docs/improvement.md).
+- **Honest results**: offline (scripted) and real-model results are separate
+  result classes that are never mixed; unmeasured values (tokens, cost) are
+  `null`, never guessed.
+- **Dogfooding**: five realistic agents (coding, debugging, data analysis,
+  security analysis, GitHub issue solving) with reproducible tasks and
+  hidden checks — see [dogfood/README.md](dogfood/README.md).
 - **GitHub**: issue → repository analysis → implementation → tests →
   evaluation → branch → commit → **draft** PR. AgentForge never merges.
 - **Observability**: structured JSON logs with secret redaction, live
@@ -207,7 +218,15 @@ agentforge experiment run examples/experiments/model-comparison.yaml
 ```
 
 Results include pass rates with 95% Wilson confidence intervals, score
-spread, duration, steps, tokens and cost. Experiments compare variants of a
+spread, duration, steps, tokens and cost.
+
+Improve an agent from a baseline benchmark:
+
+```bash
+agentforge bench run dogfood/benchmarks/coding.yaml -a MY_AGENT.yaml --save-agent -r 3
+agentforge improve run <benchmark-id>      # analyse → propose → new version → re-benchmark → compare
+agentforge improve history my-agent
+``` Experiments compare variants of a
 base config (model, prompt, tools, planner, limits) against the first variant.
 Results describe those configurations on that suite — they are not general
 model rankings. See [docs/benchmarks.md](docs/benchmarks.md).
@@ -224,6 +243,7 @@ follow shadcn/ui conventions):
 | Runs / run detail | filterable run list; trace of every step (model turn, tool calls with arguments and outputs, evaluations, errors), metrics, config snapshot, cancel and re-run; live updates while running |
 | Benchmarks / benchmark detail | suites and tasks, start a benchmark, history, per-task pass rates, results linked to runs, environment |
 | Experiments / experiment detail | start an experiment, variant comparison with 95% intervals and deltas, per-task matrix |
+| Improvement / agent improvement | agent versions with config diffs, benchmark runs split into offline and real, failure categories with evidence, improvement cycles (proposal, comparison, apply / evaluate / reject), improvement and experiment history |
 | Repositories | inspect a GitHub repository, pick an issue, start an issue task |
 | GitHub tasks | issue tasks with branch, commits and draft-PR links |
 | Settings | API URL/key, providers, tools, evaluators |
@@ -236,6 +256,10 @@ cd web && npm ci && npm run dev        # dashboard on :3000
 | Run detail (dark) | Experiment comparison |
 |---|---|
 | ![Run detail](docs/screenshots/run-detail-dark.png) | ![Experiment](docs/screenshots/experiment-light.png) |
+
+| Agent improvement (offline demo data) | Improvement overview (dark) |
+|---|---|
+| ![Agent improvement](docs/screenshots/improvement-agent-light.png) | ![Improvement](docs/screenshots/improvement-dark.png) |
 
 ## GitHub integration
 
@@ -275,8 +299,8 @@ CodeQL.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md). Next: database
-migrations, security hardening, public beta.
+See [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md). Next: public beta
+(M15) — real-model dogfooding results once credentials are available.
 
 ## License
 

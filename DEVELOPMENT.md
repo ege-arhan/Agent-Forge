@@ -50,6 +50,9 @@ pass, and disallow force pushes and deletions.
 | Coverage | `uv run pytest --cov` |
 | API server | `uv run agentforge serve` → http://127.0.0.1:8000/docs |
 | Offline demo | `uv run agentforge bench run examples/benchmarks/starter.yaml -a examples/agents/scripted-demo.yaml` |
+| Dogfooding (offline) | `uv run python scripts/dogfood.py offline` (writes `dogfood/results/offline/`) |
+| Dogfooding (real model) | `uv run python scripts/dogfood.py real --provider anthropic --model <id>` (needs the key; writes `dogfood/results/real/`) |
+| Improvement loop | `uv run agentforge improve run BENCH_ID` — see [docs/improvement.md](docs/improvement.md) |
 
 ## Test layout
 
@@ -113,7 +116,42 @@ repository owner).
   `class: module:Class`, or the `agentforge.evaluators` entry-point group).
 - **Benchmark task:** add it to a suite YAML with setup, allowed tools and
   deterministic evaluators; make sure a correct solution passes and an empty
-  attempt fails.
+  attempt fails. For `dogfood/benchmarks/`, add the reference solution to the
+  matching `dogfood/agents/offline/*.yaml`; the integration tests check both
+  directions. Changing an existing task requires bumping the suite `version`.
+
+## Scheduled autonomous sessions (routines)
+
+Development is continued by scheduled Claude Code routines. A routine's
+session can only continue from the latest `main` if the routine itself gives
+it the repository. Inspected on 2026-09-26 (from a session, via the routines
+API):
+
+| Routine | Schedule | Repository / connectors | Prompt | Assessment |
+|---|---|---|---|---|
+| **AgentForge daily development** (`trig_01PkiuJ7…`) | daily 08:46 Europe/Istanbul, fresh session each run, environment "Default" | **no repository source attached**, no connectors | current workflow (inspect `main` and PRs, feature branch, PR, never merge) | **Not reliable.** The fired session starts without a checkout. Its fallbacks (attach the repo from inside the session, or an anonymous `git clone` of the public repo) give at best read access: pushing a branch and opening a PR need the repository attached to the session with GitHub credentials. |
+| **Agent Forge** (`trig_014Bbty…`) | daily 06:47 UTC, fresh session each run | connectors: Claude-Docs, visualize (no GitHub); repository attachment not visible through the API | **outdated**: predates the `main`/PR workflow | Runs a second, overlapping daily session with conflicting instructions. |
+
+Required owner changes (in claude.ai → Claude Code → Routines):
+
+1. Edit **AgentForge daily development** and add the repository
+   `ege-arhan/Agent-Forge` as its source, keeping the "Default" environment.
+   GitHub must be connected to the account (claude.ai/connect-github) and the
+   Claude GitHub App installed on the repository. Without this step the
+   routine cannot push or open pull requests.
+2. Disable (or delete) the older **Agent Forge** routine, or replace its
+   prompt with the daily-development prompt and attach the repository to it
+   too. Only one routine should develop the repository.
+3. Optional, for real-model dogfooding (T-009b): add a provider key (e.g.
+   `ANTHROPIC_API_KEY`) as an environment variable in the "Default"
+   environment's settings, and decide on an API budget. Without it,
+   `scripts/dogfood.py real` refuses to run and records nothing.
+4. Make `main` the default branch and protect it (see *Branching and pull
+   requests*).
+
+To verify: after the next scheduled run, a new pull request from a `claude/*`
+branch should target `main`. If the run's summary says it could not clone or
+push, step 1 is still missing.
 
 ## Conventions
 

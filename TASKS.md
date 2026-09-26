@@ -24,8 +24,20 @@ _None open. Continue with P1 in roadmap order._
 
 ### T-009b Real-model benchmark results
 - **Status:** blocked (needs API keys / budget approval from the owner)
-- **Description:** Run `examples/experiments/model-comparison.yaml` with real
-  providers and publish results with methodology in `docs/benchmarks.md`.
+- **Description:** Run the dogfooding suites with real providers
+  (`scripts/dogfood.py real --provider … --model … -r 3`, optionally
+  `--improve-cycles 1`) and `examples/experiments/model-comparison.yaml`;
+  publish the reports under `dogfood/results/real/` with methodology.
+- **Tooling ready:** real-model agent configs, report format, credential check
+  (refuses to run without keys and records nothing).
+
+### T-018 Scheduled routine can access the repository
+- **Status:** blocked (owner action; see DEVELOPMENT.md "Scheduled autonomous
+  sessions")
+- **Description:** "AgentForge daily development" has no repository source,
+  so its sessions cannot push or open PRs; the older "Agent Forge" routine
+  duplicates it with an outdated prompt. Owner: attach `ege-arhan/Agent-Forge`
+  to the daily routine and disable the old one.
 
 ## P2 — Enhancements
 
@@ -47,8 +59,16 @@ _None open. Continue with P1 in roadmap order._
   local index) behind an optional extra.
 
 ### T-008b More benchmark suites
-- **Status:** todo — e.g. multi-file refactors, bug-fix suites with hidden
-  tests, SWE-style tasks from real repositories (license-compatible).
+- **Status:** todo — e.g. multi-file refactors, larger bug-fix suites, SWE-style
+  tasks from real repositories (license-compatible). The dogfood suites (v1,
+  10 tasks) are small by design; grow them (new suite version) once real-model
+  results show which tasks discriminate.
+
+### T-017b LLM-assisted improvement proposals
+- **Status:** todo — optional proposer that asks a model for changes, limited to
+  the same path allowlist and server policy, with the rule-based proposer as
+  default. Only worth doing after real-model cycles show the rule-based
+  proposals' limits.
 
 ### T-003b Streaming model output
 - **Status:** todo — stream tokens to the SSE channel for live thoughts.
@@ -87,4 +107,6 @@ _None open. Continue with P1 in roadmap order._
 | T-014c | Release automation | tag-triggered workflow: version check, wheel/sdist, GHCR images (api/web/sandbox), draft GitHub release with CHANGELOG notes; `scripts/release_notes.py` + tests. PyPI publishing needs owner-configured trusted publisher |
 | T-013b | Sandbox egress control | operator networks + `sandbox.proxy`, allowlisting egress proxy (stdlib, `python -m agentforge.sandbox.egress_proxy`), `sandbox.runtime` (gVisor), policy allowlists, Compose recipe; unit tests + real-Docker test (allowed host reachable, others 403, no direct route) |
 | T-013a | API hardening | server policy for submitted configs/evaluators (credential exfiltration, SSRF, arbitrary imports, sandbox), body size limit, per-client rate limit, queue cap, security headers, audit log; 18 tests |
+| T-016 | Dogfooding program | `dogfood/`: 5 agents (coding, debugging, data analysis, security analysis, GitHub issue solver) with real-model and offline configs, 5 suites / 10 tasks with visible, hidden and process checks, `scripts/dogfood.py` (offline/real, credential check), reports per result class; tests prove every task is solvable by the reference agent and fails for an idle agent; OFFLINE results recorded; REAL not run (no credentials) |
+| T-017 | Agent improvement loop | migration 0002 (agent versions, improvement cycles, benchmark provenance + result class), failure analysis, rule-based/manual proposals with path allowlist, apply → new version, evaluate on the baseline suite snapshot, comparison with Wilson verdicts, reject/revert as a new version; CLI, API, dashboard Improvement pages; unit/integration/e2e tests on SQLite and PostgreSQL |
 | T-010b | GitHub API + dashboard | `/github/status`, repo, issues, tasks (background workflow with pre-created run); Repositories and GitHub tasks pages; e2e tested with mocked GitHub + local bare remote |
