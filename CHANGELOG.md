@@ -39,6 +39,9 @@ All notable changes are documented here. The format follows
 - `/stats` reports known cost, runs with unknown pricing and token totals.
 - Docker images (API, sandbox, dashboard), Compose setup, CI and security
   workflows.
+- OpenTelemetry trace export (`agentforge[otel]`, `AGENTFORGE_OTEL_ENABLED`)
+  with GenAI semantic-convention attributes, and a Prometheus `/metrics`
+  endpoint.
 - Example agents, starter benchmark suite and experiments.
 
 ### Fixed

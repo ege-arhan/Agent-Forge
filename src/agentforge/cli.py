@@ -132,6 +132,10 @@ async def cmd_run(args: argparse.Namespace) -> int:
     config = load_agent_config(args.agent)
     evaluators = _load_evaluators(args.eval)
     observers: list[Any] = [] if args.quiet else [ConsoleObserver()]
+    if settings.otel_enabled:
+        from agentforge.observability.otel import configure_tracing
+
+        observers.append(configure_tracing())
     db = None
     memory = None
     agent_id = None
@@ -155,6 +159,12 @@ async def cmd_run(args: argparse.Namespace) -> int:
     finally:
         if db is not None:
             await db.dispose()
+        if settings.otel_enabled:
+            from opentelemetry import trace
+
+            flush = getattr(trace.get_tracer_provider(), "force_flush", None)
+            if flush is not None:
+                flush()
     if args.json:
         _print_json(run.model_dump(mode="json"))
     else:

@@ -41,6 +41,9 @@ measurable.
   that compare models, prompts, tools or strategies against a baseline.
 - **GitHub**: issue → repository analysis → implementation → tests →
   evaluation → branch → commit → **draft** PR. AgentForge never merges.
+- **Observability**: structured JSON logs with secret redaction, live
+  server-sent events, OpenTelemetry traces (GenAI conventions) and
+  Prometheus metrics — see [docs/observability.md](docs/observability.md).
 - **Interfaces**: CLI, REST API with live server-sent events, and a web
   dashboard with execution traces, evaluation results, benchmark history and
   experiment comparisons.
@@ -73,7 +76,7 @@ source .venv/bin/activate
 ```
 
 Extras: `anthropic`, `openai` (also used for OpenRouter, Gemini and local
-servers), `postgres`, `all`.
+servers), `postgres`, `otel`, `all`.
 
 With Docker Compose (API + PostgreSQL + dashboard):
 
@@ -267,8 +270,8 @@ CodeQL.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md). Next: OpenTelemetry
-export and metrics, database migrations, security hardening, public beta.
+See [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md). Next: database
+migrations, security hardening, public beta.
 
 ## License
 

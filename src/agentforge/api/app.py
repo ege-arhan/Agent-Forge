@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from agentforge import __version__
 from agentforge.api.deps import require_api_key
-from agentforge.api.routes import agents, benchmarks, github, meta, runs
+from agentforge.api.routes import agents, benchmarks, github, meta, metrics, runs
 from agentforge.core.errors import (
     AgentForgeError,
     BenchmarkError,
@@ -83,6 +83,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     protected = [Depends(require_api_key)]
     app.include_router(meta.public, prefix=API_PREFIX)
-    for module in (meta, agents, runs, benchmarks, github):
+    for module in (meta, metrics, agents, runs, benchmarks, github):
         app.include_router(module.router, prefix=API_PREFIX, dependencies=protected)
     return app

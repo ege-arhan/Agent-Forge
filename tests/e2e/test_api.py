@@ -186,3 +186,19 @@ def test_api_key_enforced(settings: Settings) -> None:
         )
         ok = client.get(f"{API}/agents", headers={"Authorization": "Bearer test-api-key-123"})
         assert ok.status_code == 200
+
+
+def test_prometheus_metrics(client: TestClient) -> None:
+    run_id = client.post(
+        f"{API}/runs", json={"goal": "Create hello.txt please", "config": demo_config()}
+    ).json()["id"]
+    wait_for(client, f"{API}/runs/{run_id}", terminal)
+    response = client.get(f"{API}/metrics")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    body = response.text
+    assert 'agentforge_runs{status="succeeded"} 1' in body
+    assert "# TYPE agentforge_run_duration_seconds summary" in body
+    assert 'agentforge_run_duration_seconds_count{status="succeeded"} 1' in body
+    assert 'agentforge_tool_calls{status="success",tool="write_file"} 1' in body
+    assert "agentforge_runs_unknown_cost 0" in body

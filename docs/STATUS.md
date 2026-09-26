@@ -2,7 +2,7 @@
 
 Date: 2026-09-26
 
-Current milestone: 12 — Observability (Milestones 0–11 complete)
+Current milestone: 14 — CI/CD & developer experience (Milestones 0–12 complete)
 
 Latest work branch: `claude/focused-newton-j0z9l1` (no `main` branch exists
 yet; see "Known issues").
@@ -32,7 +32,7 @@ Tests:
 - ruff, ruff format, mypy --strict clean; pip-audit: no known vulnerabilities.
 
 Known issues:
-- No CI run has appeared on GitHub yet (T-014a) — Actions may need enabling.
+- (resolved) CI and Security workflows are green on GitHub.
 - Not verifiable in the dev sandbox: API Dockerfile apt layer (Debian mirrors
   blocked), dashboard image (Docker Hub rate limit). CI builds both.
 - No `main` branch yet; work lives on the session branch.
@@ -49,7 +49,7 @@ Technical debt:
 - `service.py` executes work in-process (fine for one node).
 
 Next priority:
-- T-014a CI on GitHub, T-012 OpenTelemetry + metrics, T-014b migrations.
+- T-014b migrations, then security hardening (T-013a/b).
 
 Project health:
 - Green locally across backend and dashboard.

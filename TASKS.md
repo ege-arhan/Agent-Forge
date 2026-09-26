@@ -5,37 +5,16 @@ only mark `done` when implemented, tested and documented.
 
 ## P0 — Critical
 
-### T-014a CI green on GitHub
-- **Status:** todo (workflows written; no run has appeared on GitHub yet —
-  check that Actions are enabled for the repository)
-- **Dependencies:** none
-- **Description:** Verify `.github/workflows/ci.yml` and `security.yml` pass on
-  GitHub runners (lint, mypy, tests on 3.12/3.13, PostgreSQL job, Docker
-  sandbox job, image builds, pip-audit, gitleaks, CodeQL).
-- **Implementation notes:** The API Dockerfile's apt layer, the dashboard
-  image (Docker Hub rate limit) and GitHub-hosted actions could not be
-  exercised in the development sandbox; everything else was verified locally
-  (API image built without the apt layer and smoke-tested).
-- **Tests:** CI itself.
-- **Remaining work:** check the first CI run and fix failures.
-
-## P1 — Important
-
-### T-012 OpenTelemetry tracing and metrics
-- **Status:** todo
-- **Dependencies:** none
-- **Description:** Optional `agentforge[otel]` extra with a `RunObserver` that
-  emits spans (run → step → llm call / tool call) using GenAI semantic
-  conventions; `/metrics` endpoint (Prometheus text) for run counts, durations,
-  tool errors, tokens.
-- **Tests:** in-memory span exporter assertions.
-
 ### T-014b Database migrations (Alembic)
 - **Status:** todo
 - **Dependencies:** none
 - **Description:** Replace `create_all` with Alembic migrations (SQLite +
-  PostgreSQL), `agentforge db upgrade`, migration test in CI.
+  PostgreSQL) and `agentforge db upgrade`; add a CI check that migrations
+  match the ORM models. Required before the public beta because users will
+  have persistent databases.
 - **Remaining work:** all. Until then schema changes require recreating the DB.
+
+## P1 — Important
 
 ### T-013a API hardening
 - **Status:** todo
@@ -106,4 +85,6 @@ only mark `done` when implemented, tested and documented.
 | T-DOCKER | Containers | API image, sandbox image, Compose (+ sandbox override) |
 | T-CI | CI/security workflows | written (see T-014a for verification) |
 | T-011 | Web dashboard | Next.js 16 + TS + Tailwind 4; pages: dashboard, agents(+detail), runs(+detail trace), benchmarks(+detail), experiments(+detail), repositories, GitHub tasks, settings; light/dark; validated palette; lint/types/unit tests/build; screenshots in docs/screenshots |
+| T-014a | CI green on GitHub | CI (lint, mypy, tests 3.12/3.13, PostgreSQL, Docker sandbox, dashboard, image builds) and Security (pip-audit, ruff S, gitleaks, CodeQL) all passing |
+| T-012 | OpenTelemetry + metrics | `agentforge[otel]`, run → step → chat/execute_tool spans with GenAI attributes from recorded timestamps (no args/outputs exported), `AGENTFORGE_OTEL_ENABLED`; `/api/v1/metrics` Prometheus text; tested with in-memory exporter |
 | T-010b | GitHub API + dashboard | `/github/status`, repo, issues, tasks (background workflow with pre-created run); Repositories and GitHub tasks pages; e2e tested with mocked GitHub + local bare remote |

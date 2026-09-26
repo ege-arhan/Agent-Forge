@@ -27,7 +27,7 @@ from agentforge.core.models import Run, RunStatus
 from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.experiments import Experiment, ExperimentRunner, ExperimentSpec
 from agentforge.runtime.agent import AgentRuntime
-from agentforge.runtime.events import EventBroadcaster, LoggingObserver
+from agentforge.runtime.events import EventBroadcaster, LoggingObserver, RunObserver
 from agentforge.runtime.factory import prepare_run
 from agentforge.settings import Settings
 from agentforge.storage import Database, PersistenceObserver, RunRepository, SqlMemoryStore
@@ -45,7 +45,15 @@ class AgentForgeService:
         self.runs = RunRepository(db)
         self.memory = SqlMemoryStore(db)
         self.broadcaster = EventBroadcaster()
-        self.recorder = StorageRecorder(db, extra_observers=[self.broadcaster])
+        self.tracing: RunObserver | None = None
+        if settings.otel_enabled:
+            from agentforge.observability.otel import configure_tracing
+
+            self.tracing = configure_tracing()
+        extra: list[RunObserver] = [self.broadcaster]
+        if self.tracing is not None:
+            extra.append(self.tracing)
+        self.recorder = StorageRecorder(db, extra_observers=extra)
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_runs)
         self._tasks: dict[str, asyncio.Task[Any]] = {}
         self._runtimes: dict[str, AgentRuntime] = {}
@@ -53,6 +61,16 @@ class AgentForgeService:
         # sent to the clone remote, so callers must not choose it).
         self.github_transport: httpx.AsyncBaseTransport | None = None
         self.github_remote_for: Callable[[str], str] | None = None
+
+    def _run_observers(self) -> list[RunObserver]:
+        observers: list[RunObserver] = [
+            PersistenceObserver(self.runs),
+            self.broadcaster,
+            LoggingObserver(),
+        ]
+        if self.tracing is not None:
+            observers.append(self.tracing)
+        return observers
 
     async def startup(self) -> None:
         await self.db.create_all()
@@ -98,7 +116,7 @@ class AgentForgeService:
             agent_id=agent_id,
             settings=self.settings,
             memory=self.memory,
-            observers=[PersistenceObserver(self.runs), self.broadcaster, LoggingObserver()],
+            observers=self._run_observers(),
             labels=labels,
             parent_run_id=parent_run_id,
         )
@@ -254,7 +272,7 @@ class AgentForgeService:
                             settings=self.settings,
                             client=client,
                             token=self.github_token(),
-                            observers=[PersistenceObserver(self.runs), self.broadcaster],
+                            observers=self._run_observers(),
                             memory=self.memory,
                             run=run,
                         )

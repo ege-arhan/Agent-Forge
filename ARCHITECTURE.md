@@ -65,7 +65,7 @@ flowchart LR
 | Service | `service.py` | Background execution of runs/benchmarks/experiments for the API |
 | API | `api/` | REST + SSE endpoints, API-key auth |
 | GitHub | `integrations/github/` | REST client, tools, issue → PR workflow |
-| Observability | `observability/`, `runtime/events.py` | Structured JSON logs, secret redaction, lifecycle events |
+| Observability | `observability/`, `runtime/events.py`, `api/routes/metrics.py` | Structured JSON logs, secret redaction, lifecycle events, OpenTelemetry export, Prometheus metrics |
 
 ## The agent loop
 
@@ -108,7 +108,9 @@ limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · 
 | **SQLite default, PostgreSQL in compose** | Zero-config local use; same code via async SQLAlchemy. JSON columns for nested documents, real columns for filters/aggregates. |
 | **No migrations yet** (`create_all`) | Schema still changing quickly; Alembic is a P1 task before the public beta. |
 | **In-process background execution** (asyncio tasks, semaphore) | Simple and reliable for a single node. Redis/worker queue deferred until multi-node execution is needed — Redis is intentionally *not* a dependency yet. |
-| **Lifecycle events + observers** | Persistence, logs and live SSE share one mechanism; OpenTelemetry export can be added as another observer. |
+| **Lifecycle events + observers** | Persistence, logs, live SSE and OpenTelemetry export share one mechanism. |
+| **Post-hoc trace export** | Spans are built from the finished run record with recorded timestamps: exact timings, zero overhead and no failure modes in the loop; live progress uses SSE. |
+| **Prometheus text without a client library** | Metrics are derived from the database (survive restarts, include CLI runs); a few lines of formatting avoid a dependency. |
 | **Lexical (BM25-style) memory search** | Dependency-free and deterministic; `MemoryStore.search` is the seam for a vector store. |
 | **Benchmarks as normal runs** | Every benchmark attempt is a fully recorded run, inspectable in the same UI. Task/suite limits act as caps on the agent's own limits. |
 | **Wilson score intervals** | Benchmark samples are small and pass rates near 0/1; comparisons show uncertainty rather than implying rankings. |

@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     benchmarks_dir: Path = Field(default=Path("examples/benchmarks"))
     keep_workspaces: bool = True
+    otel_enabled: bool = Field(
+        default=False,
+        description="Export finished runs as OpenTelemetry traces over OTLP/HTTP "
+        "(configure with the standard OTEL_EXPORTER_OTLP_* variables).",
+    )
     github_token_env: str = Field(
         default="GITHUB_TOKEN", description="Environment variable holding the GitHub token."
     )

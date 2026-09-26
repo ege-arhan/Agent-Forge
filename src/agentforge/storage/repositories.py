@@ -206,6 +206,18 @@ class RunRepository:
                 row.finished_at = row.finished_at or utcnow()
             return len(rows)
 
+    async def duration_summary(self) -> dict[str, dict[str, float]]:
+        """Sum and count of run durations per terminal status (for metrics)."""
+        async with self.db.session() as session:
+            rows = (
+                await session.execute(
+                    select(RunRow.status, func.sum(RunRow.duration_seconds), func.count())
+                    .where(RunRow.duration_seconds.is_not(None))
+                    .group_by(RunRow.status)
+                )
+            ).all()
+        return {status: {"sum": float(total or 0.0), "count": int(n)} for status, total, n in rows}
+
     async def stats(self, *, since: datetime | None = None) -> dict[str, Any]:
         async with self.db.session() as session:
             status_query = select(RunRow.status, func.count()).group_by(RunRow.status)
@@ -293,6 +305,7 @@ def _run_values(run: Run) -> dict[str, Any]:
         "model": run.config.model.model,
         "evaluators": run.evaluators,
         "cost_usd": run.metrics.cost_usd,
+        "duration_seconds": run.metrics.duration_seconds,
         "input_tokens": run.usage.input_tokens,
         "output_tokens": run.usage.output_tokens,
     }
