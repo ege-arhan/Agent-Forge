@@ -48,6 +48,11 @@ All notable changes are documented here. The format follows
 - CONTRIBUTING.md, code of conduct, issue and pull request templates.
 - Example agents, starter benchmark suite and experiments.
 
+### Changed
+- Development workflow: `main` is the stable, always-releasable branch; all
+  work (including autonomous sessions) happens on feature branches and
+  reaches `main` only through pull requests merged by the owner.
+
 ### Security
 - Server-side policy for API-submitted configs and evaluators: prevents
   sending server credentials to caller-chosen endpoints (`base_url`,

@@ -11,6 +11,30 @@ uv sync --all-extras          # .venv with runtime, provider SDKs, dev tools
 uv run agentforge --version
 ```
 
+## Branching and pull requests
+
+`main` is the stable, always-releasable branch. Nobody — human or AI session
+— commits to it directly.
+
+1. **Before starting**, look at `main` (recent commits, CI status) and the
+   open pull requests, so you build on the latest state and do not duplicate
+   work in flight.
+2. **Branch** from the latest `main`: `git checkout -B feature/<topic>
+   origin/main` (automated sessions use their `claude/<name>` branch). Only
+   branch from another open PR when your change depends on it, and say so in
+   the PR description.
+3. **Verify** locally before opening a PR: ruff, ruff format, mypy, the full
+   pytest suite (with Docker for sandbox tests), and the dashboard checks if
+   `web/` changed. Update the changelog and project-status files.
+4. **Open a PR against `main`** using the template, listing the tests you ran.
+   CI must be green. Pull requests are never merged automatically; the
+   repository owner reviews and merges them.
+5. **Release** only from `main` (see *Releasing*).
+
+Recommended repository settings (owner): make `main` the default branch and
+protect it — require a pull request, require the CI and Security checks to
+pass, and disallow force pushes and deletions.
+
 ## Everyday commands
 
 | Task | Command |
@@ -64,7 +88,8 @@ diverge (on SQLite locally and on PostgreSQL in CI).
    `web/package.json` (a unit test enforces that they match).
 2. Move the `## [Unreleased]` entries in `CHANGELOG.md` under
    `## [X.Y.Z] - YYYY-MM-DD`.
-3. Merge, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. After the release PR is merged into `main`, the owner tags `main`:
+   `git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
 
 `.github/workflows/release.yml` then verifies the version strings, builds the
 wheel and sdist, publishes `agentforge-api`, `agentforge-web` and

@@ -19,6 +19,9 @@ decisions.
 
 ## Pull requests
 
+- Branch from the latest `main` and open your pull request against `main`
+  (see *Branching and pull requests* in DEVELOPMENT.md). `main` must always
+  stay releasable; maintainers merge after review.
 - Keep changes focused; open an issue first for larger features.
 - Every behaviour change needs tests; bug fixes need a regression test that
   fails without the fix.
