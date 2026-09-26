@@ -38,6 +38,26 @@ uv run agentforge --version
 
 All tests are offline. The scripted provider stands in for models.
 
+## Database migrations
+
+The schema is managed with Alembic (`src/agentforge/storage/migrations`).
+The API server and CLI upgrade the database automatically; `agentforge db
+upgrade` and `agentforge db current` do it explicitly.
+
+After changing ORM models in `storage/db.py`:
+
+```bash
+AGENTFORGE_DATABASE_URL=sqlite+aiosqlite:////tmp/af-migrate.db \
+  uv run alembic -c src/agentforge/storage/migrations/alembic.ini upgrade head
+AGENTFORGE_DATABASE_URL=sqlite+aiosqlite:////tmp/af-migrate.db \
+  uv run alembic -c src/agentforge/storage/migrations/alembic.ini \
+  revision --autogenerate -m "describe the change" --rev-id 000N
+```
+
+Review the generated file (JSONB variants need `sa.Text()`), then run the
+tests: `tests/integration/test_migrations.py` fails if models and migrations
+diverge (on SQLite locally and on PostgreSQL in CI).
+
 ## Adding things
 
 - **Tool:** subclass `Tool[YourInput]` (see `tools/builtin/filesystem.py`),

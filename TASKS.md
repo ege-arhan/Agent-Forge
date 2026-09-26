@@ -5,21 +5,13 @@ only mark `done` when implemented, tested and documented.
 
 ## P0 — Critical
 
-### T-014b Database migrations (Alembic)
-- **Status:** todo
-- **Dependencies:** none
-- **Description:** Replace `create_all` with Alembic migrations (SQLite +
-  PostgreSQL) and `agentforge db upgrade`; add a CI check that migrations
-  match the ORM models. Required before the public beta because users will
-  have persistent databases.
-- **Remaining work:** all. Until then schema changes require recreating the DB.
-
-## P1 — Important
-
 ### T-013a API hardening
 - **Status:** todo
 - **Description:** request size limits, rate limiting, pagination caps
-  everywhere, audit log of run creation; consider per-user tokens.
+  everywhere, audit log of run creation; consider per-user tokens. Needed
+  before exposing the API beyond localhost (public beta).
+
+## P1 — Important
 
 ### T-013b Sandbox egress control
 - **Status:** todo
@@ -61,6 +53,13 @@ only mark `done` when implemented, tested and documented.
 - **Status:** todo — pause a run and wait for approval before tools with
   write/network permissions (policy per agent).
 
+### T-014c Release automation
+- **Status:** todo
+- **Description:** tag-triggered workflow that builds the wheel/sdist and
+  container images, publishes images to GHCR (and optionally PyPI with
+  trusted publishing), and drafts GitHub release notes from CHANGELOG.md.
+  Publishing requires owner approval of registries/credentials.
+
 ### T-015 Distributed execution
 - **Status:** todo — Redis-backed queue + worker process when multi-node
   execution is required.
@@ -87,4 +86,5 @@ only mark `done` when implemented, tested and documented.
 | T-011 | Web dashboard | Next.js 16 + TS + Tailwind 4; pages: dashboard, agents(+detail), runs(+detail trace), benchmarks(+detail), experiments(+detail), repositories, GitHub tasks, settings; light/dark; validated palette; lint/types/unit tests/build; screenshots in docs/screenshots |
 | T-014a | CI green on GitHub | CI (lint, mypy, tests 3.12/3.13, PostgreSQL, Docker sandbox, dashboard, image builds) and Security (pip-audit, ruff S, gitleaks, CodeQL) all passing |
 | T-012 | OpenTelemetry + metrics | `agentforge[otel]`, run → step → chat/execute_tool spans with GenAI attributes from recorded timestamps (no args/outputs exported), `AGENTFORGE_OTEL_ENABLED`; `/api/v1/metrics` Prometheus text; tested with in-memory exporter |
+| T-014b | Database migrations | Alembic env + initial revision, automatic upgrade in API/CLI, `db upgrade`/`db current`, legacy-DB detection, model/migration drift test on SQLite + PostgreSQL, packaged in wheel |
 | T-010b | GitHub API + dashboard | `/github/status`, repo, issues, tasks (background workflow with pre-created run); Repositories and GitHub tasks pages; e2e tested with mocked GitHub + local bare remote |

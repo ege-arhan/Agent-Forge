@@ -63,6 +63,8 @@ apt mirrors and ghcr.io may be blocked by the environment's network policy.
   handles validation, permissions, timeouts, truncation and redaction.
 - Never log or persist secrets; route text through `Redactor`.
 - Never fabricate metrics. Cost is `None` when pricing is unknown.
+- Schema changes need an Alembic migration (see DEVELOPMENT.md); the
+  migration test fails if models and migrations diverge.
 - Every behaviour change needs tests. Bugs: reproduce → regression test → fix.
   Never delete or weaken tests to make CI pass.
 - Docs describe only what exists. Mark planned features as planned.

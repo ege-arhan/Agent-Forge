@@ -42,6 +42,8 @@ All notable changes are documented here. The format follows
 - OpenTelemetry trace export (`agentforge[otel]`, `AGENTFORGE_OTEL_ENABLED`)
   with GenAI semantic-convention attributes, and a Prometheus `/metrics`
   endpoint.
+- Alembic database migrations applied automatically by the API and CLI;
+  `agentforge db upgrade` / `agentforge db current`.
 - Example agents, starter benchmark suite and experiments.
 
 ### Fixed

@@ -106,7 +106,7 @@ limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · 
 | **Tool executor wraps every call** | Tools stay small; validation, permission policy, timeouts, truncation, redaction and records are uniform. |
 | **Docker CLI (not SDK) for sandboxes** | No extra dependency; the argv is easy to audit and unit-test. |
 | **SQLite default, PostgreSQL in compose** | Zero-config local use; same code via async SQLAlchemy. JSON columns for nested documents, real columns for filters/aggregates. |
-| **No migrations yet** (`create_all`) | Schema still changing quickly; Alembic is a P1 task before the public beta. |
+| **Alembic migrations, applied automatically** | The API and CLI upgrade the schema on startup; a test asserts that migrations and ORM models never diverge (SQLite and PostgreSQL). |
 | **In-process background execution** (asyncio tasks, semaphore) | Simple and reliable for a single node. Redis/worker queue deferred until multi-node execution is needed — Redis is intentionally *not* a dependency yet. |
 | **Lifecycle events + observers** | Persistence, logs, live SSE and OpenTelemetry export share one mechanism. |
 | **Post-hoc trace export** | Spans are built from the finished run record with recorded timestamps: exact timings, zero overhead and no failure modes in the loop; live progress uses SSE. |

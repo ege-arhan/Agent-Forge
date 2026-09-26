@@ -201,9 +201,11 @@ class Database:
         # SQLite allows one writer at a time; serialise writes in-process.
         self._write_lock = asyncio.Lock() if self.is_sqlite else None
 
-    async def create_all(self) -> None:
-        async with self.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+    async def migrate(self) -> None:
+        """Create or upgrade the schema to the latest migration."""
+        from agentforge.storage.migrate import upgrade
+
+        await upgrade(self)
 
     async def dispose(self) -> None:
         await self.engine.dispose()

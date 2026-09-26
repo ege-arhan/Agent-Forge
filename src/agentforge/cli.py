@@ -112,7 +112,7 @@ async def _open_db(settings: Any) -> Any:
     from agentforge.storage import Database
 
     db = Database(settings.resolved_database_url)
-    await db.create_all()
+    await db.migrate()
     return db
 
 
@@ -368,14 +368,42 @@ def cmd_providers(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-async def cmd_db_init(args: argparse.Namespace) -> int:
+async def cmd_db_upgrade(args: argparse.Namespace) -> int:
     from agentforge.settings import get_settings
+    from agentforge.storage.migrate import current_revision
 
     settings = get_settings()
-    db = await _open_db(settings)
-    await db.dispose()
-    print(f"database ready: {settings.resolved_database_url}")
+    db = await _open_db(settings)  # runs migrations
+    try:
+        revision = await current_revision(db)
+    finally:
+        await db.dispose()
+    print(f"database at revision {revision}: {_safe_url(settings.resolved_database_url)}")
     return EXIT_OK
+
+
+async def cmd_db_current(args: argparse.Namespace) -> int:
+    from agentforge.settings import get_settings
+    from agentforge.storage import Database
+    from agentforge.storage.migrate import current_revision, head_revision
+
+    settings = get_settings()
+    db = Database(settings.resolved_database_url)
+    try:
+        revision = await current_revision(db)
+    finally:
+        await db.dispose()
+    head = head_revision()
+    state = "up to date" if revision == head else f"behind (head is {head})"
+    print(f"current revision: {revision or 'none'} - {state}")
+    return EXIT_OK
+
+
+def _safe_url(url: str) -> str:
+    """Hide credentials in database URLs."""
+    import re
+
+    return re.sub(r"//([^:/@]+):.*@", r"//\1:***@", url)
 
 
 # --------------------------------------------------------------------- parser
@@ -455,7 +483,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("tools", help="list available tools").set_defaults(handler=cmd_tools)
     sub.add_parser("providers", help="list LLM providers").set_defaults(handler=cmd_providers)
     db = sub.add_parser("db", help="database").add_subparsers(dest="db_cmd", required=True)
-    db.add_parser("init", help="create tables").set_defaults(handler=cmd_db_init)
+    db.add_parser("upgrade", help="create or migrate the schema").set_defaults(
+        handler=cmd_db_upgrade
+    )
+    db.add_parser("init", help="alias for upgrade").set_defaults(handler=cmd_db_upgrade)
+    db.add_parser("current", help="show the schema revision").set_defaults(handler=cmd_db_current)
 
     from agentforge.integrations.github.cli import register as register_github
 

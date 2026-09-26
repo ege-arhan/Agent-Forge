@@ -107,3 +107,22 @@ def test_config_error_exit_code(tmp_path: Path, capsys: pytest.CaptureFixture[st
     bad.write_text("name: bad\nmodel: {provider: scripted}\ntools: [nope]\n")
     assert main(["run", str(bad), "--goal", "x", "--no-db"]) == 2
     assert "unknown tool" in capsys.readouterr().err
+
+
+def test_db_commands(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["db", "current"]) == 0
+    assert "none" in capsys.readouterr().out
+    assert main(["db", "upgrade"]) == 0
+    assert "database at revision" in capsys.readouterr().out
+    assert main(["db", "current"]) == 0
+    assert "up to date" in capsys.readouterr().out
+
+
+def test_database_url_credentials_are_masked() -> None:
+    from agentforge.cli import _safe_url
+
+    assert (
+        _safe_url("postgresql+asyncpg://user:p@ss@db:5432/x")
+        == "postgresql+asyncpg://user:***@db:5432/x"
+    )
+    assert _safe_url("sqlite+aiosqlite:////tmp/a.db") == "sqlite+aiosqlite:////tmp/a.db"

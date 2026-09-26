@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from sqlalchemy import text
 
 from agentforge.core.config import AgentConfig, ModelConfig
 from agentforge.memory.base import InMemoryMemoryStore
@@ -57,13 +58,14 @@ async def reset_database(url: str) -> None:
     database = Database(url)
     async with database.engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
     await database.dispose()
 
 
 @pytest.fixture
 async def db(settings: Settings) -> AsyncIterator[Database]:
     database = Database(settings.resolved_database_url)
-    await database.create_all()
+    await database.migrate()
     yield database
     await database.dispose()
 

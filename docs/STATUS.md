@@ -2,7 +2,7 @@
 
 Date: 2026-09-26
 
-Current milestone: 14 — CI/CD & developer experience (Milestones 0–12 complete)
+Current milestone: 13 — Security hardening (0–12 complete; 14 mostly complete)
 
 Latest work branch: `claude/focused-newton-j0z9l1` (no `main` branch exists
 yet; see "Known issues").
@@ -23,7 +23,7 @@ Implemented:
 - See CHANGELOG.md [Unreleased] and TASKS.md "Done".
 
 Tests:
-- Python: 153 tests (unit, integration, e2e, docker) passing; 89% coverage.
+- Python: 159 tests (unit, integration, e2e, docker) passing.
 - Integration + e2e also pass against PostgreSQL 16.
 - Docker sandbox tests pass against Docker 29.
 - Dashboard: ESLint, `tsc --noEmit`, 10 unit tests (node:test), production
@@ -36,10 +36,8 @@ Known issues:
 - Not verifiable in the dev sandbox: API Dockerfile apt layer (Debian mirrors
   blocked), dashboard image (Docker Hub rate limit). CI builds both.
 - No `main` branch yet; work lives on the session branch.
-- No database migrations; schema changes require recreating the DB (T-014b).
-  This session added columns (`runs.cost_usd`, `input_tokens`,
-  `output_tokens`, `evaluators`) — delete `.agentforge/agentforge.db` if an
-  older local database exists.
+- Databases created before migrations existed (earlier builds of this
+  session) are rejected with a clear message; recreate them.
 - No real-model benchmark results yet (needs API keys; T-009b).
 
 Technical debt:
@@ -49,7 +47,7 @@ Technical debt:
 - `service.py` executes work in-process (fine for one node).
 
 Next priority:
-- T-014b migrations, then security hardening (T-013a/b).
+- T-013a API hardening, T-013b sandbox egress control, T-014c release automation.
 
 Project health:
 - Green locally across backend and dashboard.

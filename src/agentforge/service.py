@@ -73,7 +73,7 @@ class AgentForgeService:
         return observers
 
     async def startup(self) -> None:
-        await self.db.create_all()
+        await self.db.migrate()
         interrupted = await self.runs.mark_interrupted()
         if interrupted:
             logger.warning("marked %d interrupted runs as failed", interrupted)

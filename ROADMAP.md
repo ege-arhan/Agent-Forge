@@ -20,13 +20,13 @@ latest session report and `TASKS.md` for task-level detail).
 | 11 | Web dashboard | ✅ Done — enhancements tracked in T-011b |
 | 12 | Observability (structured logs, events/SSE, OpenTelemetry traces, Prometheus metrics) | ✅ Done |
 | 13 | Security hardening | 🟡 Partial — see SECURITY.md "planned hardening" |
-| 14 | CI/CD and developer experience | 🟡 CI + security green on GitHub; Alembic migrations, release automation pending |
+| 14 | CI/CD and developer experience | 🟡 CI + security green on GitHub, Alembic migrations done; release automation pending |
 | 15 | Public beta | ⏳ Planned |
 | 16 | Portfolio-quality release (screenshots, demo, polished docs) | ⏳ Planned |
 
 ## Next up (in order)
 
-1. Alembic migrations (T-014b); release workflow; container publishing (M14).
-2. Security hardening items (M13: T-013a, T-013b).
+1. Security hardening (M13: T-013a API hardening, T-013b sandbox egress).
+2. Release workflow and container publishing (M14, T-014c).
 3. Public beta checklist (M15).
 4. Real-model benchmark results with methodology (needs keys; T-009b).
