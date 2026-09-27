@@ -330,6 +330,7 @@ class BenchmarkRunner:
             initial_files=task.setup.files,
             env=self.env,
             labels=labels,
+            agent_id=bench.agent_id,
         )
         setup_error = await self._setup(prepared.runtime.deps.sandbox, task)
         if setup_error is not None:

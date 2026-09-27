@@ -191,8 +191,20 @@ class AgentRuntime:
         consecutive_error_steps = 0
         total_tool_calls = 0
 
+        budget = limits.max_total_tokens
         for _ in range(limits.max_steps):
             self._check_cancelled()
+            # Also before each call: planning (or the previous step) may already
+            # have used up the budget, and a further completion must not be sent.
+            if budget is not None and run.usage.total_tokens >= budget:
+                raise _RunTerminatedError(
+                    RunStatus.FAILED,
+                    ErrorInfo(
+                        type="token_budget",
+                        message=f"stopped after {run.usage.total_tokens} tokens (budget {budget}) "
+                        "before the next model call",
+                    ),
+                )
             step = Step(index=len(run.steps), kind=StepKind.ACTION)
             run.steps.append(step)
             await self._emit(run, "step.started", step=step.index)
@@ -216,7 +228,6 @@ class AgentRuntime:
                 await self._emit(run, "step.finished", step=step.index, error=exc.message)
                 raise
 
-            budget = limits.max_total_tokens
             if budget is not None and run.usage.total_tokens >= budget:
                 step.thought = response.message.text
                 step.finished_at = utcnow()

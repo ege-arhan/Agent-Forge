@@ -87,12 +87,16 @@ diverge (on SQLite locally and on PostgreSQL in CI).
 
 ## Releasing
 
-1. Bump the version in `pyproject.toml`, `src/agentforge/__init__.py` and
-   `web/package.json` (a unit test enforces that they match).
+1. Bump the version in `pyproject.toml`, `src/agentforge/__init__.py`,
+   `web/package.json` and `web/package-lock.json`, and run `uv lock`
+   (`python scripts/release_notes.py check X.Y.Z` verifies they match).
 2. Move the `## [Unreleased]` entries in `CHANGELOG.md` under
    `## [X.Y.Z] - YYYY-MM-DD`.
-3. After the release PR is merged into `main`, the owner tags `main`:
-   `git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
+3. After the release PR is merged into `main`, the owner tags `main`. Fetch
+   first — merging on GitHub does not move a local `origin/main`, and tagging a
+   stale ref would release the wrong commit:
+   `git fetch origin main && git tag vX.Y.Z FETCH_HEAD && git push origin vX.Y.Z`
+   (check with `git log -1 vX.Y.Z` that the tag is on the merge commit).
 
 `.github/workflows/release.yml` then verifies the version strings, builds the
 wheel and sdist, publishes `agentforge-api`, `agentforge-web` and

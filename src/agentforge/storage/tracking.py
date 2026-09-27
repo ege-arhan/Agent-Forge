@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from agentforge.benchmarks.runner import BenchmarkRecorder, BenchmarkRun
 from agentforge.core.errors import NotFoundError
@@ -210,6 +210,22 @@ class ImprovementRepository:
             else:
                 for key, value in values.items():
                     setattr(row, key, value)
+
+    async def claim(self, cycle_id: str, *, expected: CycleStatus, new: CycleStatus) -> bool:
+        """Atomically move a cycle from ``expected`` to ``new``; False if it was not ``expected``.
+
+        A conditional UPDATE, so of two concurrent requests exactly one wins.
+        """
+        async with self.db.transaction() as session:
+            result = await session.execute(
+                update(ImprovementCycleRow)
+                .where(
+                    ImprovementCycleRow.id == cycle_id,
+                    ImprovementCycleRow.status == expected.value,
+                )
+                .values(status=new.value, updated_at=utcnow())
+            )
+        return bool(getattr(result, "rowcount", 0) == 1)
 
     async def get(self, cycle_id: str) -> ImprovementCycle:
         async with self.db.session() as session:

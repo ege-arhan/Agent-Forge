@@ -10,7 +10,7 @@ marked PASS.
 | Area | Status | Evidence / action |
 |---|---|---|
 | Architecture | PASS | Components and design decisions in `ARCHITECTURE.md`, including the regression gate and the approval gate; migrations form one chain 0001 → 0002 → 0003. |
-| Tests | PASS | 352 Python tests (unit, integration, e2e, 8 Docker-sandbox tests with a daemon) on SQLite; 119 integration + e2e tests on PostgreSQL 16; 17 dashboard unit tests. |
+| Tests | PASS | 355 Python tests (unit, integration, e2e, 8 Docker-sandbox tests with a daemon) on SQLite; 121 integration + e2e tests on PostgreSQL 16; 17 dashboard unit tests. |
 | CI | PASS (branch) · MANUAL ACTION REQUIRED (`main`) | CI and Security workflows green on the release branch's pushed commits; `main` gets them once the stack is merged. |
 | Security | PASS | gitleaks (all git history, working tree, results, local data): no findings; pip-audit: no known vulnerabilities; ruff `S`: clean; no OpenCode credential, Authorization header or bearer token in files, results, logs or git objects. CodeQL: green in CI. |
 | Credentials | MANUAL ACTION REQUIRED | The OpenCode Go key is not in the repository, but it was pasted in chat and appeared on command lines during earlier sessions: **rotate it**. |
@@ -41,8 +41,11 @@ marked PASS.
    `Dependency vulnerabilities (pip-audit)`,
    `Static analysis (ruff security rules / bandit)` — block force pushes and
    deletions.
-4. Tag the release on `main`: `git tag v0.2.0 && git push origin v0.2.0`,
-   then review and publish the draft release.
+4. Tag the release on the merged `main` (fetch first; a merge on GitHub
+   does not move a local `origin/main`):
+   `git fetch origin main && git tag v0.2.0 FETCH_HEAD && git push origin v0.2.0`,
+   check `git log -1 v0.2.0` shows the merge commit, then review and publish
+   the draft release.
 5. Rotate the OpenCode Go key.
 6. Routines: disable "Agent Forge"; attach `ege-arhan/Agent-Forge` to
    "AgentForge daily development".

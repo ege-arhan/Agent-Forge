@@ -312,3 +312,42 @@ async def test_interrupted_evaluations_are_failed_on_startup(
     assert (await loop.benchmarks.get(bench.id)).status.value == "failed"
     rejected = await loop.reject(cycle.id, "retry later")  # no longer stuck
     assert rejected.reverted_to_version == 3
+
+
+async def test_concurrent_evaluate_requests_start_one_benchmark(
+    db: Database, settings: Settings
+) -> None:
+    """Review fix: the applied -> evaluating transition is claimed atomically."""
+    _, bench_id = await _baseline(db, settings)
+    loop = ImprovementLoop(db)
+    cycle = await loop.apply((await loop.propose(bench_id)).id)
+    results = await asyncio.gather(
+        loop.start_evaluation(cycle.id),
+        loop.start_evaluation(cycle.id),
+        return_exceptions=True,
+    )
+    started = [r for r in results if not isinstance(r, BaseException)]
+    failed = [r for r in results if isinstance(r, BaseException)]
+    assert len(started) == 1 and len(failed) == 1
+    assert isinstance(failed[0], ImprovementError)
+    assert "already being evaluated" in str(failed[0])
+    stored = await loop.cycles.get(cycle.id)
+    assert stored.status == CycleStatus.EVALUATING
+    assert stored.candidate_benchmark_run_id == started[0][1].id
+    candidates = [
+        b for b in await loop.benchmarks.list(limit=50) if b.agent_version == cycle.to_version
+    ]
+    assert [b.id for b in candidates] == [started[0][1].id]
+
+
+async def test_benchmark_task_runs_carry_the_stored_agent_id(
+    db: Database, settings: Settings
+) -> None:
+    """Review fix: task runs of a stored agent's benchmark are listed under that agent."""
+    from agentforge.storage import RunRepository
+
+    agent_id, bench_id = await _baseline(db, settings)
+    page = await RunRepository(db).list(benchmark_run_id=bench_id, limit=50)
+    assert page.items and all(run.agent_id == agent_id for run in page.items)
+    by_agent = await RunRepository(db).list(agent_id=agent_id, limit=50)
+    assert {r.id for r in page.items} <= {r.id for r in by_agent.items}

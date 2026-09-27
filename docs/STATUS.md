@@ -55,9 +55,9 @@ Documented in `docs/REAL_MODEL_BENCHMARK.md`; not rerun or altered.
 
 ## Verification (2026-09-27, release branch)
 
-- Python: 352 tests passing (SQLite; includes 8 Docker-sandbox tests
+- Python: 355 tests passing (SQLite; includes 8 Docker-sandbox tests
   with a running daemon). Integration + e2e against PostgreSQL 16:
-  119 passing.
+  121 passing.
 - Dashboard: ESLint, `tsc --noEmit`, 17 unit tests, production build.
 - ruff, ruff format, mypy --strict: clean. `ruff --select S`: clean.
 - Security: gitleaks over all git history and the working tree, the stored

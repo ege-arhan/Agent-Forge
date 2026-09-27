@@ -180,6 +180,15 @@ is an open-source Agent CI/CD and evaluation platform: build → run → evaluat
   security headers and an audit log for state-changing API calls.
 
 ### Fixed
+- Review fixes (bot review on PRs #8 and #10):
+  - A token budget used up by planning (or by the previous step) now stops
+    the run *before* the next model call instead of after one more call.
+  - Starting an improvement-cycle evaluation claims the cycle atomically, so
+    concurrent or retried requests cannot start two candidate benchmarks.
+  - Task runs of a stored agent's benchmark now carry the agent id, so they
+    appear under that agent.
+  - Release docs fetch `main` before tagging; the CLAUDE.md CI check queries
+    each branch separately.
 - Concurrent updates of a stored agent could fail with a unique-constraint
   error on PostgreSQL; the agent row is now locked while the next version is
   allocated.

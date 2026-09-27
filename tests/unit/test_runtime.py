@@ -13,7 +13,7 @@ from agentforge.core.config import (
     RunLimits,
 )
 from agentforge.core.errors import LLMError
-from agentforge.core.models import RunStatus, StepKind, ToolCallStatus
+from agentforge.core.models import RunStatus, StepKind, TokenUsage, ToolCallStatus
 from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.llm.base import LLMProvider
 from agentforge.llm.types import (
@@ -518,3 +518,39 @@ async def test_session_id_is_the_run_id_and_stable_across_calls_and_retries(
     assert first == [runs[0].id] * 3  # failed attempt, its retry, and the next call
     assert second == [runs[1].id] * 3
     assert runs[0].id != runs[1].id
+
+
+class CountingUsageProvider(LLMProvider):
+    """Reports ``tokens_per_call`` input tokens on every call and records the calls."""
+
+    name = "usage"
+
+    def __init__(self, tokens_per_call: int) -> None:
+        self.tokens_per_call = tokens_per_call
+        self.requests: list[CompletionRequest] = []
+
+    async def complete(self, request: CompletionRequest) -> CompletionResponse:
+        self.requests.append(request)
+        return CompletionResponse(
+            message=Message.assistant("1. inspect the workspace\n2. finish"),
+            stop_reason=StopReason.END_TURN,
+            usage=TokenUsage(input_tokens=self.tokens_per_call, output_tokens=0),
+            model="m",
+        )
+
+
+async def test_token_budget_used_up_by_planning_stops_before_an_action_call(
+    settings: Settings,
+) -> None:
+    """Review fix: the budget is checked before each completion, not only after it."""
+    provider = CountingUsageProvider(tokens_per_call=500)
+    config = scripted_config(
+        [],
+        planner=PlannerConfig(strategy=PlannerStrategy.PLAN_EXECUTE),
+        limits=RunLimits(max_total_tokens=400),
+    )
+    run = await prepare_run(config, "g", settings=settings, provider=provider).execute()
+    assert len(provider.requests) == 1  # the planning call only
+    assert run.status == RunStatus.FAILED
+    assert run.error is not None and run.error.type == "token_budget"
+    assert "before the next model call" in run.error.message

@@ -167,6 +167,12 @@ class ImprovementLoop:
         config = version.config
         if self.policy is not None:
             self.policy.check_agent(config)
+        # Claim the cycle atomically: a concurrent (or retried) evaluate request
+        # must not start a second candidate benchmark for the same cycle.
+        if not await self.cycles.claim(
+            cycle.id, expected=CycleStatus.APPLIED, new=CycleStatus.EVALUATING
+        ):
+            raise ImprovementError(f"cycle {cycle_id} is already being evaluated")
         bench = BenchmarkRun(
             suite_id=baseline.suite_id,
             suite_name=baseline.suite_name,
