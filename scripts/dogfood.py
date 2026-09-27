@@ -47,6 +47,7 @@ ROLES = [
         "github-issue-solver.yaml",
         "github-issue-solver.yaml",
     ),
+    Role("engineer", "hard.yaml", "engineer.yaml", "engineer.yaml"),
 ]
 DEMO_AGENT = DOGFOOD / "agents" / "offline" / "demo-coder-v1.yaml"
 DEMO_SUITE = DOGFOOD / "benchmarks" / "coding.yaml"

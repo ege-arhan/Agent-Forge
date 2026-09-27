@@ -1,0 +1,851 @@
+# Dogfooding suite: hard engineering tasks (suite collection "dogfood", see dogfood/README.md).
+#
+# Added after the first real-model validation, where every model passed both
+# dogfood tasks. Each task has visible checks (the tests the agent is told
+# about), hidden checks (edge cases and preserved behaviour the agent never
+# sees) and process checks. Needs a sandbox image with python3 and git
+# (e.g. python:3.12). Offline reference solutions: dogfood/agents/offline/engineer.yaml.
+id: dogfood-hard
+name: 'Dogfood: hard engineering tasks'
+description: 'Four harder tasks with hidden and process checks: multi-file feature, two-cause bug with
+  regression tests, git regression hunt, regression-sensitive change.'
+version: '1'
+repeats: 1
+defaults:
+  timeout_seconds: 900
+  max_steps: 25
+tasks:
+- id: coupons-feature
+  goal: Implement the coupon feature described in SPEC.md across the `shop` package (new module, pricing,
+    CLI) and add tests. Existing behaviour must not change.
+  setup:
+    files:
+      SPEC.md: |
+        # Feature: coupons
+
+        Add coupon support to the shop. Keep everything else working exactly as before.
+
+        ## Coupon file
+
+        `coupons.json` is a list of coupons:
+        `{"code": str, "kind": "percent" | "fixed", "value": int, "expires": "YYYY-MM-DD", "min_subtotal": int (optional, cents, default 0)}`.
+        For `percent`, `value` is a whole percentage; for `fixed`, `value` is in cents.
+
+        ## Rules
+
+        1. Codes match case-insensitively; surrounding whitespace in the entered code is ignored.
+        2. A coupon is valid up to and including its `expires` date.
+        3. A coupon applies only if the cart subtotal is at least `min_subtotal`.
+        4. `percent` discount = subtotal x value / 100, rounded half up to a whole cent.
+           `fixed` discount = value, but never more than the subtotal.
+        5. Tax is charged on the discounted amount (subtotal - discount), with the
+           existing rounding.
+        6. At most one coupon per order.
+
+        ## API
+
+        - New module `shop/coupons.py`:
+          - `Coupon` (any class with at least `code`, `kind`, `value`, `expires` (a `datetime.date`) and `min_subtotal`)
+          - `load_coupons(path: str) -> list[Coupon]`
+          - `find_coupon(coupons: list[Coupon], code: str, today: datetime.date) -> Coupon | None`
+            returns the matching coupon if it is valid on `today`, else `None`
+            (the subtotal rule is applied by pricing, not here).
+        - `shop.pricing.compute_total(cart, coupon=None)`: without a coupon the result
+          must stay exactly what it is today (`{"subtotal", "tax", "total"}`, cents).
+          With a coupon it returns `{"subtotal", "discount", "tax", "total"}`; if the
+          coupon does not apply (rule 3), `discount` is 0.
+
+        ## CLI
+
+        `python3 -m shop.cli CART.json [--coupon CODE] [--coupons PATH] [--today YYYY-MM-DD]`
+
+        - `--coupons` defaults to `coupons.json`; `--today` defaults to the current date.
+        - Without `--coupon` the output must stay byte-for-byte identical to today's.
+        - With a coupon that applies, print a `discount: X.YY` line between `subtotal`
+          and `tax`.
+        - With an unknown or expired coupon, or one whose `min_subtotal` is not met,
+          print `invalid coupon: <CODE as entered, stripped>` to stderr, print nothing
+          to stdout and exit with status 2.
+
+        ## Tests
+
+        Add `tests/test_coupons.py` with unit tests for the new behaviour (at least
+        the expiry day itself and percent rounding). `python3 -m unittest discover -s tests`
+        must pass.
+      cart.json: |
+        {"items": [{"sku": "pen", "price": "2.50", "qty": 4}, {"sku": "pad", "price": "19.99", "qty": 1}]}
+      coupons.json: |
+        [
+          {"code": "SAVE10", "kind": "percent", "value": 10, "expires": "2030-12-31"},
+          {"code": "WELCOME5", "kind": "fixed", "value": 500, "expires": "2030-06-30", "min_subtotal": 2000},
+          {"code": "OLD20", "kind": "percent", "value": 20, "expires": "2020-01-31"}
+        ]
+      shop/__init__.py: ''
+      shop/cart.py: |
+        import json
+        from dataclasses import dataclass, field
+
+        from shop.money import to_cents
+
+
+        @dataclass(frozen=True)
+        class Line:
+            sku: str
+            unit_cents: int
+            quantity: int
+
+            @property
+            def total_cents(self) -> int:
+                return self.unit_cents * self.quantity
+
+
+        @dataclass
+        class Cart:
+            lines: list[Line] = field(default_factory=list)
+
+            def subtotal(self) -> int:
+                return sum(line.total_cents for line in self.lines)
+
+
+        def load_cart(path: str) -> Cart:
+            with open(path) as handle:
+                data = json.load(handle)
+            return Cart([Line(i["sku"], to_cents(i["price"]), int(i["qty"])) for i in data["items"]])
+      shop/cli.py: |
+        """Usage: python3 -m shop.cli CART.json"""
+
+        import argparse
+
+        from shop.cart import load_cart
+        from shop.money import format_cents
+        from shop.pricing import compute_total
+
+
+        def main(argv: list[str] | None = None) -> int:
+            parser = argparse.ArgumentParser(prog="shop")
+            parser.add_argument("cart")
+            args = parser.parse_args(argv)
+            totals = compute_total(load_cart(args.cart))
+            print(f"subtotal: {format_cents(totals['subtotal'])}")
+            print(f"tax: {format_cents(totals['tax'])}")
+            print(f"total: {format_cents(totals['total'])}")
+            return 0
+
+
+        if __name__ == "__main__":
+            raise SystemExit(main())
+      shop/money.py: |
+        """Money is handled as integer cents everywhere."""
+
+
+        def to_cents(text: str) -> int:
+            """Parse "12.34" / "12" / "-0.5" into cents without floating point."""
+            text = text.strip()
+            negative = text.startswith("-")
+            if negative:
+                text = text[1:]
+            whole, _, frac = text.partition(".")
+            cents = int(whole or "0") * 100 + int((frac + "00")[:2])
+            return -cents if negative else cents
+
+
+        def format_cents(cents: int) -> str:
+            sign = "-" if cents < 0 else ""
+            cents = abs(cents)
+            return f"{sign}{cents // 100}.{cents % 100:02d}"
+
+
+        def percent_of(cents: int, basis_points: int) -> int:
+            """`cents * basis_points / 10000`, rounded half up to a whole cent (cents >= 0)."""
+            return (cents * basis_points + 5000) // 10000
+      shop/pricing.py: |
+        from shop.cart import Cart
+        from shop.money import percent_of
+
+        TAX_BASIS_POINTS = 800  # 8% sales tax
+
+
+        def compute_total(cart: Cart) -> dict[str, int]:
+            """Totals in cents: subtotal, tax (on the subtotal) and total."""
+            subtotal = cart.subtotal()
+            tax = percent_of(subtotal, TAX_BASIS_POINTS)
+            return {"subtotal": subtotal, "tax": tax, "total": subtotal + tax}
+      tests/__init__.py: ''
+      tests/test_pricing.py: |
+        import unittest
+
+        from shop.cart import Cart, Line
+        from shop.money import format_cents, percent_of, to_cents
+        from shop.pricing import compute_total
+
+
+        class MoneyTests(unittest.TestCase):
+            def test_to_cents(self):
+                self.assertEqual(to_cents("12.34"), 1234)
+                self.assertEqual(to_cents("7"), 700)
+                self.assertEqual(to_cents("0.5"), 50)
+
+            def test_format(self):
+                self.assertEqual(format_cents(1234), "12.34")
+                self.assertEqual(format_cents(5), "0.05")
+
+            def test_percent_rounds_half_up(self):
+                self.assertEqual(percent_of(1000, 800), 80)
+                self.assertEqual(percent_of(1, 5000), 1)
+
+
+        class PricingTests(unittest.TestCase):
+            def test_total(self):
+                cart = Cart([Line("pen", 250, 4), Line("pad", 1999, 1)])
+                self.assertEqual(
+                    compute_total(cart), {"subtotal": 2999, "tax": 240, "total": 3239}
+                )
+
+
+        if __name__ == "__main__":
+            unittest.main()
+  allowed_tools:
+  - filesystem
+  - terminal
+  expected_behavior: Read the package and SPEC.md; add shop/coupons.py, extend pricing and the CLI (half-up
+    rounding, inclusive expiry, case-insensitive codes, fixed cap, min_subtotal, unchanged output without
+    a coupon); add tests/test_coupons.py; run the tests.
+  evaluators:
+  - type: completed
+    name: finished
+  - type: command
+    name: unit_tests
+    command: python3 -m unittest discover -s tests
+  - type: file_contains
+    name: existing_tests_untouched
+    path: tests/test_pricing.py
+    text: 'compute_total(cart), {"subtotal": 2999, "tax": 240, "total": 3239}'
+  - type: command
+    name: coupon_tests_added
+    command: test "$(python3 -m unittest -v tests.test_coupons 2>&1 | grep -c '\.\.\. ok$')" -ge 2
+  - type: command
+    name: hidden_api
+    command: |
+      python3 - <<'PY'
+      import datetime, json, os, tempfile
+      from shop.cart import Cart, Line
+      from shop.coupons import find_coupon, load_coupons
+      from shop.pricing import compute_total
+
+      cart = Cart([Line("pen", 250, 4), Line("pad", 1999, 1)])
+      assert compute_total(cart) == {"subtotal": 2999, "tax": 240, "total": 3239}, compute_total(cart)
+
+      path = os.path.join(tempfile.mkdtemp(), "c.json")
+      with open(path, "w") as f:
+          json.dump([
+              {"code": "Half", "kind": "percent", "value": 10, "expires": "2031-03-15"},
+              {"code": "BIG", "kind": "fixed", "value": 5000, "expires": "2031-03-15"},
+              {"code": "MIN", "kind": "fixed", "value": 300, "expires": "2031-03-15", "min_subtotal": 1500},
+          ], f)
+      coupons = load_coupons(path)
+      day = datetime.date(2031, 3, 15)
+      half = find_coupon(coupons, "  hALF ", day)
+      assert half is not None and half.expires == day and half.min_subtotal == 0
+      assert find_coupon(coupons, "HALF", day + datetime.timedelta(days=1)) is None
+      assert find_coupon(coupons, "nope", day) is None
+
+      t = compute_total(Cart([Line("x", 1005, 1)]), half)
+      assert t == {"subtotal": 1005, "discount": 101, "tax": 72, "total": 976}, t
+      t = compute_total(Cart([Line("x", 1200, 1)]), find_coupon(coupons, "big", day))
+      assert t == {"subtotal": 1200, "discount": 1200, "tax": 0, "total": 0}, t
+      t = compute_total(Cart([Line("x", 1499, 1)]), find_coupon(coupons, "MIN", day))
+      assert t == {"subtotal": 1499, "discount": 0, "tax": 120, "total": 1619}, t
+      t = compute_total(Cart([Line("x", 1500, 1)]), find_coupon(coupons, "MIN", day))
+      assert t == {"subtotal": 1500, "discount": 300, "tax": 96, "total": 1296}, t
+      print("hidden api ok")
+      PY
+  - type: command
+    name: hidden_cli
+    command: |
+      set -e
+      out=$(python3 -m shop.cli cart.json)
+      test "$out" = "$(printf 'subtotal: 29.99\ntax: 2.40\ntotal: 32.39')"
+      out=$(python3 -m shop.cli cart.json --coupon save10 --today 2030-12-31)
+      test "$out" = "$(printf 'subtotal: 29.99\ndiscount: 3.00\ntax: 2.16\ntotal: 29.15')"
+      set +e
+      out=$(python3 -m shop.cli cart.json --coupon " Old20 " --today 2025-01-01 2>err.txt); code=$?
+      set -e
+      test "$code" = 2 && test -z "$out" && grep -qx 'invalid coupon: Old20' err.txt
+      printf '{"items": [{"sku": "a", "price": "10.00", "qty": 1}]}' > small.json
+      set +e
+      python3 -m shop.cli small.json --coupon WELCOME5 --today 2030-01-01 >out.txt 2>err.txt; code=$?
+      set -e
+      test "$code" = 2 && test ! -s out.txt && grep -qx 'invalid coupon: WELCOME5' err.txt
+      rm -f err.txt out.txt small.json
+      echo "hidden cli ok"
+  - type: tool_used
+    name: ran_commands
+    tool: run_command
+    required: false
+    weight: 0.5
+  tags:
+  - hard
+  - multi-file
+  - feature
+- id: ledger-root-causes
+  goal: 'Follow BUG.md: the ledger report shows wrong balances. Find and fix the root cause(s) in the
+    `ledger` package, add a regression test for each root cause, and name each cause in your final answer.'
+  setup:
+    files:
+      BUG.md: |
+        # Bug: monthly report balances are wrong
+
+        `python3 main.py` prints:
+
+        ```
+        Rent        -1450.00
+        Sales       1512.29
+        Supplies    -21.26
+        ```
+
+        The bank export in `data/transactions.csv` is correct. The expected report is:
+
+        ```
+        Rent        -1450.00
+        Sales       3990.29
+        Supplies    -1070.78
+        ```
+
+        The existing unit tests pass, so they do not cover the problem.
+
+        Please:
+
+        1. Find the root cause(s) and fix them in the `ledger` package (not in the data,
+           not in `main.py`).
+        2. For **each** root cause, add a regression test to `tests/test_parser.py` that
+           fails on the current code and passes after your fix. Keep the existing tests.
+        3. Make sure `python3 -m unittest discover -s tests` and `python3 main.py` pass/print
+           the expected report.
+        4. In your final answer, name each root cause.
+      data/transactions.csv: |
+        date,account,amount,memo
+        2026-03-01,Rent,-1450.00,March rent
+        2026-03-02,Supplies,-19.99,"Paper, toner"
+        2026-03-03,Sales,"2,480.00",Invoice 1041
+        2026-03-05,Supplies,"-1,050.50","Desk, chair (""ergonomic"")"
+        2026-03-09,Sales,310.29,Invoice 1042
+        2026-03-12,Supplies,-0.29,Stamp
+        2026-03-15,Sales,1200.00,"Invoice 1043, paid late"
+      ledger/__init__.py: ''
+      ledger/parser.py: |
+        """Parse the bank export (standard CSV: header row, quoted fields may contain commas)."""
+
+        import datetime
+        from dataclasses import dataclass
+
+
+        @dataclass(frozen=True)
+        class Transaction:
+            date: datetime.date
+            account: str
+            amount_cents: int
+            memo: str
+
+
+        def parse_amount(text: str) -> int:
+            """"1,234.56" -> 123456 (thousands separators allowed)."""
+            return int(float(text.replace(",", "")) * 100)
+
+
+        def parse_transactions(text: str) -> list[Transaction]:
+            transactions = []
+            for line in text.splitlines()[1:]:
+                if not line.strip():
+                    continue
+                date, account, amount, memo = line.split(",", 3)
+                transactions.append(
+                    Transaction(
+                        date=datetime.date.fromisoformat(date),
+                        account=account,
+                        amount_cents=parse_amount(amount.strip('"')),
+                        memo=memo.strip('"'),
+                    )
+                )
+            return transactions
+      ledger/report.py: |
+        from collections import defaultdict
+
+        from ledger.parser import Transaction
+
+
+        def balances(transactions: list[Transaction]) -> dict[str, int]:
+            totals: dict[str, int] = defaultdict(int)
+            for tx in transactions:
+                totals[tx.account] += tx.amount_cents
+            return dict(totals)
+
+
+        def render(totals: dict[str, int]) -> str:
+            lines = []
+            for account in sorted(totals):
+                cents = totals[account]
+                sign = "-" if cents < 0 else ""
+                lines.append(f"{account:<12}{sign}{abs(cents) // 100}.{abs(cents) % 100:02d}")
+            return "\n".join(lines)
+      main.py: |
+        from ledger.parser import parse_transactions
+        from ledger.report import balances, render
+
+        with open("data/transactions.csv") as handle:
+            print(render(balances(parse_transactions(handle.read()))))
+      tests/__init__.py: ''
+      tests/test_parser.py: |
+        import datetime
+        import unittest
+
+        from ledger.parser import parse_amount, parse_transactions
+
+
+        class ParserTests(unittest.TestCase):
+            def test_simple_row(self):
+                [tx] = parse_transactions("date,account,amount,memo\n2026-01-02,Sales,12.50,Invoice 1\n")
+                self.assertEqual(tx.date, datetime.date(2026, 1, 2))
+                self.assertEqual((tx.account, tx.amount_cents, tx.memo), ("Sales", 1250, "Invoice 1"))
+
+            def test_quoted_memo(self):
+                [tx] = parse_transactions('date,account,amount,memo\n2026-01-02,Rent,-800.00,"Jan, Feb"\n')
+                self.assertEqual((tx.amount_cents, tx.memo), (-80000, "Jan, Feb"))
+
+            def test_amount_with_thousands(self):
+                self.assertEqual(parse_amount("1,500.00"), 150000)
+
+
+        if __name__ == "__main__":
+            unittest.main()
+  allowed_tools:
+  - filesystem
+  - terminal
+  expected_behavior: 'Reproduce, trace the wrong balances to the parser: naive comma splitting breaks
+    quoted amounts, and float arithmetic truncates cents; fix both, add a failing-then-passing test for
+    each.'
+  evaluators:
+  - type: completed
+    name: finished
+  - type: command
+    name: unit_tests
+    command: python3 -m unittest discover -s tests
+  - type: command
+    name: report_correct
+    command: test "$(python3 main.py)" = "$(printf 'Rent        -1450.00\nSales       3990.29\nSupplies    -1070.78')"
+  - type: file_contains
+    name: existing_tests_kept
+    path: tests/test_parser.py
+    text: self.assertEqual(parse_amount("1,500.00"), 150000)
+  - type: command
+    name: data_and_main_untouched
+    command: grep -q '"-1,050.50"' data/transactions.csv && grep -q 'render(balances(parse_transactions'
+      main.py
+  - type: command
+    name: hidden_edge_cases
+    command: |
+      python3 - <<'PY'
+      from ledger.parser import parse_amount, parse_transactions
+      text = (
+          "date,account,amount,memo\n"
+          '2026-04-01,Sales,"1,000,000.01","Big, ""quoted"" deal"\n'
+          "\n"
+          "2026-04-02,Fees,-0.07,Bank fee\n"
+          '2026-04-03,Sales,+19.99,"Refund, reversed"\n'
+      )
+      txs = parse_transactions(text)
+      assert [(t.account, t.amount_cents) for t in txs] == [("Sales", 100000001), ("Fees", -7), ("Sales", 1999)], txs
+      assert txs[0].memo == 'Big, "quoted" deal', txs[0].memo
+      assert txs[2].memo == "Refund, reversed"
+      for s, c in {"0.29": 29, "19.99": 1999, "-1,050.50": -105050, "4.10": 410, "7": 700, "0.5": 50}.items():
+          assert parse_amount(s) == c, (s, parse_amount(s))
+      print("hidden ok")
+      PY
+  - type: command
+    name: regression_test_per_root_cause
+    command: |
+      set -e
+      original='
+      import datetime
+      from dataclasses import dataclass
+      @dataclass(frozen=True)
+      class Transaction:
+          date: datetime.date
+          account: str
+          amount_cents: int
+          memo: str
+      FLOAT
+      SPLIT
+      '
+      float_amount='def parse_amount(text):
+          return int(float(text.replace(",", "")) * 100)'
+      exact_amount='def parse_amount(text):
+          text = text.replace(",", "").strip()
+          neg = text.startswith("-")
+          whole, _, frac = text.lstrip("+-").partition(".")
+          cents = int(whole or "0") * 100 + int((frac + "00")[:2])
+          return -cents if neg else cents'
+      naive_split='def parse_transactions(text):
+          out = []
+          for line in text.splitlines()[1:]:
+              if not line.strip():
+                  continue
+              date, account, amount, memo = line.split(",", 3)
+              out.append(Transaction(datetime.date.fromisoformat(date), account, parse_amount(amount.strip("\"")), memo.strip("\"")))
+          return out'
+      csv_split='def parse_transactions(text):
+          import csv, io
+          rows = csv.reader(io.StringIO(text))
+          next(rows, None)
+          return [Transaction(datetime.date.fromisoformat(d), a, parse_amount(m), n) for d, a, m, n in (r for r in rows if r)]'
+      survivors=""
+      for mutant in "$float_amount|$naive_split" "$float_amount|$csv_split" "$exact_amount|$naive_split"; do
+        work=$(mktemp -d)
+        cp -r ledger tests "$work"/
+        python3 - "$work/ledger/parser.py" "$original" "${mutant%%|*}" "${mutant#*|}" <<'PY'
+      import sys
+      path, template, amount, split = sys.argv[1:]
+      open(path, "w").write(template.replace("FLOAT", amount).replace("SPLIT", split))
+      PY
+        if (cd "$work" && python3 -m unittest discover -s tests >/dev/null 2>&1); then
+          survivors="$survivors ${mutant%%(*}"
+        fi
+        rm -rf "$work"
+      done
+      test -z "$survivors" || { echo "tests pass on a buggy parser"; exit 1; }
+      echo "every root cause is covered by a failing test"
+  - type: output_matches
+    name: names_both_causes
+    pattern: (?is)(?=.*(csv|quot|split))(?=.*(float|round|precision|decimal))
+    required: false
+    weight: 0.5
+  tags:
+  - hard
+  - debugging
+  - tests
+- id: git-regression-hunt
+  goal: 'Follow TASK.md: `python3 check.py` fails on main. Use git to find the commit that broke it, undo
+    only that commit with `git revert`, record its hash in BAD_COMMIT.txt (committed), and finish on a
+    clean main.'
+  setup:
+    files:
+      TASK.md: |
+        # Task: find and undo a regression
+
+        `python3 check.py` fails on `main`. It passed when `stats.py` was first added.
+
+        1. Use git to find the commit that introduced the failure.
+        2. Undo **only** that commit with `git revert` (do not rewrite history: no
+           reset, rebase or amend of existing commits). All later changes must stay.
+        3. Write the full 40-character hash of the offending commit into
+           `BAD_COMMIT.txt` (only the hash) and commit that file in its own commit.
+        4. Finish on branch `main` with a clean work tree and `python3 check.py` passing.
+    commands:
+    - |
+      set -e
+      export GIT_AUTHOR_NAME="Dana Dev" GIT_AUTHOR_EMAIL=dana@example.invalid
+      export GIT_COMMITTER_NAME="Dana Dev" GIT_COMMITTER_EMAIL=dana@example.invalid
+      commit() { GIT_AUTHOR_DATE="$1" GIT_COMMITTER_DATE="$1" git commit -q -m "$2"; }
+      git init -q -b main
+      git config user.name "AgentForge Agent"
+      git config user.email agent@agentforge.invalid
+      cat > stats.py <<'EOF'
+      """Small statistics helpers. Inputs are never modified."""
+
+
+      def mean(values):
+          return sum(values) / len(values)
+
+
+      def median(values):
+          """Middle value; the average of the two middle values for even lengths."""
+          s = sorted(values)
+          n = len(s)
+          mid = n // 2
+          if n % 2:
+              return s[mid]
+          return (s[mid - 1] + s[mid]) / 2
+      EOF
+      cat > check.py <<'EOF'
+      from stats import mean, median
+
+      data = [4, 1, 3, 2]
+      assert mean(data) == 2.5
+      assert median(data) == 2.5
+      assert median([5, 1, 3]) == 3
+      assert data == [4, 1, 3, 2], "inputs must not be modified"
+      EOF
+      printf '__pycache__/\n' > .gitignore
+      git add -A && commit "2026-01-05T10:00:00+00:00" "Add mean and median"
+      printf '# stats\n\nTiny statistics helpers. Run `python3 check.py` to verify.\n' > README.md
+      git add -A && commit "2026-01-06T10:00:00+00:00" "Add README"
+      python3 - <<'EOF'
+      p = "stats.py"; s = open(p).read()
+      s = s.replace("    s = sorted(values)\n", "    values.sort()  # sort in place: avoids a copy\n    s = values\n")
+      open(p, "w").write(s)
+      EOF
+      git add -A && commit "2026-01-07T10:00:00+00:00" "Speed up median"
+      cat >> stats.py <<'EOF'
+
+
+      def mode(values):
+          """Most common value; the smallest one on ties."""
+          counts = {}
+          for v in values:
+              counts[v] = counts.get(v, 0) + 1
+          best = max(counts.values())
+          return min(v for v, c in counts.items() if c == best)
+      EOF
+      printf '\nfrom stats import mode\n\nassert mode([3, 1, 3, 1, 2]) == 1\n' >> check.py
+      git add -A && commit "2026-01-08T10:00:00+00:00" "Add mode"
+      cat >> stats.py <<'EOF'
+
+
+      def variance(values):
+          """Population variance."""
+          m = mean(values)
+          return sum((v - m) ** 2 for v in values) / len(values)
+      EOF
+      printf '\nfrom stats import variance\n\nassert variance([1, 2, 3, 4]) == 1.25\n' >> check.py
+      git add -A && commit "2026-01-09T10:00:00+00:00" "Add variance"
+      printf '\nFunctions: mean, median, mode, variance.\n' >> README.md
+      git add -A && commit "2026-01-10T10:00:00+00:00" "Document functions in README"
+      git rev-parse HEAD > .git/agentforge-setup-tip
+  allowed_tools:
+  - filesystem
+  - terminal
+  - git
+  expected_behavior: Inspect history (log/diff or bisect), identify 'Speed up median' (in-place sort),
+    git revert it, verify check.py, commit BAD_COMMIT.txt, clean tree.
+  evaluators:
+  - type: completed
+    name: finished
+  - type: command
+    name: check_passes
+    command: python3 check.py
+  - type: command
+    name: bad_commit_identified
+    command: test "$(tr -d '[:space:]' < BAD_COMMIT.txt)" = "$(git log --format=%H --grep='^Speed up median$'
+      main)"
+  - type: command
+    name: reverted_with_git_revert
+    command: git log --format=%B main | grep -q "This reverts commit $(git log --format=%H --grep='^Speed
+      up median$' main)"
+  - type: command
+    name: history_preserved
+    command: git merge-base --is-ancestor "$(cat .git/agentforge-setup-tip)" HEAD
+  - type: command
+    name: later_changes_kept
+    command: python3 -c 'from stats import mode, variance; assert mode([2, 2, 1]) == 2 and variance([1,
+      3]) == 1.0' && grep -q 'mean, median, mode, variance' README.md
+  - type: command
+    name: record_committed
+    command: git ls-files --error-unmatch BAD_COMMIT.txt
+  - type: command
+    name: clean_worktree_on_main
+    command: test -z "$(git status --porcelain)" && test "$(git rev-parse --abbrev-ref HEAD)" = main
+  - type: tool_used
+    name: used_shell
+    tool: run_command
+    min_calls: 2
+  tags:
+  - hard
+  - tool-use
+  - git
+- id: env-overrides
+  goal: Implement CHANGE.md (environment variable overrides for settings.py) without changing any existing
+    behaviour, and add tests for the new behaviour.
+  setup:
+    files:
+      CHANGE.md: |
+        # Change request: environment variable overrides
+
+        Deployments need to override settings from the environment.
+
+        - `load_settings(path=None, overrides=None, env=None)`: new optional `env`
+          mapping; when it is `None`, use `os.environ`.
+        - For every known key (a key in `DEFAULTS` or in the file), the environment
+          variable `APP_` + the key upper-cased with `.` and `-` replaced by `_`
+          overrides the value. Examples: `port` -> `APP_PORT`, `db.url` -> `APP_DB_URL`,
+          `log-level` -> `APP_LOG_LEVEL`.
+        - Environment values are converted exactly like values from the file.
+        - An environment variable set to the empty string is ignored.
+        - Other `APP_*` variables are ignored: the environment never adds new keys.
+        - Precedence, lowest to highest: `DEFAULTS` < file < environment < `overrides`.
+
+        Everything that works today must keep working exactly as it does (the file
+        format and its documented rules, `parse`, `load_settings` without environment
+        variables). Keep the existing tests unchanged and add tests for the new
+        behaviour to `tests/test_settings.py`. `python3 -m unittest discover -s tests`
+        must pass.
+      app.ini: |
+        # Production settings
+        host = example.org
+        port = 8080
+        DEBUG = off
+        db.url = "postgresql://db/app"   # primary database
+        theme = ocean
+      settings.py: |
+        """Application settings.
+
+        File format: one `key = value` per line. Blank lines and lines starting with
+        `#` or `;` are ignored, and ` #` (a space followed by `#`) starts an inline
+        comment. Keys are case-insensitive. Values are converted: integers (`-?[0-9]+`)
+        become `int`; true/false/yes/no/on/off (any case) become `bool`; anything
+        else stays a string, with one pair of matching surrounding quotes removed.
+        When a key appears twice, the later line wins. A line without `=` is an error.
+        """
+
+        import re
+
+        DEFAULTS = {
+            "host": "localhost",
+            "port": 8000,
+            "debug": False,
+            "workers": 2,
+            "db.url": "sqlite:///app.db",
+            "log-level": "info",
+        }
+
+        _INT = re.compile(r"-?[0-9]+")
+        _BOOLS = {"true": True, "yes": True, "on": True, "false": False, "no": False, "off": False}
+
+
+        def convert(raw: str) -> object:
+            value = raw.strip()
+            if _INT.fullmatch(value):
+                return int(value)
+            if value.lower() in _BOOLS:
+                return _BOOLS[value.lower()]
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                return value[1:-1]
+            return value
+
+
+        def parse(text: str) -> dict[str, object]:
+            values: dict[str, object] = {}
+            for line in text.splitlines():
+                stripped = line.strip()
+                if not stripped or stripped[0] in "#;":
+                    continue
+                if " #" in stripped:
+                    stripped = stripped[: stripped.index(" #")].rstrip()
+                key, sep, raw = stripped.partition("=")
+                if not sep:
+                    raise ValueError(f"invalid line: {line!r}")
+                values[key.strip().lower()] = convert(raw)
+            return values
+
+
+        def load_settings(path: str | None = None, overrides: dict[str, object] | None = None) -> dict[str, object]:
+            """DEFAULTS, updated by the file at `path`, updated by `overrides` (highest precedence)."""
+            settings: dict[str, object] = dict(DEFAULTS)
+            if path is not None:
+                with open(path) as handle:
+                    settings.update(parse(handle.read()))
+            for key, value in (overrides or {}).items():
+                settings[key.lower()] = value
+            return settings
+      tests/__init__.py: ''
+      tests/test_settings.py: |
+        import os
+        import tempfile
+        import unittest
+
+        from settings import DEFAULTS, load_settings, parse
+
+
+        class ParseTests(unittest.TestCase):
+            def test_types_and_comments(self):
+                values = parse("# c\nport = 9000\ndebug = Yes\nname = 'shop'\n; other\n")
+                self.assertEqual(values, {"port": 9000, "debug": True, "name": "shop"})
+
+            def test_inline_comment(self):
+                self.assertEqual(parse("host = a.example   # note")["host"], "a.example")
+
+
+        class LoadTests(unittest.TestCase):
+            def test_defaults(self):
+                self.assertEqual(load_settings(), DEFAULTS)
+
+            def test_file_then_overrides(self):
+                with tempfile.NamedTemporaryFile("w", suffix=".ini", delete=False) as handle:
+                    handle.write("port = 9000\nworkers = 4\n")
+                try:
+                    settings = load_settings(handle.name, overrides={"workers": 8})
+                finally:
+                    os.unlink(handle.name)
+                self.assertEqual((settings["port"], settings["workers"]), (9000, 8))
+
+
+        if __name__ == "__main__":
+            unittest.main()
+  allowed_tools:
+  - filesystem
+  - terminal
+  expected_behavior: Add the env parameter, map known keys to APP_* names, convert values like the file,
+    ignore empty/unknown variables, keep precedence and every documented file rule.
+  evaluators:
+  - type: completed
+    name: finished
+  - type: command
+    name: unit_tests
+    command: python3 -m unittest discover -s tests
+  - type: file_contains
+    name: existing_tests_untouched
+    path: tests/test_settings.py
+    text: self.assertEqual(load_settings(), DEFAULTS)
+  - type: command
+    name: new_tests_added
+    command: test "$(grep -c 'def test_' tests/test_settings.py)" -ge 6
+  - type: command
+    name: hidden_existing_behaviour
+    command: |
+      python3 - <<'PY'
+      import os, tempfile
+      from settings import DEFAULTS, load_settings, parse
+      for k in [k for k in os.environ if k.startswith("APP_")]:
+          del os.environ[k]
+      v = parse("A = 1.5\nurl = http://x/#frag\ncolor = #fff\nname = \"x y\"  # c\nRetries = -3\nflag = ON\nq = 'unbalanced\"\nport = 1\nport = 2\n\n; x\n  # y\n")
+      assert v == {"a": "1.5", "url": "http://x/#frag", "color": "", "name": "x y", "retries": -3, "flag": True, "q": "'unbalanced\"", "port": 2}, v
+      try:
+          parse("oops")
+      except ValueError:
+          pass
+      else:
+          raise AssertionError("line without '=' must raise ValueError")
+      assert load_settings() == DEFAULTS
+      assert load_settings("app.ini") == {**DEFAULTS, "host": "example.org", "port": 8080, "debug": False, "db.url": "postgresql://db/app", "theme": "ocean"}, load_settings("app.ini")
+      assert load_settings(overrides={"Port": 5})["port"] == 5
+      print("legacy ok")
+      PY
+  - type: command
+    name: hidden_env_rules
+    command: |
+      python3 - <<'PY'
+      import os
+      from settings import DEFAULTS, load_settings
+      env = {"APP_PORT": "9100", "APP_LOG_LEVEL": "debug", "APP_DB_URL": "'postgresql://env/db'", "APP_DEBUG": "True",
+             "APP_WORKERS": "", "APP_THEME": "dark", "APP_EXTRA": "1", "PORT": "1"}
+      s = load_settings("app.ini", env=env)
+      assert s["port"] == 9100 and s["log-level"] == "debug" and s["db.url"] == "postgresql://env/db", s
+      assert s["debug"] is True and s["workers"] == 2 and s["theme"] == "dark", s
+      assert "extra" not in s and set(s) == set(DEFAULTS) | {"theme"}, s
+      s = load_settings("app.ini", overrides={"port": 1, "theme": "light"}, env=env)
+      assert s["port"] == 1 and s["theme"] == "light"
+      assert load_settings(env={"APP_THEME": "dark"}) == DEFAULTS  # theme is not a known key without the file
+      os.environ["APP_HOST"] = "from-os-environ"
+      try:
+          assert load_settings()["host"] == "from-os-environ"
+          assert load_settings(env={})["host"] == "localhost"
+      finally:
+          del os.environ["APP_HOST"]
+      print("env ok")
+      PY
+  - type: tool_used
+    name: ran_commands
+    tool: run_command
+    required: false
+    weight: 0.5
+  tags:
+  - hard
+  - regression

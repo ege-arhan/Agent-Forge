@@ -34,6 +34,7 @@ ROLES = {
     "data-analysis.yaml": "data-analysis.yaml",
     "security.yaml": "security-analysis.yaml",
     "issues.yaml": "github-issue-solver.yaml",
+    "hard.yaml": "engineer.yaml",
 }
 
 

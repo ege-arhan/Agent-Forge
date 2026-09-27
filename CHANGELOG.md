@@ -101,6 +101,15 @@ All notable changes are documented here. The format follows
 - First REAL MODEL results (Limited Real-Model Validation, OpenCode Go, five
   models × two tasks) in `dogfood/results/real/` and
   `docs/REAL_MODEL_BENCHMARK.md`.
+- Hard dogfood suite `dogfood-hard` v1 (`dogfood/benchmarks/hard.yaml`): four
+  tasks (multi-file feature, two-cause bug with mutation-checked regression
+  tests, git regression hunt with `git revert`, regression-sensitive change)
+  with visible, hidden and process checks; Engineering Agent
+  (`dogfood/agents/engineer.yaml`) and OFFLINE reference solutions; tests that
+  plausible wrong solutions fail the intended checks.
+- `scripts/real_improvement_experiment.py`: one model, two hard tasks, v1 →
+  analysis → proposal → v2 → comparison through the improvement loop, capped
+  at 4 task executions, no retries.
 - `AGENTFORGE_BENCHMARKS_DIR` accepts several directories (default
   `examples/benchmarks:dogfood/benchmarks`).
 

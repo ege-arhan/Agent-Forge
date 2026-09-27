@@ -45,7 +45,10 @@ models): **run on 2026-09-27** (`--plan benchmark`, commit `6d4812b`):
 executions, 59 model calls, no retries, Docker sandbox. All 10 passed (score
 1.0, 0 tool errors); cost NOT AVAILABLE; secret scan clean. REAL results in
 `dogfood/results/real/`, write-up in `docs/REAL_MODEL_BENCHMARK.md` (small
-sample, no ranking). Earlier the same day:
+sample, no ranking). Because every run passed, the hard suite
+`dogfood-hard` v1 was added (4 tasks, OFFLINE: reference 4/4, idle 0/4, wrong
+solutions rejected by the intended checks) together with a limited real
+improvement experiment (one model, two tasks, ≤ 4 executions). Earlier the same day:
 `opencode.ai` is reachable and `GET /zen/go/v1/models` lists all five models.
 One manual smoke request returned `HTTP 400 MissingSessionID` (no tokens, no
 result). Fixed on `claude/clever-bohr-woxzdb` (stacked on

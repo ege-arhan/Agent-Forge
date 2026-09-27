@@ -27,6 +27,7 @@ change the provider.
 | Data Analysis Agent | [`agents/data-analysis.yaml`](agents/data-analysis.yaml) | [`benchmarks/data-analysis.yaml`](benchmarks/data-analysis.yaml) (`dogfood-data`) | `sales-by-region` (CSV aggregation to JSON), `service-error-rates` (log parsing, malformed lines) |
 | Security Analysis Agent | [`agents/security-analysis.yaml`](agents/security-analysis.yaml) | [`benchmarks/security.yaml`](benchmarks/security.yaml) (`dogfood-security`) | `sql-injection` (report CWE-89 and fix), `hardcoded-credential` (report CWE-798, move to env var) |
 | GitHub Issue Solver | [`agents/github-issue-solver.yaml`](agents/github-issue-solver.yaml) | [`benchmarks/issues.yaml`](benchmarks/issues.yaml) (`dogfood-issues`) | `issue-7-leap-year` (bug fix), `issue-12-feature` (feature), each in a git repo with `ISSUE.md` and `CONTRIBUTING.md` |
+| Engineering Agent (hard suite) | [`agents/engineer.yaml`](agents/engineer.yaml) | [`benchmarks/hard.yaml`](benchmarks/hard.yaml) (`dogfood-hard`) | `coupons-feature` (multi-file feature), `ledger-root-causes` (two root causes, mutation-checked regression tests), `git-regression-hunt` (find + `git revert`), `env-overrides` (regression-sensitive change); design: [docs/REAL_MODEL_BENCHMARK.md](../docs/REAL_MODEL_BENCHMARK.md#3-hard-benchmark-design--dogfood-hard-v1-offline-validated) |
 
 Evaluation criteria (in each suite file):
 

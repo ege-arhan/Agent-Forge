@@ -1,18 +1,18 @@
-# LIMITED REAL-MODEL VALIDATION
+# Real-model benchmarks: LIMITED REAL-MODEL VALIDATION and improvement experiment
 
-> **Status (2026-09-27): RUN — 10 task executions (5 models × 2 tasks).**
-> REAL MODEL results, Provider: OpenCode Go. A small sample: one run per model
-> and task. It shows what these runs did, not how the models compare in
-> general. No ranking, no statistics.
+> **Status (2026-09-27).** Section 1: RUN — 10 task executions (5 models × 2
+> tasks), all passed. Sections 3–9: the hard suite is built and validated
+> OFFLINE; the real-model improvement experiment (sections 4–9) is **not run
+> yet**. All REAL MODEL results use Provider: OpenCode Go. Small samples, one
+> run per task: no rankings, no statistics.
 
-## 1. Offline / scripted results
+OFFLINE RESULTS (scripted reference agents; they validate tasks and pipeline,
+not any model) and REAL-MODEL RESULTS are stored and reported separately:
+[`dogfood/results/offline/`](../dogfood/results/offline) and
+[`dogfood/results/real/`](../dogfood/results/real). They are never combined or
+compared.
 
-Separate dataset, never combined with the section below:
-[`dogfood/results/offline/`](../dogfood/results/offline) — scripted reference
-agents on the dogfood suites. They validate the tasks and the pipeline, not
-any model.
-
-## 2. Real-model results (REAL MODEL · Provider: OpenCode Go)
+## 1. Initial limited validation — REAL-MODEL RESULTS (Provider: OpenCode Go)
 
 | Item | Value |
 |---|---|
@@ -82,7 +82,131 @@ Two manual `deepseek-v4.1-flash` requests preceded the run: one
 `HTTP 400 MissingSessionID` (before the session-header fix), one success
 (37 input / 16 output tokens).
 
-## Design
+## 2. Benchmark limitations: why the first two tasks were too easy
+
+All ten runs passed with score 1.0; every check passed in every run
+(`add-cli-flag`: finished, words_unchanged, lines_option,
+help_documents_option, hidden_other_file; `pagination-off-by-one`: finished,
+tests_pass, hidden_edge_cases, tests_untouched, explains_cause). No run had a
+tool error, a retry, a timeout or a limit hit.
+
+What the tasks exercised: reading one short file, a small edit (an argparse
+option; two one-line arithmetic fixes in a 10-line module), running a
+command, and — for the debugging task — reading a failing assertion that
+prints the wrong value. Resource use stayed far below the limits: at most 9
+of 20 steps and 20 049 of 150 000 tokens per task.
+
+What they did not differentiate:
+
+- changes across several files, or a specification with many interacting
+  rules;
+- writing tests (neither task asked for tests), let alone tests that actually
+  catch the bug;
+- root causes that are not next to the symptom;
+- preserving existing behaviour that no visible test covers;
+- version-control workflows (history inspection, `git revert`);
+- longer plans (no run needed more than 9 steps).
+
+Why the improvement loop cannot be shown on them: the loop derives proposals
+from failed runs. With every run passing, the failure analysis is empty, the
+rule-based proposer has nothing to propose (`improve run` stops when all tasks
+pass), and a comparison could only be "unchanged". The historical results in
+section 1 are kept exactly as recorded.
+
+## 3. Hard benchmark design — `dogfood-hard` v1 (OFFLINE-validated)
+
+[`dogfood/benchmarks/hard.yaml`](../dogfood/benchmarks/hard.yaml): four new
+tasks, standard library only, deterministic (fixed data; the git task builds
+its history with fixed author/committer dates, so commit hashes are
+reproducible). Each task has visible checks (what the agent is told), hidden
+checks (edge cases and preserved behaviour it never sees) and process checks.
+Suite caps: 25 steps, 900 s; the real agent's own limits (20 steps, 600 s)
+are tighter and apply.
+
+| Task | Capability | What makes it harder | Checks (visible · hidden · process) |
+|---|---|---|---|
+| `coupons-feature` | multi-file feature | new module + pricing + CLI + tests; six spec rules (case-insensitive codes, inclusive expiry, half-up rounding, fixed-discount cap, `min_subtotal`, tax on the discounted amount); unchanged output and result shape without a coupon | finished, unit_tests, existing_tests_untouched, coupon_tests_added · hidden_api, hidden_cli · ran_commands (optional) |
+| `ledger-root-causes` | bug investigation + tests | symptom in the report, two independent root causes in the parser (naive comma split of quoted CSV amounts; float truncation of cents); one regression test **per cause** | finished, unit_tests, report_correct, existing_tests_kept, data_and_main_untouched · hidden_edge_cases, regression_test_per_root_cause (the agent's tests are run against three mutants: the original parser and each half-fixed parser, and must fail on all three) · names_both_causes (optional) |
+| `git-regression-hunt` | tool-use workflow (shell + git) | six-commit history; commit 3 made `median` sort its input in place; must be found, undone with `git revert` (history kept, later commits kept), its hash recorded and committed, clean tree | finished, check_passes · bad_commit_identified, reverted_with_git_revert, history_preserved, later_changes_kept, record_committed, clean_worktree_on_main · used_shell |
+| `env-overrides` | regression-sensitive change | "just read env vars" — but values must be converted like file values, empty and unknown `APP_*` variables ignored, precedence `DEFAULTS < file < env < overrides`, key mapping for `.`/`-`, and every documented file rule (e.g. ` #` comments vs `http://x/#frag`) preserved | finished, unit_tests, existing_tests_untouched, new_tests_added · hidden_existing_behaviour, hidden_env_rules · ran_commands (optional) |
+
+Agent for the real experiment: [`dogfood/agents/engineer.yaml`](../dogfood/agents/engineer.yaml)
+— the Coding Agent's system prompt, unchanged (not tuned to these tasks),
+with filesystem, terminal and git tools.
+
+### OFFLINE RESULTS — validation of the hard suite (scripted provider; says nothing about any model)
+
+- Reference solutions ([`dogfood/agents/offline/engineer.yaml`](../dogfood/agents/offline/engineer.yaml)):
+  **4/4 tasks pass** with score 1.0 (every check, including the optional ones),
+  both in the local sandbox and in Docker (`python:3.12`, network none).
+  Report: `dogfood/results/offline/dogfood-hard-v1/`.
+- An agent that does nothing fails all four tasks
+  (`tests/integration/test_improvement_loop.py`).
+- Plausible wrong solutions fail exactly the check aimed at them
+  (`tests/integration/test_hard_suite.py`): banker's rounding → `hidden_api`;
+  an always-present `discount` key → `unit_tests` + `hidden_api`; one regression
+  test for two causes → `regression_test_per_root_cause`; fixing only the CSV
+  split → `report_correct`, `hidden_edge_cases`, `unit_tests`; a manual fix
+  instead of `git revert` → `reverted_with_git_revert`; `git reset` →
+  `history_preserved`, `later_changes_kept`, `bad_commit_identified`;
+  unconverted env values → `hidden_env_rules`; treating every `#` as a comment →
+  `hidden_existing_behaviour`.
+- The run is stored like any benchmark (result class `offline`) and shown by
+  the CLI (`bench report`) and the API (`/benchmarks/runs/{id}/report`,
+  `/analysis`), which the dashboard uses.
+
+## 4. Real-model improvement experiment — method
+
+REAL MODEL · Provider: OpenCode Go · Model: `deepseek-v4.1-flash` (one model;
+the purpose is to exercise the improvement loop, not to compare providers).
+
+- Script: [`scripts/real_improvement_experiment.py`](../scripts/real_improvement_experiment.py).
+- Tasks: `coupons-feature` and `ledger-root-causes`, chosen before any real run
+  as the two with the most ways to fail (six interacting spec rules with hidden
+  checks; two root causes with mutation-checked regression tests). The same two
+  tasks for v1 and v2; the other two hard tasks are not run with a real model.
+- Loop: agent v1 (stored version 1) → benchmark → failure analysis → proposal
+  by the built-in rule-based proposer (derived only from v1's recorded
+  failures) → agent v2 (stored version 2) → benchmark on the same suite
+  snapshot → comparison. Stored in the AgentForge database; nothing is
+  overwritten or deleted.
+- Hard limits (enforced in code): at most **4 task executions** (2 × v1,
+  2 × v2), sequential; `retry.llm_max_attempts: 1`, no evaluation retries;
+  token budget 150 000 per task; proposed changes to the retry policy or the
+  token budget are not applied. v2 does not run if v1 passes both tasks (then
+  the tasks were still too easy and no improvement is claimed), if
+  authentication fails, or if nothing applicable is proposed.
+- Authentication: `--auth proxy` — the environment's API Credential is
+  injected by the egress proxy; the key is not in the process, not in files.
+
+## 5.–9. v1 results, failure analysis, proposal, v2 results, comparison
+
+**Not run yet.**
+
+## 10. Limitations
+
+Initial validation (section 1):
+
+- Two tasks per model, one run each: results describe these runs only. They
+  do not support rankings, significance or general claims. Both tasks are
+  small; all ten runs passed, so they do not separate the models.
+- Durations and latencies depend on the endpoint's load at the time and
+  include network time from the cloud environment.
+- The `--plan benchmark` run skipped the smoke task and the model listing (the
+  ids had been checked against `/models` beforehand); the `--plan validation`
+  design described above has not been run.
+- Model availability and behaviour on OpenCode Go can change over time; the
+  summary records the endpoint, commit and date.
+- Token counts are whatever the endpoint reports; cost is not available.
+
+Improvement experiment (sections 4–9):
+
+- One model, two tasks, one run per version: a before/after observation for
+  this configuration, not evidence of a general improvement; the comparison's
+  intervals cannot establish significance with one run per task.
+- The rule-based proposer only changes configuration and prompt guidance.
+
+## Appendix A — Validation design (section 1)
 
 | Item | Value |
 |---|---|
@@ -165,7 +289,7 @@ errors → configuration failure. Provider and infrastructure problems are never
 counted as model-quality failures. Finer distinctions (planning vs reasoning)
 require reading the trace and are marked as such.
 
-## Reproducing
+## Appendix B — Reproducing
 
 ```bash
 # Requirements: network access to opencode.ai, a Docker daemon, and either
@@ -183,21 +307,7 @@ it scans the stored results, the database and the log for credential-shaped
 strings (bearer tokens, known key formats) and, when `OPENCODE_API_KEY` is set,
 for the key itself, and reports "secret scan: clean" or fails.
 
-## Limitations
-
-- Two tasks per model, one run each: results describe these runs only. They
-  do not support rankings, significance or general claims. Both tasks are
-  small; all ten runs passed, so they do not separate the models.
-- Durations and latencies depend on the endpoint's load at the time and
-  include network time from the cloud environment.
-- The `--plan benchmark` run skipped the smoke task and the model listing (the
-  ids had been checked against `/models` beforehand); the `--plan validation`
-  design described above has not been run.
-- Model availability and behaviour on OpenCode Go can change over time; the
-  summary records the endpoint, commit and date.
-- Token counts are whatever the endpoint reports; cost is not available.
-
-## Infrastructure issues
+## Appendix C — Infrastructure issues
 
 - 2026-09-27 (earlier session): `opencode.ai` was denied by the cloud
   environment's network policy (HTTP 403 on CONNECT).

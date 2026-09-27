@@ -251,10 +251,11 @@ class Row:
     tool_usage: dict[str, dict[str, int]] = field(default_factory=dict)
 
 
-def fill_row(row: Row, bench: Any, run: Any, report: Any) -> None:
+def fill_row(row: Row, bench: Any, run: Any, report: Any, record: Any = None) -> None:
+    """Fill ``row`` from one run record of ``report`` (the first one by default)."""
     from agentforge.improvement.analysis import classify_run
 
-    record = report.runs[0]
+    record = record if record is not None else report.runs[0]
     row.executed = True
     row.benchmark_run_id = bench.id
     row.run_id = record.run_id
