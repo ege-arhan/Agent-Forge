@@ -380,19 +380,21 @@ def render_markdown(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def scan_for_secret(paths: list[Path], secret: str) -> list[Path]:
-    """Files under ``paths`` that contain ``secret`` (byte-level)."""
+def secret_found(paths: list[Path], secret: str) -> bool:
+    """Whether any file under ``paths`` contains ``secret`` (byte-level).
+
+    Returns only a boolean so nothing derived from the secret reaches output.
+    """
     needle = secret.encode()
-    hits: list[Path] = []
     for root in paths:
         files = [root] if root.is_file() else [p for p in root.rglob("*") if p.is_file()]
         for path in files:
             try:
                 if needle in path.read_bytes():
-                    hits.append(path)
+                    return True
             except OSError:
                 continue
-    return hits
+    return False
 
 
 def _commit() -> str:
@@ -512,13 +514,17 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = results_root / "real" / f"limited-validation-{stamp}"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
-    leaks = scan_for_secret([results_root, data_dir], key)
-    summary["secret_scan"] = "clean" if not leaks else f"FOUND in {len(leaks)} file(s)"
+    leaked = secret_found([results_root, data_dir], key)
+    summary["secret_scan"] = "FOUND" if leaked else "clean"
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
     (out_dir / "summary.md").write_text(render_markdown(summary))
-    print(f"summary: {out_dir / 'summary.md'}  secret scan: {summary['secret_scan']}")
+    print(f"summary: {out_dir / 'summary.md'}")
+    if leaked:
+        print("secret scan: FOUND - the key appears in stored results or logs; delete them.")
+        return 1
+    print("secret scan: clean")
     print("Stopped: the limited validation is complete. No further model calls will be made.")
-    return 1 if leaks else 0
+    return 0
 
 
 if __name__ == "__main__":

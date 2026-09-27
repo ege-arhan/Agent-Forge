@@ -117,6 +117,15 @@ def fake_server() -> Iterator[tuple[str, list[str]]]:
     thread.join(timeout=5)
 
 
+def test_secret_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = load_script(monkeypatch)
+    (tmp_path / "a.json").write_text('{"x": 1}')
+    assert module.secret_found([tmp_path], FAKE_KEY) is False
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "b.log").write_text(f"token={FAKE_KEY}")
+    assert module.secret_found([tmp_path], FAKE_KEY) is True
+
+
 def test_resolve_model_id() -> None:
     spec = importlib.util.spec_from_file_location(
         "rmv_resolve", ROOT / "scripts" / "real_model_validation.py"
@@ -174,6 +183,7 @@ def test_limited_validation_end_to_end(
     out = capsys.readouterr().out
     assert code == 0, out
     assert FAKE_KEY not in out
+    assert "secret scan: clean" in out
     [summary_path] = (results / "real").glob("limited-validation-*/summary.json")
     summary = json.loads(summary_path.read_text())
     rows = {(r["model_id"].split("/")[1], r["phase"]): r for r in summary["rows"]}
