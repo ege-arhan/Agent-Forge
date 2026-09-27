@@ -17,6 +17,8 @@ and real-model results can never end up in the same place.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -57,6 +59,11 @@ class TaskRunRecord(BaseModel):
     estimated_cost_usd: float | None = None
     actual_cost_usd: float | None = None
     error: str | None = None
+    failure_category: str | None = Field(
+        default=None,
+        description="Primary failure category of a failed run (failure analysis); null when "
+        "the run passed or the report predates this field.",
+    )
 
 
 class ReportSummary(BaseModel):
@@ -91,6 +98,10 @@ class BenchmarkReport(BaseModel):
     created_at: datetime
     finished_at: datetime | None = None
     repeats: int
+    suite_digest: str | None = Field(
+        default=None,
+        description="sha256 of the suite snapshot the runs used; null in reports that predate it.",
+    )
     summary: ReportSummary
     runs: list[TaskRunRecord] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
@@ -115,6 +126,7 @@ def _record(
             success=False,
             score=0.0,
             error=error,
+            failure_category="missing_record",
         )
     m = run.metrics
     usage = _usage_reported(run)
@@ -143,7 +155,24 @@ def _record(
         estimated_cost_usd=m.cost_usd if usage else None,
         actual_cost_usd=None,
         error=f"{run.error.type}: {run.error.message}" if run.error else None,
+        failure_category=_failure_category(run, evaluation is not None and evaluation.passed),
     )
+
+
+def _failure_category(run: Run, passed: bool) -> str | None:
+    """The failure analysis' primary category for a failed run (None when it passed)."""
+    if passed:
+        return None
+    from agentforge.improvement.analysis import classify_run  # avoid an import cycle
+
+    failure = classify_run(run)
+    return failure.category.value if failure is not None else None
+
+
+def suite_digest(bench: BenchmarkRun) -> str:
+    """Stable hash of the suite snapshot: equal digests mean identical task definitions."""
+    canonical = json.dumps(bench.suite.model_dump(mode="json"), sort_keys=True)
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def _sum(values: list[int | None]) -> int | None:
@@ -185,6 +214,7 @@ def build_report(bench: BenchmarkRun, runs: dict[str, Run]) -> BenchmarkReport:
         created_at=bench.created_at,
         finished_at=bench.finished_at,
         repeats=bench.repeats,
+        suite_digest=suite_digest(bench),
         summary=ReportSummary(
             runs=len(records),
             passed=passed,

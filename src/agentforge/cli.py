@@ -61,6 +61,38 @@ class ConsoleObserver:
             self._print(f"■ {run.status.value}" + (f": {run.error.message}" if run.error else ""))
 
 
+class ConsoleApprovalObserver:
+    """Prompts on the terminal when a run pauses for a sensitive tool call.
+
+    Only useful for ``agentforge run``, which executes in this same process;
+    the API server resolves approvals over HTTP instead (``POST
+    /runs/{id}/approvals/{call_id}``).
+    """
+
+    def __init__(self, runtime: Any, stream: Any = None) -> None:
+        self.runtime = runtime
+        self.stream = stream or sys.stderr
+
+    async def on_event(self, event: Any, run: Run) -> None:
+        if event.type != "tool.awaiting_approval":
+            return
+        call_id = event.data["call_id"]
+        tool = event.data["tool"]
+        permissions = ", ".join(event.data.get("permissions", []))
+        arguments = json.dumps(event.data.get("arguments", {}))
+        if not sys.stdin.isatty():
+            self.runtime.approval.decide(call_id, False, "no interactive terminal to approve")
+            return
+        self._print(f"\n⚠ approval required ({permissions}): {tool}({arguments})")
+        answer = await asyncio.to_thread(input, "  Approve? [y/N]: ")
+        approved = answer.strip().lower() in {"y", "yes"}
+        reason = None if approved else "denied via CLI prompt"
+        self.runtime.approval.decide(call_id, approved, reason)
+
+    def _print(self, text: str) -> None:
+        print(text, file=self.stream, flush=True)
+
+
 def _print_json(data: Any) -> None:
     print(json.dumps(data, indent=2, default=str))
 
@@ -155,6 +187,8 @@ async def cmd_run(args: argparse.Namespace) -> int:
             observers=observers,
             workspace_dir=args.workspace,
         )
+        if config.approval.require_for:
+            prepared.runtime.deps.observers.append(ConsoleApprovalObserver(prepared.runtime))
         run = await prepared.execute(evaluators)
     finally:
         if db is not None:
@@ -299,6 +333,77 @@ async def cmd_bench_compare(args: argparse.Namespace) -> int:
 
         print_comparison(comparison)
     return EXIT_OK if comparison.comparable else EXIT_FAILED
+
+
+def _gate_report_file(path: Path, which: str) -> Any:
+    from pydantic import ValidationError
+
+    from agentforge.benchmarks.report import BenchmarkReport
+
+    if not path.is_file():
+        raise ValueError(f"{which} report file not found: {path}")
+    try:
+        return BenchmarkReport.model_validate_json(path.read_text())
+    except (ValidationError, ValueError) as exc:
+        first = str(exc).splitlines()[0]
+        raise ValueError(f"{which} is not a valid benchmark report ({path}): {first}") from exc
+
+
+async def _gate_stored_reports(ids: dict[str, str]) -> dict[str, Any]:
+    """Reports of stored benchmark runs, keyed like ``ids`` (which -> run id)."""
+    from agentforge.core.errors import NotFoundError
+    from agentforge.settings import get_settings
+
+    db = await _open_db(get_settings())
+    try:
+        reports = {}
+        for which, bench_id in ids.items():
+            try:
+                reports[which] = await _report(db, bench_id)
+            except NotFoundError as exc:
+                raise ValueError(
+                    f"{which} {bench_id!r} is neither a report file nor a stored benchmark run"
+                ) from exc
+        return reports
+    finally:
+        await db.dispose()
+
+
+def cmd_bench_gate(args: argparse.Namespace) -> int:
+    from pydantic import ValidationError
+
+    from agentforge.benchmarks.gate import GateThresholds, evaluate_gate, gate_error, render_gate
+
+    try:
+        thresholds = GateThresholds(
+            max_pass_rate_drop=args.max_pass_rate_drop,
+            max_task_pass_rate_drop=args.max_task_pass_rate_drop,
+            max_mean_score_drop=args.max_mean_score_drop,
+            min_pass_rate=args.min_pass_rate,
+        )
+    except ValidationError as exc:
+        result = gate_error(f"invalid thresholds: {str(exc).splitlines()[0]}")
+    else:
+        try:
+            refs = {"baseline": args.baseline, "candidate": args.candidate}
+            reports: dict[str, Any] = {}
+            stored: dict[str, str] = {}
+            for which, ref in refs.items():
+                path = Path(ref)
+                if path.suffix == ".json" or path.is_file():
+                    reports[which] = _gate_report_file(path, which)
+                else:
+                    stored[which] = ref
+            if stored:
+                reports.update(asyncio.run(_gate_stored_reports(stored)))
+            result = evaluate_gate(reports["baseline"], reports["candidate"], thresholds)
+        except ValueError as exc:
+            result = gate_error(str(exc), thresholds)
+    payload = result.model_dump_json(indent=2)
+    if args.output:
+        Path(args.output).write_text(payload + "\n")
+    print(payload if args.json else render_gate(result))
+    return result.exit_code
 
 
 def cmd_bench_list(args: argparse.Namespace) -> int:
@@ -534,6 +639,24 @@ def build_parser() -> argparse.ArgumentParser:
     bench_compare.add_argument("candidate")
     bench_compare.add_argument("--json", action="store_true")
     bench_compare.set_defaults(handler=cmd_bench_compare)
+    gate = bench.add_parser(
+        "gate",
+        help="CI regression gate: exit 0 pass, 1 regression, 2 error (cannot decide)",
+        description="Compare a candidate benchmark with an explicit baseline. Each of "
+        "--baseline/--candidate is a report JSON file (agentforge bench report --out) or a "
+        "stored benchmark run id. Defaults allow no drop at all.",
+    )
+    gate.add_argument("--baseline", required=True, help="report file or benchmark run id")
+    gate.add_argument("--candidate", required=True, help="report file or benchmark run id")
+    gate.add_argument("--max-pass-rate-drop", type=float, default=0.0, metavar="F")
+    gate.add_argument("--max-task-pass-rate-drop", type=float, default=0.0, metavar="F")
+    gate.add_argument("--max-mean-score-drop", type=float, default=0.0, metavar="F")
+    gate.add_argument(
+        "--min-pass-rate", type=float, default=None, metavar="F", help="absolute floor (optional)"
+    )
+    gate.add_argument("--json", action="store_true", help="print the result as JSON")
+    gate.add_argument("--output", help="also write the JSON result to this file")
+    gate.set_defaults(handler=cmd_bench_gate)
     bench_list = bench.add_parser("list", help="list suites in a directory")
     bench_list.add_argument("dir", nargs="?")
     bench_list.set_defaults(handler=cmd_bench_list)

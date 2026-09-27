@@ -10,10 +10,12 @@ import type {
   EvaluatorInfo,
   Experiment,
   FailureAnalysis,
+  GateResult,
   Health,
   ImprovementCycle,
   Issue,
   Page,
+  PendingApproval,
   ProposedChange,
   ProviderInfo,
   Run,
@@ -146,6 +148,9 @@ export const api = {
     request<Run>("/runs", { method: "POST", body }),
   cancelRun: (id: string) => request<Run>(`/runs/${id}/cancel`, { method: "POST" }),
   rerun: (id: string) => request<Run>(`/runs/${id}/rerun`, { method: "POST" }),
+  pendingApprovals: (id: string) => request<PendingApproval[]>(`/runs/${id}/approvals`),
+  decideApproval: (id: string, callId: string, approved: boolean, reason?: string) =>
+    request<Run>(`/runs/${id}/approvals/${callId}`, { method: "POST", body: { approved, reason } }),
 
   suites: () => request<Suite[]>("/benchmarks/suites"),
   benchmarkRuns: (
@@ -160,6 +165,8 @@ export const api = {
   benchmarkAnalysis: (id: string) => request<FailureAnalysis>(`/benchmarks/runs/${id}/analysis`),
   compareBenchmarks: (baseline: string, candidate: string) =>
     request<BenchmarkComparison>("/benchmarks/compare", { query: { baseline, candidate } }),
+  benchmarkGate: (baseline: string, candidate: string) =>
+    request<GateResult>("/benchmarks/gate", { query: { baseline, candidate } }),
   benchmarkRun: (id: string) => request<BenchmarkRun>(`/benchmarks/runs/${id}`),
   startBenchmark: (body: { suite_id: string; agent_id: string; repeats?: number; task_ids?: string[] }) =>
     request<BenchmarkRun>("/benchmarks/runs", { method: "POST", body }),

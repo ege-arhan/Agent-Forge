@@ -1,6 +1,13 @@
 // Types mirroring the AgentForge HTTP API (src/agentforge/api, core/models.py).
 
-export type RunStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled" | "timed_out";
+export type RunStatus =
+  | "pending"
+  | "running"
+  | "awaiting_approval"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "timed_out";
 
 export type ToolCallStatus = "success" | "error" | "denied" | "timeout" | "invalid_input";
 
@@ -150,6 +157,14 @@ export interface Run {
   labels: Record<string, string>;
   parent_run_id: string | null;
   evaluators: Record<string, unknown>[];
+}
+
+export interface PendingApproval {
+  call_id: string;
+  tool: string;
+  arguments: Record<string, unknown>;
+  permissions: string[];
+  requested_at: string;
 }
 
 export interface RunSummary {
@@ -424,6 +439,34 @@ export interface ImprovementProposal {
 }
 
 export type Verdict = "improved" | "regressed" | "unchanged" | "inconclusive" | "not_comparable";
+
+/** CI regression gate (`agentforge bench gate`, `GET /benchmarks/gate`). */
+export type GateVerdict = "pass" | "regression" | "error";
+
+export interface GateResult {
+  verdict: GateVerdict;
+  exit_code: number;
+  suite_id: string | null;
+  suite_version: string | null;
+  result_class: string | null;
+  thresholds: {
+    max_pass_rate_drop: number;
+    max_task_pass_rate_drop: number;
+    max_mean_score_drop: number;
+    min_pass_rate: number | null;
+  };
+  tasks: {
+    task_id: string;
+    baseline_passed: number;
+    baseline_runs: number;
+    candidate_passed: number;
+    candidate_runs: number;
+    delta: number;
+  }[];
+  errors: string[];
+  regressions: string[];
+  notes: string[];
+}
 
 export interface ComparisonSide {
   benchmark_run_id: string;

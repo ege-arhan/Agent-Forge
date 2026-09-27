@@ -6,7 +6,38 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-27
+
+First tagged release (0.1.0 was the untagged development version). AgentForge
+is an open-source Agent CI/CD and evaluation platform: build → run → evaluate
+→ analyze → improve → re-run → regression check → approve/block.
+
+### Highlights
+- CI regression gate: `agentforge bench gate` (exit 0 pass, 1 regression,
+  2 cannot decide), `GET /benchmarks/gate`, a GitHub Actions example.
+- Human approval gate for sensitive tools (pauses a run until an operator
+  approves or denies; denied on timeout).
+- Agent improvement loop with immutable agent versions, failure analysis,
+  proposals, re-benchmarking and comparison.
+- Limited real-model validation through OpenCode Go (five models) and a
+  controlled real-model improvement-loop demonstration; small samples, see
+  `docs/REAL_MODEL_BENCHMARK.md`.
+
 ### Added
+- CI regression gate `agentforge bench gate --baseline --candidate`: compares
+  two benchmark reports (report files or stored runs) under configurable
+  thresholds (overall and per-task pass-rate drop, mean-score drop, optional
+  floor; defaults allow no drop). Missing or invalid inputs, different suites,
+  task definitions, task sets or result classes, unfinished benchmarks and
+  infrastructure failures are errors (exit 2), never a pass. API
+  `GET /benchmarks/gate`; the dashboard shows the gate verdict of evaluated
+  improvement cycles; `.github/workflows/agentforge-regression.yml` example
+  with a committed offline baseline; `docs/regression-gate.md`.
+- Benchmark reports carry `suite_digest` (hash of the suite snapshot) and a
+  per-run `failure_category`; older reports still load.
+- Database migration `0003`: `runs.status` widened to fit `awaiting_approval`
+  (written as `0002` on the approval-gate branch; renumbered after the agent
+  versions migration `0002`).
 - Core domain models: agent configuration, runs, steps, tool-call and LLM-call
   records, evaluation results, metrics.
 - Provider-neutral LLM layer with adapters for Anthropic (official SDK) and
@@ -79,9 +110,56 @@ All notable changes are documented here. The format follows
 - `scripts/real_model_validation.py`: Limited Real-Model Validation harness
   (at most 15 sequential task executions, no retries, token budget, model
   listing preflight, REAL results only, secret scan) and
-  `docs/REAL_MODEL_BENCHMARK.md`. Not run yet (network policy).
+  `docs/REAL_MODEL_BENCHMARK.md`. Not run yet.
+- `opencode-go` sends `x-opencode-session` on every model request (the run id:
+  stable across a run's calls and retries, distinct per run; new
+  `CompletionRequest.session_id`) and an `agentforge/<version>` user agent, as
+  OpenCode Go requires. Without it OpenCode Go answered `400 MissingSessionID`.
+- `opencode-go` routes models that OpenCode serves on `/responses` (e.g.
+  `muse-spark-1.3-contributor`) through the Responses API; `/messages`-only
+  models are refused before any request.
+- OpenAI-compatible providers: `model.options.auth: proxy` for credentials
+  injected by an egress proxy (e.g. Claude Cloud API Credentials): no key is
+  read and no `Authorization` header is sent. The validation script exposes it
+  as `--auth proxy`; `--auth env` (`OPENCODE_API_KEY`) stays the default.
+- Validation script: single endpoint `https://opencode.ai/zen/go/v1` (no
+  fallbacks), exact model ids, the unauthenticated `/models` listing is no
+  longer treated as proof of authentication, a 401/403 model call stops the
+  experiment, and a credential-pattern scan runs in both auth modes.
+- Validation script `--plan benchmark`: the two benchmark tasks once per model
+  (at most 10 executions), no listing, no smoke task; rows also record total
+  tokens, model-call latency, token-limit hits and provider errors.
+- First REAL MODEL results (Limited Real-Model Validation, OpenCode Go, five
+  models × two tasks) in `dogfood/results/real/` and
+  `docs/REAL_MODEL_BENCHMARK.md`.
+- Hard dogfood suite `dogfood-hard` v1 (`dogfood/benchmarks/hard.yaml`): four
+  tasks (multi-file feature, two-cause bug with mutation-checked regression
+  tests, git regression hunt with `git revert`, regression-sensitive change)
+  with visible, hidden and process checks; Engineering Agent
+  (`dogfood/agents/engineer.yaml`) and OFFLINE reference solutions; tests that
+  plausible wrong solutions fail the intended checks.
+- `scripts/real_improvement_experiment.py`: one model, two hard tasks, v1 →
+  analysis → proposal → v2 → comparison through the improvement loop, capped
+  at 4 task executions, no retries. Run with `deepseek-v4.1-flash`: v1 passed
+  both tasks, so no improvement was attempted (REAL results in
+  `dogfood/results/real/`).
+- README repositioned as an Agent CI/CD and evaluation platform (lifecycle
+  build → run → evaluate → failure analysis → improve → re-run → regression
+  check) with a factual real-model validation summary.
+- Controlled improvement-loop demonstration (`--task`, `--baseline-max-steps`):
+  a step-limited baseline failed `ledger-root-causes`, the loop proposed
+  `limits.max_steps 8 → 25`, v2 passed (2 REAL executions; verdict
+  inconclusive; not evidence of model learning).
 - `AGENTFORGE_BENCHMARKS_DIR` accepts several directories (default
   `examples/benchmarks:dogfood/benchmarks`).
+- Human approval gate for sensitive tools: `AgentConfig.approval.require_for`
+  lists permissions (e.g. `process:exec`, `network`, `git:write`) that pause a
+  run (`awaiting_approval`) before the matching tool call executes, until an
+  operator approves or denies it via `GET/POST /runs/{id}/approvals[/{call_id}]`
+  (or, for `agentforge run`, an interactive terminal prompt), the run is
+  cancelled, or `approval.timeout_seconds` elapses (denied by default). A
+  denial fails only that tool call. Dashboard run page shows a Pending
+  approval card.
 
 ### Changed
 - Development workflow: `main` is the stable, always-releasable branch; all
@@ -102,6 +180,15 @@ All notable changes are documented here. The format follows
   security headers and an audit log for state-changing API calls.
 
 ### Fixed
+- Review fixes (bot review on PRs #8 and #10):
+  - A token budget used up by planning (or by the previous step) now stops
+    the run *before* the next model call instead of after one more call.
+  - Starting an improvement-cycle evaluation claims the cycle atomically, so
+    concurrent or retried requests cannot start two candidate benchmarks.
+  - Task runs of a stored agent's benchmark now carry the agent id, so they
+    appear under that agent.
+  - Release docs fetch `main` before tagging; the CLAUDE.md CI check queries
+    each branch separately.
 - Concurrent updates of a stored agent could fail with a unique-constraint
   error on PostgreSQL; the agent row is now locked while the next version is
   allocated.

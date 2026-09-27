@@ -1,0 +1,493 @@
+# OFFLINE reference agent for the dogfooding program (scripted provider).
+#
+# Replays a known-good solution for every task in dogfood/benchmarks/hard.yaml.
+# Its results validate the benchmark (each task is solvable and its checks
+# accept a correct solution) and the AgentForge pipeline. They say nothing
+# about any model and are reported separately as OFFLINE results.
+name: dogfood-engineer-offline
+description: Scripted reference solutions for the hard suite.
+model:
+  provider: scripted
+  model: scripted-reference-v1
+  options:
+    turns:
+    - text: No scripted solution matches this task.
+    rules:
+    - when: SPEC\.md
+      turns:
+      - text: Reading the specification.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: SPEC.md
+      - text: Reading the current pricing code.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: shop/pricing.py
+      - text: Adding shop/coupons.py (loading, lookup, discount rules).
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: shop/coupons.py
+            content: |
+              import datetime
+              import json
+              from dataclasses import dataclass
+
+
+              @dataclass(frozen=True)
+              class Coupon:
+                  code: str
+                  kind: str  # "percent" or "fixed"
+                  value: int
+                  expires: datetime.date
+                  min_subtotal: int = 0
+
+
+              def load_coupons(path: str) -> list[Coupon]:
+                  with open(path) as handle:
+                      data = json.load(handle)
+                  return [
+                      Coupon(
+                          code=item["code"],
+                          kind=item["kind"],
+                          value=int(item["value"]),
+                          expires=datetime.date.fromisoformat(item["expires"]),
+                          min_subtotal=int(item.get("min_subtotal", 0)),
+                      )
+                      for item in data
+                  ]
+
+
+              def find_coupon(coupons: list[Coupon], code: str, today: datetime.date) -> Coupon | None:
+                  wanted = code.strip().lower()
+                  for coupon in coupons:
+                      if coupon.code.lower() == wanted:
+                          return coupon if today <= coupon.expires else None
+                  return None
+
+
+              def discount_for(coupon: Coupon, subtotal: int) -> int:
+                  if subtotal < coupon.min_subtotal:
+                      return 0
+                  if coupon.kind == "percent":
+                      return (subtotal * coupon.value + 50) // 100
+                  return min(coupon.value, subtotal)
+      - text: 'Pricing: tax on the discounted amount; unchanged result without a coupon.'
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: shop/pricing.py
+            content: |
+              from shop.cart import Cart
+              from shop.coupons import Coupon, discount_for
+              from shop.money import percent_of
+
+              TAX_BASIS_POINTS = 800  # 8% sales tax
+
+
+              def compute_total(cart: Cart, coupon: Coupon | None = None) -> dict[str, int]:
+                  """Totals in cents: subtotal, tax (on the discounted amount), total (+ discount with a coupon)."""
+                  subtotal = cart.subtotal()
+                  if coupon is None:
+                      tax = percent_of(subtotal, TAX_BASIS_POINTS)
+                      return {"subtotal": subtotal, "tax": tax, "total": subtotal + tax}
+                  discount = discount_for(coupon, subtotal)
+                  taxable = subtotal - discount
+                  tax = percent_of(taxable, TAX_BASIS_POINTS)
+                  return {"subtotal": subtotal, "discount": discount, "tax": tax, "total": taxable + tax}
+      - text: 'CLI: --coupon, --coupons, --today; exit 2 for invalid coupons.'
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: shop/cli.py
+            content: |
+              """Usage: python3 -m shop.cli CART.json [--coupon CODE] [--coupons PATH] [--today YYYY-MM-DD]"""
+
+              import argparse
+              import datetime
+              import sys
+
+              from shop.cart import load_cart
+              from shop.coupons import find_coupon, load_coupons
+              from shop.money import format_cents
+              from shop.pricing import compute_total
+
+
+              def main(argv: list[str] | None = None) -> int:
+                  parser = argparse.ArgumentParser(prog="shop")
+                  parser.add_argument("cart")
+                  parser.add_argument("--coupon")
+                  parser.add_argument("--coupons", default="coupons.json")
+                  parser.add_argument("--today", type=datetime.date.fromisoformat)
+                  args = parser.parse_args(argv)
+                  cart = load_cart(args.cart)
+                  coupon = None
+                  if args.coupon is not None:
+                      today = args.today or datetime.date.today()
+                      coupon = find_coupon(load_coupons(args.coupons), args.coupon, today)
+                      if coupon is None or cart.subtotal() < coupon.min_subtotal:
+                          print(f"invalid coupon: {args.coupon.strip()}", file=sys.stderr)
+                          return 2
+                  totals = compute_total(cart, coupon)
+                  print(f"subtotal: {format_cents(totals['subtotal'])}")
+                  if coupon is not None:
+                      print(f"discount: {format_cents(totals['discount'])}")
+                  print(f"tax: {format_cents(totals['tax'])}")
+                  print(f"total: {format_cents(totals['total'])}")
+                  return 0
+
+
+              if __name__ == "__main__":
+                  raise SystemExit(main())
+      - text: Adding tests for the new behaviour.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: tests/test_coupons.py
+            content: |
+              import datetime
+              import unittest
+
+              from shop.cart import Cart, Line
+              from shop.coupons import Coupon, find_coupon
+              from shop.pricing import compute_total
+
+              DAY = datetime.date(2030, 6, 30)
+              COUPONS = [
+                  Coupon("SAVE10", "percent", 10, datetime.date(2030, 12, 31)),
+                  Coupon("WELCOME5", "fixed", 500, DAY, 2000),
+              ]
+
+
+              class CouponTests(unittest.TestCase):
+                  def test_valid_on_expiry_day(self):
+                      self.assertIsNotNone(find_coupon(COUPONS, "welcome5", DAY))
+                      self.assertIsNone(find_coupon(COUPONS, "WELCOME5", DAY + datetime.timedelta(days=1)))
+
+                  def test_code_is_trimmed_and_case_insensitive(self):
+                      self.assertEqual(find_coupon(COUPONS, "  save10 ", DAY).code, "SAVE10")
+
+                  def test_percent_rounds_half_up(self):
+                      totals = compute_total(Cart([Line("x", 1005, 1)]), COUPONS[0])
+                      self.assertEqual(totals["discount"], 101)
+
+                  def test_fixed_never_exceeds_subtotal(self):
+                      coupon = Coupon("BIG", "fixed", 5000, DAY)
+                      totals = compute_total(Cart([Line("x", 1200, 1)]), coupon)
+                      self.assertEqual((totals["discount"], totals["tax"], totals["total"]), (1200, 0, 0))
+
+                  def test_min_subtotal(self):
+                      totals = compute_total(Cart([Line("x", 1999, 1)]), COUPONS[1])
+                      self.assertEqual(totals["discount"], 0)
+
+
+              if __name__ == "__main__":
+                  unittest.main()
+      - text: Running the tests and the CLI.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 -m unittest discover -s tests && python3 -m shop.cli cart.json && python3
+              -m shop.cli cart.json --coupon save10 --today 2030-01-01
+      - text: 'Implemented coupons per SPEC.md: shop/coupons.py (case-insensitive codes, inclusive expiry),
+          percent discounts rounded half up, fixed discounts capped at the subtotal, min_subtotal, tax
+          on the discounted amount, unchanged output without a coupon, CLI exit 2 for invalid coupons;
+          tests in tests/test_coupons.py pass.'
+    - when: BUG\.md
+      turns:
+      - text: Reproducing the report.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 main.py
+      - text: Sales and Supplies are wrong; reading the parser.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: ledger/parser.py
+      - text: line.split(',') breaks quoted amounts like "2,480.00", and int(float(x) * 100) truncates
+          19.99 to 1998. Using the csv module and exact decimal parsing.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: ledger/parser.py
+            content: |
+              """Parse the bank export (standard CSV: header row, quoted fields may contain commas)."""
+
+              import csv
+              import datetime
+              import io
+              from dataclasses import dataclass
+
+
+              @dataclass(frozen=True)
+              class Transaction:
+                  date: datetime.date
+                  account: str
+                  amount_cents: int
+                  memo: str
+
+
+              def parse_amount(text: str) -> int:
+                  """"1,234.56" -> 123456 (thousands separators allowed), without floating point."""
+                  text = text.replace(",", "").strip()
+                  negative = text.startswith("-")
+                  whole, _, frac = text.lstrip("+-").partition(".")
+                  cents = int(whole or "0") * 100 + int((frac + "00")[:2])
+                  return -cents if negative else cents
+
+
+              def parse_transactions(text: str) -> list[Transaction]:
+                  rows = csv.reader(io.StringIO(text))
+                  next(rows, None)  # header
+                  return [
+                      Transaction(
+                          date=datetime.date.fromisoformat(date),
+                          account=account,
+                          amount_cents=parse_amount(amount),
+                          memo=memo,
+                      )
+                      for date, account, amount, memo in (row for row in rows if row)
+                  ]
+      - text: Adding one regression test per root cause.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: tests/test_parser.py
+            content: |
+              import datetime
+              import unittest
+
+              from ledger.parser import parse_amount, parse_transactions
+
+
+              class ParserTests(unittest.TestCase):
+                  def test_simple_row(self):
+                      [tx] = parse_transactions("date,account,amount,memo\n2026-01-02,Sales,12.50,Invoice 1\n")
+                      self.assertEqual(tx.date, datetime.date(2026, 1, 2))
+                      self.assertEqual((tx.account, tx.amount_cents, tx.memo), ("Sales", 1250, "Invoice 1"))
+
+                  def test_quoted_memo(self):
+                      [tx] = parse_transactions('date,account,amount,memo\n2026-01-02,Rent,-800.00,"Jan, Feb"\n')
+                      self.assertEqual((tx.amount_cents, tx.memo), (-80000, "Jan, Feb"))
+
+                  def test_amount_with_thousands(self):
+                      self.assertEqual(parse_amount("1,500.00"), 150000)
+
+
+              if __name__ == "__main__":
+                  unittest.main()
+
+
+              class RegressionTests(unittest.TestCase):
+                  def test_quoted_amount_with_thousands_separator(self):
+                      text = 'date,account,amount,memo\n2026-03-05,Supplies,"-1,050.50","Desk, chair"\n'
+                      [tx] = parse_transactions(text)
+                      self.assertEqual((tx.amount_cents, tx.memo), (-105050, "Desk, chair"))
+
+                  def test_amount_is_exact_in_cents(self):
+                      self.assertEqual(parse_amount("19.99"), 1999)
+                      self.assertEqual(parse_amount("-0.29"), -29)
+      - text: Verifying.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 -m unittest discover -s tests && python3 main.py
+      - text: 'Two root causes: (1) the CSV was split on every comma, so quoted amounts with thousands
+          separators were cut in half; now parsed with the csv module. (2) amounts were converted with
+          float arithmetic and truncated (19.99 -> 1998 cents); now parsed exactly as decimal cents. Regression
+          tests added for both; the report matches BUG.md.'
+    - when: TASK\.md
+      turns:
+      - text: Reproducing and reading the history.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 check.py; git log --oneline
+      - text: check.py says the input was modified; looking for the commit that touched median.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: git log -p --format='%H %s' -- stats.py | head -80
+      - text: '''Speed up median'' sorts the input in place. Reverting only that commit.'
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: bad=$(git log --format=%H --grep='^Speed up median$') && git revert --no-edit "$bad"
+              && echo "$bad" > BAD_COMMIT.txt && git add BAD_COMMIT.txt && git commit -q -m 'Record the
+              commit that broke median'
+      - text: Verifying.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 check.py && git status --porcelain && git log --oneline -3
+      - text: The regression came from 'Speed up median', which sorted the caller's list in place. Reverted
+          it with git revert (later commits kept), recorded its hash in BAD_COMMIT.txt in its own commit;
+          check.py passes and the work tree is clean on main.
+    - when: CHANGE\.md
+      turns:
+      - text: Reading the change request.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: CHANGE.md
+      - text: Reading settings.py.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: settings.py
+      - text: Adding the env parameter; known keys only, converted like file values, empty ignored.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: settings.py
+            content: |
+              """Application settings.
+
+              File format: one `key = value` per line. Blank lines and lines starting with
+              `#` or `;` are ignored, and ` #` (a space followed by `#`) starts an inline
+              comment. Keys are case-insensitive. Values are converted: integers (`-?[0-9]+`)
+              become `int`; true/false/yes/no/on/off (any case) become `bool`; anything
+              else stays a string, with one pair of matching surrounding quotes removed.
+              When a key appears twice, the later line wins. A line without `=` is an error.
+              """
+
+              import os
+              import re
+              from collections.abc import Mapping
+
+              DEFAULTS = {
+                  "host": "localhost",
+                  "port": 8000,
+                  "debug": False,
+                  "workers": 2,
+                  "db.url": "sqlite:///app.db",
+                  "log-level": "info",
+              }
+
+              _INT = re.compile(r"-?[0-9]+")
+              _BOOLS = {"true": True, "yes": True, "on": True, "false": False, "no": False, "off": False}
+
+
+              def convert(raw: str) -> object:
+                  value = raw.strip()
+                  if _INT.fullmatch(value):
+                      return int(value)
+                  if value.lower() in _BOOLS:
+                      return _BOOLS[value.lower()]
+                  if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                      return value[1:-1]
+                  return value
+
+
+              def parse(text: str) -> dict[str, object]:
+                  values: dict[str, object] = {}
+                  for line in text.splitlines():
+                      stripped = line.strip()
+                      if not stripped or stripped[0] in "#;":
+                          continue
+                      if " #" in stripped:
+                          stripped = stripped[: stripped.index(" #")].rstrip()
+                      key, sep, raw = stripped.partition("=")
+                      if not sep:
+                          raise ValueError(f"invalid line: {line!r}")
+                      values[key.strip().lower()] = convert(raw)
+                  return values
+
+
+              def env_name(key: str) -> str:
+                  return "APP_" + key.upper().replace(".", "_").replace("-", "_")
+
+
+              def load_settings(
+                  path: str | None = None,
+                  overrides: dict[str, object] | None = None,
+                  env: Mapping[str, str] | None = None,
+              ) -> dict[str, object]:
+                  """DEFAULTS < file at `path` < environment (APP_*) < `overrides` (highest precedence)."""
+                  settings: dict[str, object] = dict(DEFAULTS)
+                  if path is not None:
+                      with open(path) as handle:
+                          settings.update(parse(handle.read()))
+                  environ = os.environ if env is None else env
+                  for key in list(settings):
+                      raw = environ.get(env_name(key), "")
+                      if raw != "":
+                          settings[key] = convert(raw)
+                  for key, value in (overrides or {}).items():
+                      settings[key.lower()] = value
+                  return settings
+      - text: Adding tests for the new behaviour.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: tests/test_settings.py
+            content: |
+              import os
+              import tempfile
+              import unittest
+
+              from settings import DEFAULTS, load_settings, parse
+
+
+              class ParseTests(unittest.TestCase):
+                  def test_types_and_comments(self):
+                      values = parse("# c\nport = 9000\ndebug = Yes\nname = 'shop'\n; other\n")
+                      self.assertEqual(values, {"port": 9000, "debug": True, "name": "shop"})
+
+                  def test_inline_comment(self):
+                      self.assertEqual(parse("host = a.example   # note")["host"], "a.example")
+
+
+              class LoadTests(unittest.TestCase):
+                  def test_defaults(self):
+                      self.assertEqual(load_settings(), DEFAULTS)
+
+                  def test_file_then_overrides(self):
+                      with tempfile.NamedTemporaryFile("w", suffix=".ini", delete=False) as handle:
+                          handle.write("port = 9000\nworkers = 4\n")
+                      try:
+                          settings = load_settings(handle.name, overrides={"workers": 8})
+                      finally:
+                          os.unlink(handle.name)
+                      self.assertEqual((settings["port"], settings["workers"]), (9000, 8))
+
+
+              class EnvTests(unittest.TestCase):
+                  def test_env_overrides_file_and_is_converted(self):
+                      settings = load_settings(env={"APP_PORT": "9100", "APP_DEBUG": "yes", "APP_DB_URL": "x"})
+                      self.assertEqual((settings["port"], settings["debug"], settings["db.url"]), (9100, True, "x"))
+
+                  def test_overrides_win_and_empty_or_unknown_ignored(self):
+                      settings = load_settings(
+                          overrides={"port": 1}, env={"APP_PORT": "2", "APP_HOST": "", "APP_NEW": "z"}
+                      )
+                      self.assertEqual((settings["port"], settings["host"]), (1, "localhost"))
+                      self.assertNotIn("new", settings)
+
+
+              if __name__ == "__main__":
+                  unittest.main()
+      - text: Running the tests.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 -m unittest discover -s tests
+      - text: Implemented APP_* environment overrides (DEFAULTS < file < environment < overrides), converted
+          like file values, ignoring empty and unknown variables; the file format is unchanged and all
+          tests pass.
+tools:
+- filesystem
+- terminal
+limits:
+  max_steps: 20
+  timeout_seconds: 300
+memory:
+  persist: false
+sandbox:
+  kind: local
+labels:
+  program: dogfood
+  result_class: offline

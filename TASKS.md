@@ -9,45 +9,50 @@ _None open. Continue with P1 in roadmap order._
 
 ## P1 — Important
 
-### T-015b Public beta readiness
-- **Status:** in-progress
-- **Dependencies:** none
+### T-015b Public beta readiness / v0.2.0
+- **Status:** in-progress — everything but the owner's GitHub actions is done.
 - **Done:** CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates,
-  clean-clone walkthrough of the README quick start (verified), example
-  agents fixed to use the sandbox image with git/pytest, test that every
-  example config/suite/experiment stays valid.
-- **Done (owner request):** stable `main` branch created; PR-based workflow
-  documented in CLAUDE.md, DEVELOPMENT.md and CONTRIBUTING.md.
-- **Remaining:** owner sets `main` as default branch with branch protection;
-  owner decision to cut `v0.2.0` (bump versions, move the changelog section,
-  tag `main` — this publishes GHCR images and drafts a release).
-
-### T-009b Real-model benchmark results
-- **Status:** blocked (needs API keys / budget approval from the owner)
-- **Description:** Run the dogfooding suites with real providers
-  (`scripts/dogfood.py real --provider … --model … -r 3`, optionally
-  `--improve-cycles 1`) and `examples/experiments/model-comparison.yaml`;
-  publish the reports under `dogfood/results/real/` with methodology.
-- **Tooling ready:** real-model agent configs, report format, credential check
-  (refuses to run without keys and records nothing).
-- **2026-09-27 (owner request):** Limited Real-Model Validation with five
-  OpenCode Go models prepared: `opencode-go` preset, token budget,
-  `scripts/real_model_validation.py` (≤ 15 task executions, sequential, no
-  retries), `docs/REAL_MODEL_BENCHMARK.md`, tests against a fake endpoint.
-  **Not run:** the cloud environment's network policy blocks `opencode.ai`.
-  Needs: `opencode.ai` allowed in the environment's network settings,
-  `OPENCODE_API_KEY` stored as an environment secret, the endpoint URL
-  confirmed (the preflight lists models without calling any).
+  clean-clone walkthrough of the README quick start, stable `main` and the
+  PR-based workflow, versions bumped to 0.2.0 everywhere
+  (`scripts/release_notes.py check 0.2.0` passes), CHANGELOG `[0.2.0]` section,
+  release readiness checklist (`docs/RELEASE_CHECKLIST.md`).
+- **Remaining (owner, GitHub UI):** merge PRs #8 → #9 → #10 → #11; set `main`
+  as default branch and protect it; push the `v0.2.0` tag on `main` (this
+  builds artifacts, publishes GHCR images and drafts the release).
 
 ### T-018 Scheduled routine can access the repository
-- **Status:** blocked (owner action; see DEVELOPMENT.md "Scheduled autonomous
-  sessions")
-- **Description:** "AgentForge daily development" has no repository source,
-  so its sessions cannot push or open PRs; the older "Agent Forge" routine
-  duplicates it with an outdated prompt. Owner: attach `ege-arhan/Agent-Forge`
-  to the daily routine and disable the old one.
+- **Status:** blocked (owner action in the routines UI)
+- **Verified 2026-09-27:** two routines are enabled.
+  - "AgentForge daily development" (daily 08:46 Europe/Istanbul): prompt
+    updated this session — PR workflow, never merge/auto-merge/tag/publish,
+    no real-model calls or experiments without written owner approval,
+    feature freeze. It has **no repository source attached** (it tries
+    `add_repo` at runtime); its last run left no PR, so repository access is
+    unverified.
+  - "Agent Forge" (daily 06:47 UTC): older prompt without the PR rules
+    (its session produced PR #12). It was created through the HTTP API, so an
+    agent cannot edit or disable it.
+- **Owner:** disable "Agent Forge"; attach `ege-arhan/Agent-Forge` as a source
+  of "AgentForge daily development"
+  (https://claude.ai/code/routines/trig_01PkiuJ7LQqCzv7ZiFigY2DS).
 
-## P2 — Enhancements
+## P2 — Enhancements (future work, not started)
+
+### T-009c Broader real-model evaluations
+- **Status:** todo — needs an owner budget. More tasks, repeats (`-r 3+`) and
+  models on the dogfood and hard suites, so pass rates carry uncertainty
+  estimates; a real improvement cycle on an unconstrained failure. The limited
+  validation (T-009b) is the baseline for this.
+
+### T-019b More regression policies
+- **Status:** todo — e.g. per-check or per-category thresholds, token/latency
+  budgets as gate criteria, trend baselines over several accepted runs,
+  required repeats before a gate may pass.
+
+### T-020 Richer failure analysis
+- **Status:** todo — trace-level diagnosis (e.g. distinguishing planning from
+  reasoning failures, which today needs a human reading the trace).
+
 
 ### T-002b Native Gemini adapter
 - **Status:** todo — currently served by the OpenAI-compatible endpoint.
@@ -80,10 +85,6 @@ _None open. Continue with P1 in roadmap order._
 
 ### T-003b Streaming model output
 - **Status:** todo — stream tokens to the SSE channel for live thoughts.
-
-### T-004b Human approval for sensitive tools
-- **Status:** todo — pause a run and wait for approval before tools with
-  write/network permissions (policy per agent).
 
 ### T-015 Distributed execution
 - **Status:** todo — Redis-backed queue + worker process when multi-node
@@ -118,3 +119,6 @@ _None open. Continue with P1 in roadmap order._
 | T-016 | Dogfooding program | `dogfood/`: 5 agents (coding, debugging, data analysis, security analysis, GitHub issue solver) with real-model and offline configs, 5 suites / 10 tasks with visible, hidden and process checks, `scripts/dogfood.py` (offline/real, credential check), reports per result class; tests prove every task is solvable by the reference agent and fails for an idle agent; OFFLINE results recorded; REAL not run (no credentials) |
 | T-017 | Agent improvement loop | migration 0002 (agent versions, improvement cycles, benchmark provenance + result class), failure analysis, rule-based/manual proposals with path allowlist, apply → new version, evaluate on the baseline suite snapshot, comparison with Wilson verdicts, reject/revert as a new version; CLI, API, dashboard Improvement pages; unit/integration/e2e tests on SQLite and PostgreSQL |
 | T-010b | GitHub API + dashboard | `/github/status`, repo, issues, tasks (background workflow with pre-created run); Repositories and GitHub tasks pages; e2e tested with mocked GitHub + local bare remote |
+| T-004b | Human approval for sensitive tools | Opt-in per agent (`AgentConfig.approval.require_for`/`timeout_seconds`); runtime pauses (`RunStatus.AWAITING_APPROVAL`) before a tool call needing one of the listed permissions and blocks on an in-process `ApprovalGate` until decided, cancelled or timed out (then denied); denial fails only that call, not the run. `GET/POST /runs/{id}/approvals[/{call_id}]`; dashboard run page shows a Pending approval card with Approve/Deny; `agentforge run` prompts on a TTY and auto-denies without one. Migration 0003 (written as 0002 on its branch; renumbered after the stack's 0002) widens `runs.status` (`String(16)` → `String(24)`, "awaiting_approval" didn't fit — caught by testing against real PostgreSQL, not just SQLite). Unit + e2e (API, real Postgres) + a regression test for a synchronous-decide race found during manual dashboard verification (screenshots: paused run + Approve card, and the resumed/succeeded run) |
+| T-009b | Limited real-model validation | OpenCode Go provider fixes (`x-opencode-session`, Responses API routing, proxy-injected credentials); 5 models × 2 dogfood tasks (10 executions, all passed); hard suite `dogfood-hard` v1 (4 tasks, offline-validated; 2 run with `deepseek-v4.1-flash`, both passed); controlled improvement-loop demonstration (step limit 8 → failed, proposal `max_steps` 25 → v2 passed; verdict inconclusive). REAL results in `dogfood/results/real/`, write-up in `docs/REAL_MODEL_BENCHMARK.md`. Small samples: no rankings; not evidence of model learning |
+| T-019 | CI regression gate | `agentforge bench gate` (exit 0 pass / 1 regression / 2 cannot decide), thresholds, report `suite_digest` + `failure_category`, `GET /benchmarks/gate`, dashboard verdict on evaluated cycles, GitHub Actions example with a committed offline baseline, `docs/regression-gate.md`; unit, CLI e2e and API tests |

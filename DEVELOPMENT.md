@@ -87,12 +87,16 @@ diverge (on SQLite locally and on PostgreSQL in CI).
 
 ## Releasing
 
-1. Bump the version in `pyproject.toml`, `src/agentforge/__init__.py` and
-   `web/package.json` (a unit test enforces that they match).
+1. Bump the version in `pyproject.toml`, `src/agentforge/__init__.py`,
+   `web/package.json` and `web/package-lock.json`, and run `uv lock`
+   (`python scripts/release_notes.py check X.Y.Z` verifies they match).
 2. Move the `## [Unreleased]` entries in `CHANGELOG.md` under
    `## [X.Y.Z] - YYYY-MM-DD`.
-3. After the release PR is merged into `main`, the owner tags `main`:
-   `git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
+3. After the release PR is merged into `main`, the owner tags `main`. Fetch
+   first — merging on GitHub does not move a local `origin/main`, and tagging a
+   stale ref would release the wrong commit:
+   `git fetch origin main && git tag vX.Y.Z FETCH_HEAD && git push origin vX.Y.Z`
+   (check with `git log -1 vX.Y.Z` that the tag is on the merge commit).
 
 `.github/workflows/release.yml` then verifies the version strings, builds the
 wheel and sdist, publishes `agentforge-api`, `agentforge-web` and
@@ -124,30 +128,26 @@ repository owner).
 
 Development is continued by scheduled Claude Code routines. A routine's
 session can only continue from the latest `main` if the routine itself gives
-it the repository. Inspected on 2026-09-26 (from a session, via the routines
+it the repository. Inspected on 2026-09-27 (from a session, via the routines
 API):
 
 | Routine | Schedule | Repository / connectors | Prompt | Assessment |
 |---|---|---|---|---|
-| **AgentForge daily development** (`trig_01PkiuJ7…`) | daily 08:46 Europe/Istanbul, fresh session each run, environment "Default" | **no repository source attached**, no connectors | current workflow (inspect `main` and PRs, feature branch, PR, never merge) | **Not reliable.** The fired session starts without a checkout. Its fallbacks (attach the repo from inside the session, or an anonymous `git clone` of the public repo) give at best read access: pushing a branch and opening a PR need the repository attached to the session with GitHub credentials. |
-| **Agent Forge** (`trig_014Bbty…`) | daily 06:47 UTC, fresh session each run | connectors: Claude-Docs, visualize (no GitHub); repository attachment not visible through the API | **outdated**: predates the `main`/PR workflow | Runs a second, overlapping daily session with conflicting instructions. |
+| **AgentForge daily development** (`trig_01PkiuJ7…`) | daily 08:46 Europe/Istanbul, fresh session each run | **no repository source attached**, no connectors | updated 2026-09-27: PR workflow; never merge, auto-merge, tag or publish; no real-model calls or experiments without written owner approval; feature freeze after v0.2.0 | Safe instructions; repository access unverified (it attaches the repo at runtime; its last run left no PR). |
+| **Agent Forge** (`trig_014Bbty…`) | daily 06:47 UTC, fresh session each run | connectors: Claude-Docs, visualize; its sessions can push (one opened PR #12) | **outdated**: predates the PR rules and the model-usage rule | A second, overlapping daily session. Created through the HTTP API, so agents cannot edit or disable it. |
 
 Required owner changes (in claude.ai → Claude Code → Routines):
 
 1. Edit **AgentForge daily development** and add the repository
-   `ege-arhan/Agent-Forge` as its source, keeping the "Default" environment.
-   GitHub must be connected to the account (claude.ai/connect-github) and the
-   Claude GitHub App installed on the repository. Without this step the
-   routine cannot push or open pull requests.
-2. Disable (or delete) the older **Agent Forge** routine, or replace its
-   prompt with the daily-development prompt and attach the repository to it
-   too. Only one routine should develop the repository.
-3. Optional, for real-model dogfooding (T-009b): add a provider key (e.g.
-   `ANTHROPIC_API_KEY`) as an environment variable in the "Default"
-   environment's settings, and decide on an API budget. Without it,
-   `scripts/dogfood.py real` refuses to run and records nothing.
-4. Make `main` the default branch and protect it (see *Branching and pull
-   requests*).
+   `ege-arhan/Agent-Forge` as its source. GitHub must be connected to the
+   account (claude.ai/connect-github) and the Claude GitHub App installed on
+   the repository.
+2. Disable (or delete) the older **Agent Forge** routine. Only one routine
+   should develop the repository.
+3. Optional, for owner-approved real-model runs: provide provider credentials
+   through the environment's settings (e.g. an API credential injected by the
+   egress proxy, `--auth proxy`), never in the repository, and record the
+   approved budget in TASKS.md.
 
 To verify: after the next scheduled run, a new pull request from a `claude/*`
 branch should target `main`. If the run's summary says it could not clone or

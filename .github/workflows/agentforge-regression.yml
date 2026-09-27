@@ -1,0 +1,76 @@
+# Example: AgentForge as a CI regression gate for an agent.
+#
+# On every pull request that touches the agent, its benchmark or AgentForge
+# itself, benchmark the agent and compare it with a committed baseline report.
+# The job fails when the candidate regresses (exit 1) or when the gate cannot
+# decide (exit 2: missing/invalid baseline, different suite, infrastructure
+# failure). See docs/regression-gate.md.
+#
+# This example gates the OFFLINE reference agent (scripted provider): it needs
+# no API key and makes no model calls. For a real-model agent, point AGENT at
+# its config, give the job the provider key as a GitHub Actions secret (never a
+# file in the repository), and commit a baseline produced by that agent.
+# Nothing here merges pull requests.
+name: AgentForge regression gate (example)
+
+on:
+  pull_request:
+    paths:
+      - "dogfood/agents/**"
+      - "dogfood/benchmarks/**"
+      - "examples/ci/**"
+      - "src/agentforge/**"
+      - ".github/workflows/agentforge-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agentforge-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_FROZEN: "1"
+  SUITE: dogfood/benchmarks/coding.yaml
+  AGENT: dogfood/agents/offline/coding.yaml
+  BASELINE: examples/ci/baselines/dogfood-coding-offline.json
+  AGENTFORGE_DATA_DIR: ${{ github.workspace }}/.agentforge-ci
+
+jobs:
+  gate:
+    name: Benchmark and compare with the baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-extras
+
+      - name: Run the benchmark (candidate)
+        id: bench
+        # For a real-model agent, uncomment and store the key as a repository secret:
+        # env:
+        #   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          uv run agentforge bench run "$SUITE" -a "$AGENT" --json > candidate.json
+          echo "id=$(python3 -c 'import json; print(json.load(open("candidate.json"))["id"])')" >> "$GITHUB_OUTPUT"
+
+      - name: Regression gate (exit 0 pass, 1 regression, 2 cannot decide)
+        env:
+          CANDIDATE: ${{ steps.bench.outputs.id }}
+        run: |
+          uv run agentforge bench gate \
+            --baseline "$BASELINE" \
+            --candidate "$CANDIDATE" \
+            --output gate.json
+
+      - name: Keep the gate result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentforge-gate
+          path: gate.json
+          if-no-files-found: ignore

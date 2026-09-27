@@ -113,6 +113,7 @@ agentforge improve run BENCH_ID --cycles 3                       # the whole loo
                                                                  # when all tasks pass, or reverts a regression
 agentforge improve history AGENT_NAME                            # versions, benchmarks, cycles
 agentforge bench compare BASELINE_ID CANDIDATE_ID
+agentforge bench gate --baseline BASELINE --candidate CANDIDATE    # CI decision: exit 0/1/2 (regression-gate.md)
 agentforge bench report BENCH_ID [--out DIR]                     # JSON + Markdown under DIR/<offline|real>/
 ```
 

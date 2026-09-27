@@ -64,6 +64,7 @@ flowchart LR
 | Experiments | `experiments/` | Variants over a base config, comparison against a baseline |
 | Improvement loop | `improvement/` | Failure analysis of benchmark runs, rule-based/manual proposals, applying them as new agent versions, re-benchmarking and comparison ([docs/improvement.md](docs/improvement.md)) |
 | Reports | `benchmarks/report.py` | Publication records per benchmark run, stored under `<offline\|real>/` |
+| Regression gate | `benchmarks/gate.py` | CI decision between a baseline and a candidate report: pass / regression / error with exit codes 0 / 1 / 2 and configurable thresholds ([docs/regression-gate.md](docs/regression-gate.md)) |
 | Storage | `storage/` | Async SQLAlchemy tables and repositories; persistence observer |
 | Service | `service.py` | Background execution of runs/benchmarks/experiments for the API |
 | API | `api/` | REST + SSE endpoints, API-key auth |
@@ -85,6 +86,15 @@ goal ─► recall memories ─► (plan) ─► ┌─────────�
 limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · cancellation
 ```
 
+- **Human approval gate** (`runtime/approval.py`, opt-in per agent via
+  `AgentConfig.approval`): before executing a tool call whose permissions
+  intersect `approval.require_for`, the runtime sets `run.status =
+  awaiting_approval`, emits `tool.awaiting_approval` and blocks on an
+  in-process `ApprovalGate` until an operator calls `POST
+  /runs/{id}/approvals/{call_id}` (or, for `agentforge run`, a terminal
+  prompt), the run is cancelled, or `approval.timeout_seconds` elapses (then
+  the call is denied and the run continues). Denial fails only that tool
+  call, not the run.
 - Every run records `run_id`, status, timestamps, steps (with the LLM call
   record and all tool calls), errors, result, evaluation and metrics, plus the
   **config snapshot** and evaluator specs, so a run can be reproduced
@@ -111,6 +121,7 @@ limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · 
 | **SQLite default, PostgreSQL in compose** | Zero-config local use; same code via async SQLAlchemy. JSON columns for nested documents, real columns for filters/aggregates. |
 | **Alembic migrations, applied automatically** | The API and CLI upgrade the schema on startup; a test asserts that migrations and ORM models never diverge (SQLite and PostgreSQL). |
 | **In-process background execution** (asyncio tasks, semaphore) | Simple and reliable for a single node. Redis/worker queue deferred until multi-node execution is needed — Redis is intentionally *not* a dependency yet. |
+| **Approval gate as in-process futures, not persisted state** | Consistent with in-process execution: a decision resumes the same run task directly. A server restart while a run is `awaiting_approval` loses the pause like any other in-flight run (`mark_interrupted` fails it), matching the existing single-node execution model. |
 | **Lifecycle events + observers** | Persistence, logs, live SSE and OpenTelemetry export share one mechanism. |
 | **Post-hoc trace export** | Spans are built from the finished run record with recorded timestamps: exact timings, zero overhead and no failure modes in the loop; live progress uses SSE. |
 | **Prometheus text without a client library** | Metrics are derived from the database (survive restarts, include CLI runs); a few lines of formatting avoid a dependency. |
@@ -120,6 +131,7 @@ limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · 
 | **Scripted provider** | Deterministic, offline end-to-end tests and demos; explicitly not a model. |
 | **Result class derived, never supplied** | `offline` (scripted) vs `real` is computed from the agent config; offline and real results are stored, reported and listed separately and cannot be compared. |
 | **Immutable agent versions** | Every config change is a new snapshot; improvements and reverts add versions instead of rewriting history, so any benchmark can be traced to the exact config it ran. |
+| **A gate error is never a pass** | The regression gate returns a separate `error` verdict (exit 2) when inputs are missing, invalid, not comparable or affected by infrastructure failures, so a CI pipeline cannot pass on data it could not evaluate. |
 | **Deterministic, allowlisted proposals** | The built-in proposer is rule-based and cites evidence; all proposals may only touch an allowlist of config paths (no credentials, endpoints, sandbox or provider). |
 | **argparse CLI** | No extra dependency for a modest command surface. |
 

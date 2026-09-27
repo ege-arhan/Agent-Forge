@@ -55,6 +55,10 @@ class ToolExecutor:
     def specs(self) -> list[ToolSpec]:
         return [tool.spec() for tool in self._tools.values()]
 
+    def permissions_for(self, name: str) -> frozenset[Permission]:
+        tool = self._tools.get(name)
+        return frozenset(tool.permissions) if tool is not None else frozenset()
+
     async def execute(self, call: ToolUsePart) -> tuple[ToolCallRecord, ToolResultPart]:
         started_at = utcnow()
         t0 = time.monotonic()

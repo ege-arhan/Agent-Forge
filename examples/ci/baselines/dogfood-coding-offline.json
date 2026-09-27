@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "result_class": "offline",
+  "benchmark_run_id": "bench_01a0e23b0177d678d0b9c8c2",
+  "status": "succeeded",
+  "suite_id": "dogfood-coding",
+  "suite_name": "Dogfood: coding",
+  "suite_version": "1",
+  "agent_name": "dogfood-coding-offline",
+  "agent_id": null,
+  "agent_version": null,
+  "provider": "scripted",
+  "model": "scripted-reference-v1",
+  "agentforge_version": "0.1.0",
+  "environment": {
+    "agentforge_version": "0.1.0",
+    "python": "3.12.3",
+    "provider": "scripted",
+    "model": "scripted-reference-v1",
+    "sandbox": "local"
+  },
+  "created_at": "2026-09-27T09:38:32.951912Z",
+  "finished_at": "2026-09-27T09:38:33.488172Z",
+  "repeats": 1,
+  "suite_digest": "b916e1e02b610937a80e645a6545b85cc695e56f9de5746d692ec081ba942bd9",
+  "summary": {
+    "runs": 2,
+    "passed": 2,
+    "pass_rate": 1.0,
+    "pass_rate_ci95": [
+      0.3424,
+      1.0
+    ],
+    "mean_duration_seconds": 0.237,
+    "total_tool_calls": 7,
+    "total_llm_retries": 0,
+    "total_input_tokens": null,
+    "total_output_tokens": null,
+    "estimated_cost_usd": null,
+    "actual_cost_usd": null
+  },
+  "runs": [
+    {
+      "task_id": "implement-slugify",
+      "repeat": 1,
+      "run_id": "run_01a0e23b01997a56d3245819",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        }
+      ],
+      "steps": 5,
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "duration_seconds": 0.182,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null,
+      "failure_category": null
+    },
+    {
+      "task_id": "add-cli-flag",
+      "repeat": 1,
+      "run_id": "run_01a0e23b025d9db390bbc1e1",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "words_unchanged",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "lines_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "help_documents_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_other_file",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        }
+      ],
+      "steps": 4,
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "duration_seconds": 0.292,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null,
+      "failure_category": null
+    }
+  ],
+  "notes": [
+    "Values that were not measured are null. actual_cost_usd is always null: AgentForge does not read provider billing; estimated_cost_usd uses the pricing table.",
+    "OFFLINE result: produced by the deterministic scripted provider. It validates the pipeline and the benchmark tasks; it says nothing about any model's capability.",
+    "Token usage was not reported by the provider for some or all runs."
+  ]
+}

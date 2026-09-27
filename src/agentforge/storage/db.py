@@ -111,7 +111,7 @@ class RunRow(Base):
     )
     agent_name: Mapped[str] = mapped_column(String(64), index=True)
     goal: Mapped[str] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(16), index=True)
+    status: Mapped[str] = mapped_column(String(24), index=True)
     created_at: Mapped[datetime] = mapped_column(_tz(), index=True)
     started_at: Mapped[datetime | None] = mapped_column(_tz())
     finished_at: Mapped[datetime | None] = mapped_column(_tz())

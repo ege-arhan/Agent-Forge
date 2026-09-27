@@ -23,7 +23,7 @@ import httpx
 from agentforge.benchmarks.runner import BenchmarkRun, BenchmarkRunner, environment_info
 from agentforge.benchmarks.spec import BenchmarkSuite
 from agentforge.core.config import AgentConfig
-from agentforge.core.errors import CapacityError
+from agentforge.core.errors import CapacityError, NotFoundError
 from agentforge.core.ids import utcnow
 from agentforge.core.models import ErrorInfo, Run, RunStatus
 from agentforge.evaluation.base import EvaluatorSpec
@@ -32,6 +32,7 @@ from agentforge.improvement.cycle import ImprovementCycle
 from agentforge.improvement.loop import ImprovementLoop
 from agentforge.policy import ServerPolicy
 from agentforge.runtime.agent import AgentRuntime
+from agentforge.runtime.approval import PendingApproval
 from agentforge.runtime.events import EventBroadcaster, LoggingObserver, RunObserver
 from agentforge.runtime.factory import prepare_run
 from agentforge.settings import Settings
@@ -180,6 +181,17 @@ class AgentForgeService:
 
     def is_active(self, key: str) -> bool:
         return key in self._tasks
+
+    def list_pending_approvals(self, run_id: str) -> list[PendingApproval]:
+        runtime = self._runtimes.get(run_id)
+        return runtime.approval.pending if runtime is not None else []
+
+    def decide_approval(
+        self, run_id: str, call_id: str, approved: bool, reason: str | None = None
+    ) -> None:
+        runtime = self._runtimes.get(run_id)
+        if runtime is None or not runtime.approval.decide(call_id, approved, reason):
+            raise NotFoundError(f"no tool call {call_id} awaiting approval on run {run_id}")
 
     # ------------------------------------------------------------- benchmarks
     def _benchmark_runner(self) -> BenchmarkRunner:

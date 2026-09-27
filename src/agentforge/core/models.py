@@ -20,6 +20,7 @@ from agentforge.core.ids import new_id, utcnow
 class RunStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
+    AWAITING_APPROVAL = "awaiting_approval"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"

@@ -8,6 +8,7 @@ import {
   cycleActions,
   describeChange,
   formatValue,
+  gateDisplay,
   resultClassOf,
   splitByResultClass,
 } from "./improvement.ts";
@@ -77,4 +78,11 @@ test("config diff lists changed leaves", () => {
     { path: "a", before: 1, after: undefined },
     { path: "b", before: undefined, after: 2 },
   ]);
+});
+
+test("gate verdicts: an error is never shown as a pass", () => {
+  assert.deepEqual(gateDisplay("pass"), { label: "Gate: pass", tone: "good" });
+  assert.deepEqual(gateDisplay("regression"), { label: "Gate: regression", tone: "critical" });
+  assert.equal(gateDisplay("error").tone, "warning");
+  assert.notEqual(gateDisplay("error").label, gateDisplay("pass").label);
 });

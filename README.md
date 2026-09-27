@@ -1,20 +1,54 @@
 # AgentForge
 
-**An open-source platform for engineering, running and evaluating LLM agents.**
+**An open-source Agent CI/CD and evaluation platform.**
 
-AgentForge lets you define an agent declaratively (model, tools, memory,
-limits, sandbox), run it against a goal inside an isolated workspace, inspect
-every step and tool call, score the outcome with deterministic evaluators, and
-compare agent configurations on repeatable benchmarks. It works with
-Anthropic, OpenAI, Google Gemini, OpenRouter and local models, and can turn
-GitHub issues into draft pull requests for human review.
+AgentForge treats an LLM agent the way CI/CD treats code: every agent
+configuration (model, prompt, tools, memory, limits, sandbox) is a stored,
+versioned artifact; every run is recorded and reproducible; every change is
+evaluated against the same benchmark before it is trusted; and risky actions
+wait for a human.
 
-It is an engineering tool, not a chatbot: runs are recorded, reproducible and
-measurable.
+```
+BUILD ─► RUN ─► EVALUATE ─► ANALYZE ─► IMPROVE ─► RE-RUN ─► REGRESSION CHECK ─► APPROVE / BLOCK
+  │                                                                                  │
+  └───────────────────────────── next agent version ◄────────────────────────────────┘
+```
 
-> Status: alpha (pre-release). Core engine, API, CLI, dashboard, benchmarks and
-> GitHub workflow are implemented and tested. See [ROADMAP.md](ROADMAP.md) and
-> [docs/STATUS.md](docs/STATUS.md).
+| Stage | What exists |
+|---|---|
+| BUILD | Declarative agent configs (YAML), stored as immutable versions |
+| RUN | Instrumented runtime; sandboxed tools (per-run workspace, hardened Docker sandbox); every step, tool call, token count and error recorded; human approval before sensitive tool calls |
+| EVALUATE | Deterministic evaluators (tests, file/output checks, tool usage, step budgets), optional LLM judge; benchmark suites with visible, hidden and process checks |
+| ANALYZE | Each failed run classified from its record (step limit, tests failed, tool errors, provider or infrastructure errors, ...) with evidence |
+| IMPROVE | Rule-based or manual proposals limited to an allowlist of config paths (never the approval policy, credentials or endpoints); applied as a new agent version |
+| RE-RUN | The new version benchmarked on the baseline's exact suite snapshot |
+| REGRESSION CHECK | Baseline-vs-candidate comparison (Wilson intervals, per-task changes, verdict) and the CI gate `agentforge bench gate`: exit 0 pass, 1 regression, 2 cannot decide |
+| APPROVE / BLOCK | A failing gate blocks the pipeline; sensitive tool calls pause until an operator approves or denies them; GitHub changes are opened as **draft** PRs and never merged by AgentForge |
+
+**Why it exists.** An agent is a model plus a prompt, tools, limits and an
+environment; a change to any of them can make it better on one task and worse
+on another. AgentForge makes those changes measurable and reviewable: which
+version ran, in which sandbox, against which benchmark, why a run failed, what
+was changed in response, and whether the change regressed anything.
+
+**Not primarily another LLM wrapper.** It works with Anthropic, OpenAI, Gemini,
+OpenRouter, OpenCode Go and local models, but its focus is what happens around
+the model — versioned agents, reproducible execution, sandboxed tool use,
+benchmark evaluation, failure analysis, agent improvement, regression
+detection and CI/CD for agents. It runs locally or self-hosted (SQLite or
+PostgreSQL, Docker).
+
+Many projects cover parts of this space (tracing and observability platforms,
+evaluation harnesses, agent frameworks). AgentForge's approach is to keep the
+whole loop in one self-hosted tool with one data model, so that an agent change
+can be traced from the failure that motivated it to the benchmark and gate that
+confirmed or rejected it.
+
+> Status: 0.2.0, alpha. Core engine, API, CLI, dashboard, benchmarks,
+> improvement loop, CI regression gate, human approval gate and GitHub
+> workflow are implemented and tested. Validated with real models on a small
+> scale (see [Real-model validation](#real-model-validation)). See
+> [ROADMAP.md](ROADMAP.md) and [docs/STATUS.md](docs/STATUS.md).
 
 ![Dashboard overview](docs/screenshots/dashboard-light.png)
 
@@ -48,9 +82,10 @@ measurable.
 - **Honest results**: offline (scripted) and real-model results are separate
   result classes that are never mixed; unmeasured values (tokens, cost) are
   `null`, never guessed.
-- **Dogfooding**: five realistic agents (coding, debugging, data analysis,
-  security analysis, GitHub issue solving) with reproducible tasks and
-  hidden checks — see [dogfood/README.md](dogfood/README.md).
+- **Dogfooding**: six agents (coding, debugging, data analysis, security
+  analysis, GitHub issue solving, and an engineering agent for the harder
+  `dogfood-hard` suite) with reproducible tasks, hidden checks and offline
+  reference solutions — see [dogfood/README.md](dogfood/README.md).
 - **GitHub**: issue → repository analysis → implementation → tests →
   evaluation → branch → commit → **draft** PR. AgentForge never merges.
 - **Observability**: structured JSON logs with secret redaction, live
@@ -148,6 +183,7 @@ retry: {llm_max_attempts: 4, evaluation_retries: 1}
 planner: {strategy: react}      # or plan_execute
 memory: {persist: true, recall_limit: 5}
 sandbox: {kind: docker, image: agentforge-sandbox:latest, network: none, memory: 1g}
+approval: {require_for: [process:exec, network], timeout_seconds: 3600}
 ```
 
 More examples in [`examples/agents/`](examples/agents). Store agents for the
@@ -178,6 +214,24 @@ API/dashboard with `agentforge agents create my-coder.yaml` or
 globally (`AGENTFORGE_DENIED_PERMISSIONS=network,github:write`). Custom tools
 plug in via the `agentforge.tools` entry-point group — see
 [docs/tools.md](docs/tools.md).
+
+### Human approval for sensitive tools
+
+Set `approval.require_for` on an agent to a list of permissions (`fs:write`,
+`process:exec`, `network`, `git:write`, `github:write`, ...); a run pauses
+(`status: awaiting_approval`) before any tool call needing one of them,
+instead of executing it. Resolve it with:
+
+- API: `GET /api/v1/runs/{id}/approvals` lists pending calls;
+  `POST /api/v1/runs/{id}/approvals/{call_id} {"approved": true, "reason": "..."}`
+  decides one and lets the run continue. The dashboard's run page shows the
+  same as a "Pending approval" card with Approve/Deny buttons.
+- CLI (`agentforge run`, which executes in the same process): prompts on the
+  terminal; without a TTY it auto-denies so the run cannot hang unattended.
+
+A denial fails only that tool call (the agent sees why and can try something
+else); the run keeps going. Unanswered after `approval.timeout_seconds`
+(default 1h) is treated as a denial too.
 
 ## Memory
 
@@ -231,6 +285,51 @@ agentforge improve history my-agent
 base config (model, prompt, tools, planner, limits) against the first variant.
 Results describe those configurations on that suite — they are not general
 model rankings. See [docs/benchmarks.md](docs/benchmarks.md).
+
+## CI regression gate
+
+```bash
+agentforge bench run SUITE.yaml -a AGENT.yaml --json > candidate.json
+agentforge bench gate --baseline baselines/accepted.json --candidate BENCH_ID
+```
+
+The baseline is explicit (a committed report from `bench report --out`, or a
+stored run id). The gate exits **0** when nothing regressed, **1** on a
+regression (overall or per-task pass-rate drop, mean-score drop, optional
+floor; by default any drop fails) and **2** when it cannot decide (missing or
+invalid input, different suite or task definitions, offline vs real results,
+unfinished benchmark, infrastructure failure) — an error is never a pass.
+[`.github/workflows/agentforge-regression.yml`](.github/workflows/agentforge-regression.yml)
+is a working GitHub Actions example. Details:
+[docs/regression-gate.md](docs/regression-gate.md).
+
+## Real-model validation
+
+Small-scale, and documented in full in
+[docs/REAL_MODEL_BENCHMARK.md](docs/REAL_MODEL_BENCHMARK.md). All runs through
+OpenCode Go, one run per task, no retries.
+
+- **Multi-model execution** — 5 models (`deepseek-v4.1-flash`,
+  `mimo-v2.6-flash`, `muse-spark-1.3-contributor`, `glm-5.3-flash`,
+  `kimi-k2.7-code`) × 2 existing dogfood tasks: 10 task executions, all passed.
+  The benchmark was intentionally small, and its tasks turned out too easy to
+  differentiate the models.
+- **Hard benchmark** — `dogfood-hard` v1 (4 tasks with hidden and
+  mutation-based checks), validated offline; `deepseek-v4.1-flash` passed the
+  two tasks it was run on (one run each — also a limited sample).
+- **Improvement loop on a real model (controlled)** — the same model with a
+  deliberately tight, documented step limit (8) failed `ledger-root-causes` at
+  the step limit; AgentForge classified the failure, proposed
+  `limits.max_steps: 8 → 25`, stored v2, re-ran the identical task, and v2
+  passed; comparison verdict `inconclusive` (one run each).
+
+What this is not: the demonstrated improvement is a **configuration** change
+that removes a constraint chosen for the demonstration — **not evidence of the
+model learning** or becoming more capable. The sample is far too small for
+model rankings or significance. Cost was not available from OpenCode Go and
+is reported as NOT AVAILABLE. OFFLINE (scripted) and REAL results are stored
+and reported separately and never combined. Larger benchmark studies (more
+tasks, repeats and models) are future work.
 
 ## Dashboard
 

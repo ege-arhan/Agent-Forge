@@ -120,6 +120,73 @@ def test_cancel_long_running_run(client: TestClient) -> None:
     assert time.monotonic() - started < 15
 
 
+def test_approval_gate_pauses_then_resumes_on_approve(client: TestClient) -> None:
+    config = demo_config()
+    config["approval"] = {"require_for": ["fs:write"], "timeout_seconds": 30}
+    config["model"]["options"] = {
+        "turns": [
+            {
+                "tool_calls": [
+                    {"name": "write_file", "arguments": {"path": "out.txt", "content": "hi"}}
+                ]
+            },
+            {"text": "done"},
+        ]
+    }
+    run_id = client.post(f"{API}/runs", json={"goal": "write", "config": config}).json()["id"]
+    wait_for(client, f"{API}/runs/{run_id}", lambda b: b["status"] == "awaiting_approval")
+
+    pending = client.get(f"{API}/runs/{run_id}/approvals").json()
+    assert len(pending) == 1
+    assert pending[0]["tool"] == "write_file"
+    assert pending[0]["permissions"] == ["fs:write"]
+
+    decided = client.post(
+        f"{API}/runs/{run_id}/approvals/{pending[0]['call_id']}", json={"approved": True}
+    )
+    assert decided.status_code == 200
+
+    run = wait_for(client, f"{API}/runs/{run_id}", terminal)
+    assert run["status"] == "succeeded"
+    assert run["steps"][0]["tool_calls"][0]["status"] == "success"
+
+
+def test_approval_gate_denies_and_run_continues(client: TestClient) -> None:
+    config = demo_config()
+    config["approval"] = {"require_for": ["fs:write"]}
+    config["model"]["options"] = {
+        "turns": [
+            {
+                "tool_calls": [
+                    {"name": "write_file", "arguments": {"path": "out.txt", "content": "hi"}}
+                ]
+            },
+            {"text": "done"},
+        ]
+    }
+    run_id = client.post(f"{API}/runs", json={"goal": "write", "config": config}).json()["id"]
+    wait_for(client, f"{API}/runs/{run_id}", lambda b: b["status"] == "awaiting_approval")
+    call_id = client.get(f"{API}/runs/{run_id}/approvals").json()[0]["call_id"]
+
+    client.post(
+        f"{API}/runs/{run_id}/approvals/{call_id}", json={"approved": False, "reason": "not now"}
+    )
+    run = wait_for(client, f"{API}/runs/{run_id}", terminal)
+    assert run["status"] == "succeeded"  # the run continues; only the tool call is denied
+    call = run["steps"][0]["tool_calls"][0]
+    assert call["status"] == "denied" and "not now" in call["error"]
+
+
+def test_approval_endpoints_404_for_missing_run_or_call(client: TestClient) -> None:
+    assert client.get(f"{API}/runs/run_missing/approvals").status_code == 404
+    run_id = client.post(
+        f"{API}/runs", json={"goal": "Create hello.txt", "config": demo_config()}
+    ).json()["id"]
+    wait_for(client, f"{API}/runs/{run_id}", terminal)
+    resp = client.post(f"{API}/runs/{run_id}/approvals/call_x_y", json={"approved": True})
+    assert resp.status_code == 404
+
+
 def test_event_stream_for_finished_run(client: TestClient) -> None:
     run_id = client.post(
         f"{API}/runs", json={"goal": "Create hello.txt", "config": demo_config()}

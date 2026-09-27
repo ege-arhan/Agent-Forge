@@ -105,6 +105,42 @@ def test_improvement_loop_via_api(client: TestClient) -> None:
     ).json()
     assert compared["verdict"] == "improved"
 
+    # The CI regression gate agrees: improved = pass; the reverse direction regresses.
+    candidate_id = evaluated["candidate_benchmark_run_id"]
+    gate = client.get(
+        f"{API}/benchmarks/gate", params={"baseline": baseline["id"], "candidate": candidate_id}
+    ).json()
+    assert (gate["verdict"], gate["exit_code"]) == ("pass", 0)
+    reverse = client.get(
+        f"{API}/benchmarks/gate", params={"baseline": candidate_id, "candidate": baseline["id"]}
+    ).json()
+    assert (reverse["verdict"], reverse["exit_code"]) == ("regression", 1)
+    lenient = client.get(
+        f"{API}/benchmarks/gate",
+        params={
+            "baseline": candidate_id,
+            "candidate": baseline["id"],
+            "max_pass_rate_drop": 1,
+            "max_task_pass_rate_drop": 1,
+            "max_mean_score_drop": 1,
+        },
+    ).json()
+    assert lenient["verdict"] == "pass"
+    assert (
+        client.get(
+            f"{API}/benchmarks/gate",
+            params={"baseline": baseline["id"], "candidate": candidate_id, "min_pass_rate": 2},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.get(
+            f"{API}/benchmarks/gate",
+            params={"baseline": "bench_missing", "candidate": candidate_id},
+        ).status_code
+        == 404
+    )
+
     history = client.get(f"{API}/improvements", params={"agent_id": agent["id"]}).json()
     assert [c["id"] for c in history] == [cycle["id"]]
     versions = client.get(f"{API}/agents/{agent['id']}/versions").json()

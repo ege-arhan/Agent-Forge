@@ -2,111 +2,88 @@
 
 Date: 2026-09-27
 
-Current milestone: 15 — Public beta (Milestones 0–14 complete; M15 in progress)
+Version: **0.2.0** (release prepared; not tagged). Milestones 0–15 complete in
+the release branch; the project is in **feature freeze** until the owner
+starts milestone 16 or a future-work item (see ROADMAP.md).
 
-Stable branch: `main` (created at `7eb61d8`). All work arrives through pull
-requests against `main`; see CLAUDE.md "Git workflow".
+## Branches and pull requests
 
-Latest work branch: `feature/real-model-validation` (stacked on
-`feature/dogfooding-improvement-loop`, which is stacked on
-`claude/focused-newton-j0z9l1`; merge in that order).
+Stable branch: `main` (at `7eb61d8`). All work reaches it through pull
+requests merged by the owner; see CLAUDE.md "Git workflow".
 
-Open pull requests awaiting the owner:
-- Workflow documentation (`claude/focused-newton-j0z9l1` → `main`).
-- Dogfooding program + agent improvement loop
-  (`feature/dogfooding-improvement-loop` → `main`, depends on the above).
-- Dependabot PRs #1–#7 target the old session branch; the owner should close
-  or retarget them to `main`.
+Release branch: `claude/clever-bohr-woxzdb` (PR #11). Merge order:
 
-Completed in this session:
-- T-016 dogfooding program: `dogfood/` with five agents (coding, debugging,
-  data analysis, security analysis, GitHub issue solver), each with a
-  real-model config, an offline reference agent and a benchmark suite
-  (10 tasks with visible, hidden and process checks); `scripts/dogfood.py`
-  with separate `offline` and `real` modes.
-- T-017 agent improvement loop: immutable agent versions, benchmark
-  provenance and result class (migration `0002`), failure analysis,
-  rule-based/manual proposals limited to an allowlist, apply as a new version,
-  re-benchmark on the baseline's suite snapshot, comparison with Wilson
-  intervals and verdicts, reject/revert; CLI (`agentforge improve …`,
-  `bench report`, `bench compare`), API (`/improvements`,
-  `/benchmarks/runs/{id}/analysis|report`, `/benchmarks/compare`,
-  `/agents/{id}/versions`) and dashboard pages (Improvement, per-agent view).
-- Review fixes: concurrent agent updates now allocate distinct versions
-  (row lock; reproduced on PostgreSQL first), and benchmark runs take the
-  config and recorded version from one stored-agent snapshot.
-- Benchmark-design fix found while dogfooding: a run stopped by its step limit
-  counted as passed when the workspace happened to satisfy the checks. The
-  dogfood suites now require `completed` (the starter suite is unchanged).
+1. #8 `claude/focused-newton-j0z9l1` — PR-based workflow docs.
+2. #9 `feature/dogfooding-improvement-loop` — dogfooding program, improvement loop.
+3. #10 `feature/real-model-validation` — real-model validation tooling.
+4. #11 `claude/clever-bohr-woxzdb` — OpenCode Go fixes, REAL results, hard
+   suite, improvement experiments, **PR #12 merged in** (human approval gate;
+   conflicts resolved, its migration renumbered `0002` → `0003`), CI
+   regression gate, v0.2.0 release preparation.
 
-Limited Real-Model Validation (2026-09-27, owner request, five OpenCode Go
-models): **not run.** The environment's network policy denies `opencode.ai`
-(HTTP 403 at the proxy), so no endpoint, model listing or model was reached;
-no model call was made and no result exists. Prepared on
-`feature/real-model-validation` (stacked on the improvement-loop PR): the
-`opencode-go` provider preset, an optional per-run token budget, the harness
-`scripts/real_model_validation.py` and `docs/REAL_MODEL_BENCHMARK.md`.
-Owner actions: allow `opencode.ai` in the environment's network settings,
-store the key as `OPENCODE_API_KEY` (and rotate the key that was pasted into
-chat), confirm the OpenCode Go endpoint URL.
+Each branch contains the previous one; #12 will show as merged once #11 is.
+Dependabot PRs #1–#7 were closed as obsolete (they targeted the pre-`main`
+default branch); Dependabot recreates needed updates once `main` is default.
 
-Results:
-- OFFLINE / SCRIPTED PROVIDER (validates tasks and pipeline, not a model):
-  all 10 dogfood tasks pass with the reference agents (local sandbox); 8/8
-  non-git tasks also pass in the hardened Docker sandbox (`python:3.12-slim`,
-  no network); an idle agent fails every task. Improvement-loop demo:
-  `dogfood-demo-coder` v1 0/6 → proposal `limits.max_steps: 3 → 20` → v2 6/6
-  (verdict "improved"; deterministic replay, mechanics only). Reports:
-  `dogfood/results/offline/`.
-- REAL MODEL PROVIDER: **not run.** No provider credentials and no local model
-  server in the development environment; `scripts/dogfood.py real` refuses to
-  run and recorded nothing. No real-model numbers exist.
+## What 0.2.0 contains
 
-Tests (2026-09-26, this branch):
-- Python: 265 tests passing (unit, integration, e2e, 8 Docker-sandbox tests
-  with a running daemon); integration + e2e (79) also pass against
-  PostgreSQL 16, including the migration drift check and the `0002` backfill.
-- Dashboard: ESLint, `tsc --noEmit`, 16 unit tests (node:test), production
-  build; Improvement pages checked in Chromium (light and dark).
-- ruff, ruff format, mypy --strict clean; `ruff --select S` clean;
-  pip-audit and `npm audit --omit=dev`: no known vulnerabilities; gitleaks on
-  the working tree flags only Next.js build output (`web/.next`, gitignored).
+- Runtime, providers (Anthropic, OpenAI-compatible incl. OpenCode Go, local,
+  scripted), tools with guardrails, local and hardened Docker sandboxes,
+  memory, evaluation, benchmarks, experiments, storage (SQLite/PostgreSQL,
+  migrations 0001–0003), API, CLI, dashboard, GitHub issue → draft PR
+  workflow, OpenTelemetry/Prometheus.
+- Versioned agents and the improvement loop (analysis → proposal → new
+  version → re-benchmark → comparison).
+- Human approval gate for sensitive tools (T-004b).
+- CI regression gate `agentforge bench gate` + `GET /benchmarks/gate` +
+  GitHub Actions example (T-019).
+- Dogfooding program: six agents, six suites (incl. `dogfood-hard`), OFFLINE
+  reference solutions.
 
-Scheduled routine (inspected 2026-09-26) — autonomous development is **not**
-reliably working yet:
-- "AgentForge daily development" (daily 08:46 Europe/Istanbul) has no
-  repository source and no connectors: its sessions start without a checkout
-  and cannot push or open pull requests.
-- An older routine, "Agent Forge" (daily 06:47 UTC), still runs with an
-  outdated prompt (predates the `main`/PR workflow) and without a GitHub
-  connector, duplicating the daily session.
-- Owner actions: see DEVELOPMENT.md "Scheduled autonomous sessions" (attach
-  `ege-arhan/Agent-Forge` to the daily routine; disable the old routine;
-  optionally add a provider key for real-model dogfooding). Tracked as T-018.
+## Real-model validation (REAL, OpenCode Go) — final historical record
 
-Other owner actions:
-- Set `main` as the default branch and protect it.
-- Decide on an API budget for real-model dogfooding (T-009b).
-- No release tag and no v0.2.0 until real results exist (owner's instruction).
+Documented in `docs/REAL_MODEL_BENCHMARK.md`; not rerun or altered.
 
-Known issues / limitations:
-- The `agentforge-sandbox` image cannot be built in the development
-  environment (Debian mirrors blocked); CI builds it. `dogfood-issues` was
-  verified with the local sandbox only.
-- The rule-based proposer changes configuration and prompt guidance only; an
-  LLM-assisted proposer is a P2 idea (T-017b).
+- 5 models × 2 dogfood tasks: 10 executions, all passed (too easy to
+  differentiate the models).
+- `dogfood-hard`: `deepseek-v4.1-flash` passed the 2 tasks it ran (2 executions).
+- Controlled improvement-loop demonstration: step limit 8 → failed at the
+  limit; proposal `limits.max_steps` 8 → 25; v2 passed (2 executions);
+  verdict `inconclusive`. A configuration-level change, not model learning.
+- Totals: 14 task executions + 2 smoke calls, 107 model calls, 355 391
+  tokens; cost NOT AVAILABLE. Small samples: no rankings, no significance.
+
+## Verification (2026-09-27, release branch)
+
+- Python: 355 tests passing (SQLite; includes 8 Docker-sandbox tests
+  with a running daemon). Integration + e2e against PostgreSQL 16:
+  121 passing.
+- Dashboard: ESLint, `tsc --noEmit`, 17 unit tests, production build.
+- ruff, ruff format, mypy --strict: clean. `ruff --select S`: clean.
+- Security: gitleaks over all git history and the working tree, the stored
+  results and the local experiment data — no findings; pip-audit — no known
+  vulnerabilities; no OpenCode credential, Authorization header or bearer
+  token in any file, result, log or git object. CodeQL runs in CI.
+- Release dry run: `scripts/release_notes.py check v0.2.0` passes (all
+  version strings 0.2.0), release notes extract from CHANGELOG, `uv build`
+  produces `agentforge-0.2.0` sdist and wheel (migrations 0001–0003 included).
+
+## Owner actions
+
+See `docs/RELEASE_CHECKLIST.md` for the complete list. In short: merge
+#8 → #9 → #10 → #11; set `main` as the default branch and protect it; push
+the `v0.2.0` tag on `main`; rotate the OpenCode Go key; disable the old
+"Agent Forge" routine and attach the repository to "AgentForge daily
+development" (T-018).
+
+## Known limitations
+
+- Real-model evidence is small (one run per task); see REAL_MODEL_BENCHMARK.md.
+- The approval gate runs in-process (single-node execution model).
+- The regression gate compares against one baseline; trend baselines and
+  richer policies are future work (T-019b).
+- The rule-based proposer changes configuration and prompt guidance only.
+- The `agentforge-sandbox` image cannot be built in this development
+  environment (Debian mirrors blocked); CI builds it.
 - Databases created before migrations existed are rejected with a clear
   message; recreate them.
-
-Technical debt:
-- ESLint pinned to 9.x (eslint-plugin-react incompatible with ESLint 10).
-- Vitest cannot be installed with npm 10.9 (resolver crash); web unit tests
-  use node:test with type stripping.
-- `service.py` executes work in-process (fine for one node).
-
-Next priority:
-- Owner actions above, then T-009b real-model dogfooding results and a real
-  improvement cycle per agent.
-
-Project health:
-- Green locally across backend (SQLite, PostgreSQL, Docker) and dashboard.

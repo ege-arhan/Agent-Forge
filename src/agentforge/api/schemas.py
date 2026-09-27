@@ -12,6 +12,7 @@ from agentforge.core.models import Agent, Run, RunStatus
 from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.experiments import Variant
 from agentforge.improvement.proposal import ProposedChange
+from agentforge.runtime.approval import PendingApproval
 
 
 class _Request(BaseModel):
@@ -110,6 +111,29 @@ class RunSummary(BaseModel):
 class RunList(BaseModel):
     items: list[RunSummary]
     total: int
+
+
+class PendingApprovalOut(BaseModel):
+    call_id: str
+    tool: str
+    arguments: dict[str, Any]
+    permissions: list[str]
+    requested_at: datetime
+
+    @classmethod
+    def of(cls, pending: PendingApproval) -> PendingApprovalOut:
+        return cls(
+            call_id=pending.call_id,
+            tool=pending.tool,
+            arguments=pending.arguments,
+            permissions=sorted(pending.permissions),
+            requested_at=pending.requested_at,
+        )
+
+
+class ApprovalDecision(_Request):
+    approved: bool
+    reason: str | None = Field(default=None, max_length=2_000)
 
 
 class BenchmarkRunCreate(_Request):

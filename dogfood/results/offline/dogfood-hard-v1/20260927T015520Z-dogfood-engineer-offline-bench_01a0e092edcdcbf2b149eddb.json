@@ -1,0 +1,349 @@
+{
+  "schema_version": 1,
+  "result_class": "offline",
+  "benchmark_run_id": "bench_01a0e092edcdcbf2b149eddb",
+  "status": "succeeded",
+  "suite_id": "dogfood-hard",
+  "suite_name": "Dogfood: hard engineering tasks",
+  "suite_version": "1",
+  "agent_name": "dogfood-engineer-offline",
+  "agent_id": "agt_01a0e092ed9c56d964d8ed66",
+  "agent_version": 1,
+  "provider": "scripted",
+  "model": "scripted-reference-v1",
+  "agentforge_version": "0.1.0",
+  "environment": {
+    "agentforge_version": "0.1.0",
+    "python": "3.12.3",
+    "provider": "scripted",
+    "model": "scripted-reference-v1",
+    "sandbox": "local"
+  },
+  "created_at": "2026-09-27T01:55:20.653818Z",
+  "finished_at": "2026-09-27T01:55:22.537601Z",
+  "repeats": 1,
+  "summary": {
+    "runs": 4,
+    "passed": 4,
+    "pass_rate": 1.0,
+    "pass_rate_ci95": [
+      0.5101,
+      1.0
+    ],
+    "mean_duration_seconds": 0.426,
+    "total_tool_calls": 21,
+    "total_llm_retries": 0,
+    "total_input_tokens": null,
+    "total_output_tokens": null,
+    "estimated_cost_usd": null,
+    "actual_cost_usd": null
+  },
+  "runs": [
+    {
+      "task_id": "coupons-feature",
+      "repeat": 1,
+      "run_id": "run_01a0e092ee16faa0b110ab3f",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "unit_tests",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "existing_tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "coupon_tests_added",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_api",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_cli",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "ran_commands",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": "run_command called 1 time(s)"
+        }
+      ],
+      "steps": 8,
+      "tool_calls": 7,
+      "tool_errors": 0,
+      "duration_seconds": 0.808,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    },
+    {
+      "task_id": "ledger-root-causes",
+      "repeat": 1,
+      "run_id": "run_01a0e092f153d6527dd1bdd2",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "unit_tests",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "report_correct",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "existing_tests_kept",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "data_and_main_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "regression_test_per_root_cause",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "names_both_causes",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": ""
+        }
+      ],
+      "steps": 6,
+      "tool_calls": 5,
+      "tool_errors": 0,
+      "duration_seconds": 0.484,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    },
+    {
+      "task_id": "git-regression-hunt",
+      "repeat": 1,
+      "run_id": "run_01a0e092f33fc06fe109efcb",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "check_passes",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "bad_commit_identified",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "reverted_with_git_revert",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "history_preserved",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "later_changes_kept",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "record_committed",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "clean_worktree_on_main",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "used_shell",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "run_command called 4 time(s)"
+        }
+      ],
+      "steps": 5,
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "duration_seconds": 0.198,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    },
+    {
+      "task_id": "env-overrides",
+      "repeat": 1,
+      "run_id": "run_01a0e092f44a62b195a8a023",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "unit_tests",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "existing_tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "new_tests_added",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_existing_behaviour",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_env_rules",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "ran_commands",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": "run_command called 1 time(s)"
+        }
+      ],
+      "steps": 6,
+      "tool_calls": 5,
+      "tool_errors": 0,
+      "duration_seconds": 0.213,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    }
+  ],
+  "notes": [
+    "Values that were not measured are null. actual_cost_usd is always null: AgentForge does not read provider billing; estimated_cost_usd uses the pricing table.",
+    "OFFLINE result: produced by the deterministic scripted provider. It validates the pipeline and the benchmark tasks; it says nothing about any model's capability.",
+    "Token usage was not reported by the provider for some or all runs."
+  ]
+}

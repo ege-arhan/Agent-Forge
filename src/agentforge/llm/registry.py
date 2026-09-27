@@ -44,13 +44,16 @@ def _openai_compat(preset_name: str) -> ProviderFactory:
         from agentforge.llm.openai_compat import PRESETS, OpenAICompatibleProvider
 
         preset = PRESETS[preset_name]
+        auth = str(config.options.get("auth", "api_key"))
         key_env = config.api_key_env or preset.api_key_env
-        key = env.get(key_env) if key_env else None
+        # In proxy mode the key is never read, even when the variable exists.
+        key = env.get(key_env) if key_env and auth != "proxy" else None
         return OpenAICompatibleProvider(
             preset,
             api_key=key,
             base_url=config.base_url,
             extra_params=config.options.get("extra_params"),
+            auth=auth,
         )
 
     return factory
@@ -82,7 +85,8 @@ _INFO: dict[str, ProviderInfo] = {
     ),
     "opencode-go": ProviderInfo(
         "opencode-go",
-        "OpenCode Go subscription models via an OpenAI-compatible endpoint; set model.base_url.",
+        "OpenCode Go subscription models via an OpenAI-compatible endpoint; set model.base_url. "
+        "Sends x-opencode-session (the run id); options.auth: proxy for proxy-injected keys.",
         "OPENCODE_API_KEY",
         True,
     ),

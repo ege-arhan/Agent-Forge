@@ -1,0 +1,147 @@
+{
+  "agent": {
+    "id": "agt_01a0e09a879bede7b2cffc46",
+    "name": "dogfood-engineer-deepseek",
+    "version": 1
+  },
+  "versions": [
+    {
+      "agent_id": "agt_01a0e09a879bede7b2cffc46",
+      "version": 1,
+      "config": {
+        "name": "dogfood-engineer-deepseek",
+        "description": "General software engineering on multi-file code, bugs and git histories.",
+        "model": {
+          "provider": "opencode-go",
+          "model": "deepseek-v4.1-flash",
+          "temperature": null,
+          "max_tokens": 8000,
+          "base_url": "https://opencode.ai/zen/go/v1",
+          "api_key_env": null,
+          "options": {
+            "auth": "proxy"
+          }
+        },
+        "system_prompt": "You are a software engineer working in a sandboxed workspace.\nRead the relevant code and tests before changing anything. Make the smallest\ncorrect change that satisfies the specification, run the tests to verify it,\nand finish with a short summary of what you changed and how you verified it.\n",
+        "tools": [
+          "filesystem",
+          "terminal",
+          "git"
+        ],
+        "tool_settings": {},
+        "limits": {
+          "max_steps": 20,
+          "timeout_seconds": 600.0,
+          "max_tool_calls": 100,
+          "max_consecutive_tool_errors": 5,
+          "max_total_tokens": 150000,
+          "max_output_chars": 20000
+        },
+        "retry": {
+          "llm_max_attempts": 1,
+          "backoff_initial_seconds": 1.0,
+          "backoff_max_seconds": 30.0,
+          "backoff_multiplier": 2.0,
+          "evaluation_retries": 0
+        },
+        "planner": {
+          "strategy": "react",
+          "max_plan_steps": 10
+        },
+        "memory": {
+          "enabled": true,
+          "persist": false,
+          "recall_limit": 5,
+          "keep_recent_messages": 40
+        },
+        "sandbox": {
+          "kind": "docker",
+          "image": "python:3.12",
+          "network": "none",
+          "runtime": null,
+          "proxy": null,
+          "memory": "512m",
+          "cpus": 1.0,
+          "pids_limit": 256,
+          "command_timeout_seconds": 120.0
+        },
+        "labels": {
+          "program": "dogfood",
+          "role": "engineer",
+          "experiment": "limited-real-improvement"
+        }
+      },
+      "source": "created",
+      "change_summary": "baseline (v1)",
+      "improvement_id": null,
+      "parent_version": null,
+      "created_at": "2026-09-27T02:03:38.779174Z"
+    }
+  ],
+  "benchmarks": [
+    {
+      "id": "bench_01a0e09a87a27e1384bad227",
+      "suite_id": "dogfood-hard",
+      "suite_name": "Dogfood: hard engineering tasks",
+      "agent_name": "dogfood-engineer-deepseek",
+      "status": "succeeded",
+      "created_at": "2026-09-27T02:03:38.787014Z",
+      "finished_at": "2026-09-27T02:06:03.807099Z",
+      "repeats": 1,
+      "summary": {
+        "runs": 2,
+        "passed": 2,
+        "pass_rate": 1.0,
+        "pass_rate_ci95": [
+          0.3424,
+          1.0
+        ],
+        "mean_score": 1.0,
+        "score_stddev": 0.0,
+        "mean_duration_seconds": 72.275,
+        "mean_steps": 14.0,
+        "mean_tool_success_rate": 1.0,
+        "total_input_tokens": 146954,
+        "total_output_tokens": 15530,
+        "total_cost_usd": null,
+        "errors": 0,
+        "tasks": [
+          {
+            "task_id": "coupons-feature",
+            "runs": 1,
+            "passed": 1,
+            "pass_rate": 1.0,
+            "mean_score": 1.0,
+            "score_stddev": null,
+            "mean_duration_seconds": 70.556,
+            "mean_steps": 15.0
+          },
+          {
+            "task_id": "ledger-root-causes",
+            "runs": 1,
+            "passed": 1,
+            "pass_rate": 1.0,
+            "mean_score": 1.0,
+            "score_stddev": null,
+            "mean_duration_seconds": 73.994,
+            "mean_steps": 13.0
+          }
+        ]
+      },
+      "experiment_id": null,
+      "variant": null,
+      "environment": {
+        "agentforge_version": "0.1.0",
+        "python": "3.12.3",
+        "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+        "provider": "opencode-go",
+        "model": "deepseek-v4.1-flash",
+        "sandbox": "docker"
+      },
+      "agent_id": "agt_01a0e09a879bede7b2cffc46",
+      "agent_version": 1,
+      "result_class": "real"
+    }
+  ],
+  "improvements": []
+}

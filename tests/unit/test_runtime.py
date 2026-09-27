@@ -5,12 +5,25 @@ from typing import Any
 
 import pytest
 
-from agentforge.core.config import PlannerConfig, PlannerStrategy, RetryPolicy, RunLimits
+from agentforge.core.config import (
+    ApprovalPolicy,
+    PlannerConfig,
+    PlannerStrategy,
+    RetryPolicy,
+    RunLimits,
+)
 from agentforge.core.errors import LLMError
-from agentforge.core.models import RunStatus, StepKind, ToolCallStatus
+from agentforge.core.models import RunStatus, StepKind, TokenUsage, ToolCallStatus
 from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.llm.base import LLMProvider
-from agentforge.llm.types import CompletionRequest, CompletionResponse, Message, Role, StopReason
+from agentforge.llm.types import (
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    Role,
+    StopReason,
+    ToolUsePart,
+)
 from agentforge.memory.base import InMemoryMemoryStore, MemoryRecord, MemoryScope
 from agentforge.runtime.events import RunEvent
 from agentforge.runtime.factory import prepare_run, run_agent
@@ -205,6 +218,117 @@ async def test_tool_call_budget(settings: Settings) -> None:
     assert statuses == [ToolCallStatus.SUCCESS, ToolCallStatus.SUCCESS, ToolCallStatus.DENIED]
 
 
+async def _wait_for_status(prepared: Any, status: RunStatus, timeout: float = 5.0) -> None:
+    deadline = asyncio.get_event_loop().time() + timeout
+    while prepared.run.status != status:
+        if asyncio.get_event_loop().time() > deadline:
+            raise AssertionError(f"run never reached {status}; still {prepared.run.status}")
+        await asyncio.sleep(0.01)
+
+
+async def test_approval_pauses_and_approve_resumes(settings: Settings) -> None:
+    config = scripted_config(
+        write_turns(), approval=ApprovalPolicy(require_for={"fs:write"}, timeout_seconds=5.0)
+    )
+    recorder = Recorder()
+    prepared = prepare_run(config, "write a file", settings=settings, observers=[recorder])
+    task = asyncio.create_task(prepared.execute())
+    await _wait_for_status(prepared, RunStatus.AWAITING_APPROVAL)
+    pending = prepared.runtime.approval.pending
+    assert len(pending) == 1
+    assert pending[0].tool == "write_file"
+    assert pending[0].permissions == {"fs:write"}
+    assert prepared.runtime.approval.decide(pending[0].call_id, True)
+    run = await task
+    assert run.status == RunStatus.SUCCEEDED
+    assert run.steps[0].tool_calls[0].status == ToolCallStatus.SUCCESS
+    assert "tool.awaiting_approval" in recorder.types
+    assert "tool.approved" in recorder.types
+    assert not prepared.runtime.approval.pending
+
+
+class _SyncDecider:
+    """Decides synchronously while handling the awaiting-approval event itself.
+
+    Mirrors the CLI's non-interactive auto-deny, which reacts to the same event
+    the runtime emits before it starts waiting.
+    """
+
+    def __init__(self, runtime: Any) -> None:
+        self.runtime = runtime
+
+    async def on_event(self, event: Any, run: Any) -> None:
+        if event.type == "tool.awaiting_approval":
+            self.runtime.approval.decide(event.data["call_id"], True)
+
+
+async def test_approval_decided_synchronously_in_the_awaiting_event_is_not_lost(
+    settings: Settings,
+) -> None:
+    # Regression: begin() must register the pending call before the event is
+    # emitted, or a decision made while handling that same event is lost and
+    # the run blocks for the full timeout instead of resuming immediately.
+    config = scripted_config(
+        write_turns(), approval=ApprovalPolicy(require_for={"fs:write"}, timeout_seconds=30.0)
+    )
+    prepared = prepare_run(config, "write a file", settings=settings)
+    prepared.runtime.deps.observers.append(_SyncDecider(prepared.runtime))
+    loop = asyncio.get_event_loop()
+    started = loop.time()
+    run = await prepared.execute()
+    assert loop.time() - started < 5.0
+    assert run.status == RunStatus.SUCCEEDED
+    assert run.steps[0].tool_calls[0].status == ToolCallStatus.SUCCESS
+
+
+async def test_approval_deny_fails_the_tool_call_but_run_continues(settings: Settings) -> None:
+    config = scripted_config(write_turns(), approval=ApprovalPolicy(require_for={"fs:write"}))
+    recorder = Recorder()
+    prepared = prepare_run(config, "write a file", settings=settings, observers=[recorder])
+    task = asyncio.create_task(prepared.execute())
+    await _wait_for_status(prepared, RunStatus.AWAITING_APPROVAL)
+    call_id = prepared.runtime.approval.pending[0].call_id
+    assert prepared.runtime.approval.decide(call_id, False, "not now")
+    run = await task
+    call = run.steps[0].tool_calls[0]
+    assert call.status == ToolCallStatus.DENIED
+    assert call.error is not None and "not now" in call.error
+    assert "tool.denied" in recorder.types
+    # A second decision for the same (already-resolved) call is a no-op.
+    assert not prepared.runtime.approval.decide(call_id, True)
+
+
+async def test_approval_timeout_denies_and_run_continues(settings: Settings) -> None:
+    config = scripted_config(
+        write_turns(), approval=ApprovalPolicy(require_for={"fs:write"}, timeout_seconds=0.05)
+    )
+    run = await run_agent(config, "write a file", settings=settings)
+    assert run.status == RunStatus.SUCCEEDED
+    call = run.steps[0].tool_calls[0]
+    assert call.status == ToolCallStatus.DENIED
+    assert call.error is not None and "no approval decision" in call.error
+
+
+async def test_cancel_while_awaiting_approval(settings: Settings) -> None:
+    config = scripted_config(
+        write_turns(), approval=ApprovalPolicy(require_for={"fs:write"}, timeout_seconds=30.0)
+    )
+    prepared = prepare_run(config, "write a file", settings=settings)
+    task = asyncio.create_task(prepared.execute())
+    await _wait_for_status(prepared, RunStatus.AWAITING_APPROVAL)
+    prepared.runtime.cancel()
+    run = await task
+    assert run.status == RunStatus.CANCELLED
+
+
+async def test_tools_without_required_permissions_never_pause(settings: Settings) -> None:
+    turns = [{"tool_calls": [{"name": "list_directory", "arguments": {}}]}, {"text": "done"}]
+    config = scripted_config(turns, approval=ApprovalPolicy(require_for={"fs:write"}))
+    run = await run_agent(config, "g", settings=settings)
+    assert run.status == RunStatus.SUCCEEDED
+    assert run.steps[0].tool_calls[0].status == ToolCallStatus.SUCCESS
+
+
 async def test_plan_execute_strategy_records_plan(settings: Settings) -> None:
     turns = [{"text": "1. Inspect files\n2. Write output\n3. Verify"}, *write_turns()]
     config = scripted_config(turns, planner=PlannerConfig(strategy=PlannerStrategy.PLAN_EXECUTE))
@@ -347,3 +471,86 @@ async def test_token_budget_stops_the_run(settings: Settings) -> None:
         unlimited, "g", settings=settings, provider=TokenHungryProvider()
     ).execute()
     assert run.error is not None and run.error.type == "max_steps"
+
+
+class SessionRecordingProvider(LLMProvider):
+    """One transient failure, then a tool call, then a final answer - per run."""
+
+    name = "sessions"
+
+    def __init__(self) -> None:
+        self.sessions: list[str | None] = []
+        self._turn = 0
+
+    async def complete(self, request: CompletionRequest) -> CompletionResponse:
+        self.sessions.append(request.session_id)
+        self._turn += 1
+        phase = self._turn % 3
+        if phase == 1:
+            raise LLMError("overloaded", retryable=True)
+        if phase == 2:
+            return CompletionResponse(
+                message=Message(
+                    role=Role.ASSISTANT,
+                    content=[ToolUsePart(id="t1", name="list_directory", arguments={})],
+                ),
+                stop_reason=StopReason.TOOL_USE,
+                model="m",
+            )
+        return CompletionResponse(
+            message=Message.assistant("done"), stop_reason=StopReason.END_TURN, model="m"
+        )
+
+
+async def test_session_id_is_the_run_id_and_stable_across_calls_and_retries(
+    settings: Settings,
+) -> None:
+    provider = SessionRecordingProvider()  # shared by both runs, like a reused provider
+    runs = []
+    for _ in range(2):
+        prepared = prepare_run(
+            scripted_config([], retry=FAST_RETRY), "g", settings=settings, provider=provider
+        )
+        runs.append(await prepared.execute())
+    assert all(run.status == RunStatus.SUCCEEDED for run in runs)
+    assert runs[0].metrics.llm_retries == 1  # retry behaviour unchanged
+    first, second = provider.sessions[:3], provider.sessions[3:]
+    assert first == [runs[0].id] * 3  # failed attempt, its retry, and the next call
+    assert second == [runs[1].id] * 3
+    assert runs[0].id != runs[1].id
+
+
+class CountingUsageProvider(LLMProvider):
+    """Reports ``tokens_per_call`` input tokens on every call and records the calls."""
+
+    name = "usage"
+
+    def __init__(self, tokens_per_call: int) -> None:
+        self.tokens_per_call = tokens_per_call
+        self.requests: list[CompletionRequest] = []
+
+    async def complete(self, request: CompletionRequest) -> CompletionResponse:
+        self.requests.append(request)
+        return CompletionResponse(
+            message=Message.assistant("1. inspect the workspace\n2. finish"),
+            stop_reason=StopReason.END_TURN,
+            usage=TokenUsage(input_tokens=self.tokens_per_call, output_tokens=0),
+            model="m",
+        )
+
+
+async def test_token_budget_used_up_by_planning_stops_before_an_action_call(
+    settings: Settings,
+) -> None:
+    """Review fix: the budget is checked before each completion, not only after it."""
+    provider = CountingUsageProvider(tokens_per_call=500)
+    config = scripted_config(
+        [],
+        planner=PlannerConfig(strategy=PlannerStrategy.PLAN_EXECUTE),
+        limits=RunLimits(max_total_tokens=400),
+    )
+    run = await prepare_run(config, "g", settings=settings, provider=provider).execute()
+    assert len(provider.requests) == 1  # the planning call only
+    assert run.status == RunStatus.FAILED
+    assert run.error is not None and run.error.type == "token_budget"
+    assert "before the next model call" in run.error.message

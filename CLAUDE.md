@@ -40,6 +40,7 @@ uv run agentforge --help
 uv run agentforge bench run examples/benchmarks/starter.yaml -a examples/agents/scripted-demo.yaml
 uv run python scripts/dogfood.py offline   # dogfooding suites + improvement-loop demo (OFFLINE results)
 uv run agentforge improve --help     # agent improvement loop (docs/improvement.md)
+uv run agentforge bench gate --baseline REPORT.json --candidate BENCH_ID   # CI regression gate (docs/regression-gate.md)
 uv run agentforge serve              # API on :8000, docs at /docs
 cd web && npm ci && npm run dev      # dashboard on :3000 (expects the API on :8000)
 ```
@@ -64,9 +65,13 @@ git log --oneline -15 origin/main               # what is released
 # Open PRs (GitHub tools, or without them:)
 curl -s "https://api.github.com/repos/ege-arhan/Agent-Forge/pulls?state=open&per_page=50" \
   | python3 -c "import json,sys; [print(p['number'], p['head']['ref'], '->', p['base']['ref'], '|', p['title']) for p in json.load(sys.stdin)]"
-# CI on main and on open PR branches:
-curl -s "https://api.github.com/repos/ege-arhan/Agent-Forge/actions/runs?per_page=10" \
-  | python3 -c "import json,sys; [print(r['head_branch'], r['name'], r['status'], r['conclusion']) for r in json.load(sys.stdin)['workflow_runs']]"
+# Latest CI per workflow for main and for each open PR branch (queried per
+# branch, so a busy branch cannot push another branch's runs out of view):
+for b in main $(curl -s "https://api.github.com/repos/ege-arhan/Agent-Forge/pulls?state=open&per_page=50" \
+    | python3 -c "import json,sys; print(' '.join(p['head']['ref'] for p in json.load(sys.stdin)))"); do
+  curl -s "https://api.github.com/repos/ege-arhan/Agent-Forge/actions/runs?branch=$b&per_page=20" \
+    | python3 -c "import json,sys; seen=set(); [print('$b', r['name'], r['status'], r['conclusion']) or seen.add(r['name']) for r in json.load(sys.stdin)['workflow_runs'] if r['name'] not in seen]"
+done
 ```
 
 Then, before starting anything new:

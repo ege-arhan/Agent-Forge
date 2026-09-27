@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "result_class": "real",
+  "benchmark_run_id": "bench_01a0e09a87a27e1384bad227",
+  "status": "succeeded",
+  "suite_id": "dogfood-hard",
+  "suite_name": "Dogfood: hard engineering tasks",
+  "suite_version": "1",
+  "agent_name": "dogfood-engineer-deepseek",
+  "agent_id": "agt_01a0e09a879bede7b2cffc46",
+  "agent_version": 1,
+  "provider": "opencode-go",
+  "model": "deepseek-v4.1-flash",
+  "agentforge_version": "0.1.0",
+  "environment": {
+    "agentforge_version": "0.1.0",
+    "python": "3.12.3",
+    "provider": "opencode-go",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "docker"
+  },
+  "created_at": "2026-09-27T02:03:38.787014Z",
+  "finished_at": "2026-09-27T02:06:03.807099Z",
+  "repeats": 1,
+  "summary": {
+    "runs": 2,
+    "passed": 2,
+    "pass_rate": 1.0,
+    "pass_rate_ci95": [
+      0.3424,
+      1.0
+    ],
+    "mean_duration_seconds": 72.275,
+    "total_tool_calls": 42,
+    "total_llm_retries": 0,
+    "total_input_tokens": 146954,
+    "total_output_tokens": 15530,
+    "estimated_cost_usd": null,
+    "actual_cost_usd": null
+  },
+  "runs": [
+    {
+      "task_id": "coupons-feature",
+      "repeat": 1,
+      "run_id": "run_01a0e09a87bcac580d64cb42",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "unit_tests",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "existing_tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "coupon_tests_added",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_api",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_cli",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "ran_commands",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": "run_command called 5 time(s)"
+        }
+      ],
+      "steps": 15,
+      "tool_calls": 23,
+      "tool_errors": 0,
+      "duration_seconds": 70.556,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": 90715,
+      "output_tokens": 7908,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    },
+    {
+      "task_id": "ledger-root-causes",
+      "repeat": 1,
+      "run_id": "run_01a0e09b9cd74dabdee8667f",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "unit_tests",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "report_correct",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "existing_tests_kept",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "data_and_main_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "regression_test_per_root_cause",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "names_both_causes",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": ""
+        }
+      ],
+      "steps": 13,
+      "tool_calls": 19,
+      "tool_errors": 0,
+      "duration_seconds": 73.994,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": 56239,
+      "output_tokens": 7622,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    }
+  ],
+  "notes": [
+    "Values that were not measured are null. actual_cost_usd is always null: AgentForge does not read provider billing; estimated_cost_usd uses the pricing table."
+  ]
+}

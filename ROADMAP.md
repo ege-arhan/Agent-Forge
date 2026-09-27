@@ -21,15 +21,33 @@ latest session report and `TASKS.md` for task-level detail).
 | 12 | Observability (structured logs, events/SSE, OpenTelemetry traces, Prometheus metrics) | ✅ Done |
 | 13 | Security hardening (API policy, limits, audit, sandbox egress control, gVisor option) | ✅ Done — see SECURITY.md limitations |
 | 14 | CI/CD and developer experience (CI, security scans, migrations, release workflow) | ✅ Done |
-| 15 | Public beta: stable `main` + PR workflow, dogfooding program, agent improvement loop, real-model results | 🚧 In progress — workflow, dogfooding (offline) and improvement loop done; real-model results blocked on credentials (T-009b); routine access needs owner action (T-018) |
+| 15 | Public beta / v0.2.0: stable `main` + PR workflow, dogfooding program, agent improvement loop, human approval gate, CI regression gate, limited real-model validation | ✅ Done in the release branch (PR #11, which also carries #12) — awaiting the owner's merges and the `v0.2.0` tag; see `docs/RELEASE_CHECKLIST.md` |
 | 16 | Portfolio-quality release (screenshots, demo, polished docs) | ⏳ Planned |
 
-## Next up (in order)
+The project is in **feature freeze** after v0.2.0: fixes, tests, security and
+documentation only, until the owner starts milestone 16 or a future-work item.
 
-1. Owner actions: merge the workflow and improvement-loop PRs, attach the
-   repository to the daily routine and disable the duplicate routine (T-018),
-   make `main` the default branch.
-2. Real-model dogfooding results and at least one real improvement cycle per
-   agent (needs keys and budget; T-009b).
-3. Public beta checklist and the `v0.2.0` decision (T-015b) — not before real
-   results exist.
+## Next up (owner, in order)
+
+1. Merge PRs #8 → #9 → #10 → #11 (PR #11 contains PR #12's commit, merged with
+   its conflicts resolved; #12 then shows as merged).
+2. Make `main` the default branch and protect it; push the `v0.2.0` tag on
+   `main` (the release workflow drafts the release).
+3. Rotate the OpenCode Go key; disable the old "Agent Forge" routine and attach
+   the repository to "AgentForge daily development" (T-018).
+
+## Future work (not started; not part of v0.2.0)
+
+- Stronger benchmark suites: larger, SWE-style tasks with harder hidden checks
+  (T-008b).
+- Richer failure analysis: trace-level diagnosis, e.g. planning vs reasoning
+  failures (T-020).
+- More sophisticated improvement proposals: an optional LLM-assisted proposer
+  within the same allowlist (T-017b).
+- Broader model evaluations: more tasks, repeats and models, and a real
+  improvement cycle on an unconstrained failure; needs a budget (T-009c).
+- More regression policies: per-check/per-category thresholds, token and
+  latency budgets, trend baselines, required repeats (T-019b).
+- Also planned: native Gemini adapter (T-002b), vector memory (T-006b),
+  streaming output (T-003b), distributed execution (T-015), dashboard
+  enhancements (T-011b).

@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "result_class": "real",
+  "benchmark_run_id": "bench_01a0e07efebfa02437dc36f4",
+  "status": "succeeded",
+  "suite_id": "dogfood-debugging",
+  "suite_name": "Dogfood: debugging",
+  "suite_version": "1",
+  "agent_name": "dogfood-debugging",
+  "agent_id": null,
+  "agent_version": null,
+  "provider": "opencode-go",
+  "model": "deepseek-v4.1-flash",
+  "agentforge_version": "0.1.0",
+  "environment": {
+    "agentforge_version": "0.1.0",
+    "python": "3.12.3",
+    "provider": "opencode-go",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "docker"
+  },
+  "created_at": "2026-09-27T01:33:34.271219Z",
+  "finished_at": "2026-09-27T01:33:47.819542Z",
+  "repeats": 1,
+  "summary": {
+    "runs": 1,
+    "passed": 1,
+    "pass_rate": 1.0,
+    "pass_rate_ci95": [
+      0.2065,
+      1.0
+    ],
+    "mean_duration_seconds": 13.475,
+    "total_tool_calls": 8,
+    "total_llm_retries": 0,
+    "total_input_tokens": 11849,
+    "total_output_tokens": 922,
+    "estimated_cost_usd": null,
+    "actual_cost_usd": null
+  },
+  "runs": [
+    {
+      "task_id": "pagination-off-by-one",
+      "repeat": 1,
+      "run_id": "run_01a0e07efec3750896a9876c",
+      "status": "succeeded",
+      "success": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "explains_cause",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": ""
+        }
+      ],
+      "steps": 6,
+      "tool_calls": 8,
+      "tool_errors": 0,
+      "duration_seconds": 13.475,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "input_tokens": 11849,
+      "output_tokens": 922,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "error": null
+    }
+  ],
+  "notes": [
+    "Values that were not measured are null. actual_cost_usd is always null: AgentForge does not read provider billing; estimated_cost_usd uses the pricing table."
+  ]
+}

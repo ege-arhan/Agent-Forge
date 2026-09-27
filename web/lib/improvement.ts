@@ -1,6 +1,13 @@
 // Pure helpers for the improvement-loop views (unit-tested in improvement.test.ts).
 
-import type { BenchmarkRun, CycleStatus, ImprovementCycle, ProposedChange, ResultClass } from "./types.ts";
+import type {
+  BenchmarkRun,
+  CycleStatus,
+  GateVerdict,
+  ImprovementCycle,
+  ProposedChange,
+  ResultClass,
+} from "./types.ts";
 
 /** Human labels for failure categories, in the order they are usually worth fixing. */
 export const CATEGORY_LABELS: Record<string, string> = {
@@ -108,4 +115,11 @@ export function configDiff(before: unknown, after: unknown): ConfigChange[] {
   return paths
     .filter((path) => JSON.stringify(a.get(path)) !== JSON.stringify(b.get(path)))
     .map((path) => ({ path, before: a.get(path), after: b.get(path) }));
+}
+
+/** How the CI regression gate's verdict is shown: label and tone. */
+export function gateDisplay(verdict: GateVerdict): { label: string; tone: "good" | "critical" | "warning" } {
+  if (verdict === "pass") return { label: "Gate: pass", tone: "good" };
+  if (verdict === "regression") return { label: "Gate: regression", tone: "critical" };
+  return { label: "Gate: cannot decide", tone: "warning" };
 }

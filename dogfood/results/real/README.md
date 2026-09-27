@@ -1,19 +1,29 @@
 # REAL MODEL PROVIDER results
 
-**No real-model results have been recorded yet.**
+Kept separate from `../offline/` (scripted reference agents); never merged.
 
-2026-09-27: the Limited Real-Model Validation with five OpenCode Go models is
-prepared (`scripts/real_model_validation.py`, see
-[docs/REAL_MODEL_BENCHMARK.md](../../../docs/REAL_MODEL_BENCHMARK.md)) but could
-not run: the environment's network policy blocks `opencode.ai`. No model was
-called.
+## LIMITED REAL-MODEL VALIDATION (2026-09-27)
 
-Reason (2026-09-26): the development environment has no model-provider
-credentials (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`,
-`GEMINI_API_KEY` are unset) and no local model server, so
-`scripts/dogfood.py real` refuses to run. Real-model runs also need an owner
-decision on API spend (TASKS.md T-009b).
+Provider: OpenCode Go. Five models × two existing tasks, one run each, 10 task
+executions: `limited-validation-20260927T013310Z/summary.{json,md}` plus one
+report per task in `dogfood-coding-v1/` and `dogfood-debugging-v1/`.
+Method, results and limitations:
+[docs/REAL_MODEL_BENCHMARK.md](../../../docs/REAL_MODEL_BENCHMARK.md).
 
-When they are run, reports appear here as
-`<suite>-v<version>/<timestamp>-<agent>-<benchmark-id>.{json,md}`, separate
-from the offline results.
+## LIMITED REAL-MODEL IMPROVEMENT EXPERIMENT (2026-09-27)
+
+Provider: OpenCode Go, model `deepseek-v4.1-flash`, agent
+`dogfood-engineer-deepseek` v1 on two `dogfood-hard` tasks: both passed, so no
+improvement was attempted and there is no v2.
+`improvement-20260927T020338Z/summary.{json,md}` and
+`dogfood-hard-v1/`.
+
+## Controlled improvement-loop demonstration (2026-09-27)
+
+Same model, `ledger-root-causes` only: agent
+`dogfood-engineer-deepseek-constrained` v1 (`limits.max_steps: 8`) failed at the
+step limit; v2 (`limits.max_steps: 25`, proposed by the loop) passed.
+`improvement-demo-20260927T084203Z/summary.{json,md}` and
+`dogfood-hard-v1/`. A controlled demonstration, not evidence of model learning.
+
+Reports are named `<suite>-v<version>/<timestamp>-<suite>-<benchmark-id>.{json,md}`.

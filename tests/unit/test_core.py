@@ -3,9 +3,10 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from agentforge.core.config import AgentConfig, ModelConfig
+from agentforge.core.config import _KNOWN_PERMISSIONS, AgentConfig, ApprovalPolicy, ModelConfig
 from agentforge.core.ids import new_id
 from agentforge.core.models import RunStatus, TokenUsage
+from agentforge.tools.base import Permission
 
 
 def test_new_id_is_prefixed_and_unique() -> None:
@@ -47,6 +48,29 @@ def test_terminal_statuses() -> None:
     assert RunStatus.SUCCEEDED.is_terminal
     assert RunStatus.TIMED_OUT.is_terminal
     assert not RunStatus.RUNNING.is_terminal
+
+
+def test_known_permissions_match_the_tool_permission_enum() -> None:
+    # core/config.py cannot import agentforge.tools.base.Permission (it would be a circular
+    # import), so approval.require_for is validated against a duplicated set of literal
+    # values. This test fails fast if the two ever drift apart.
+    assert {p.value for p in Permission} == _KNOWN_PERMISSIONS
+
+
+def test_approval_policy_accepts_known_permissions() -> None:
+    policy = ApprovalPolicy(require_for={"fs:write", "network"})
+    assert policy.require_for == {"fs:write", "network"}
+
+
+def test_approval_policy_rejects_unknown_permission() -> None:
+    with pytest.raises(ValidationError):
+        ApprovalPolicy(require_for={"fs:write", "not-a-permission"})
+
+
+def test_agent_config_default_approval_policy_is_empty() -> None:
+    config = AgentConfig(name="a", model=ModelConfig(provider="scripted"))
+    assert config.approval.require_for == frozenset()
+    assert config.approval.timeout_seconds == 3600.0
 
 
 def test_token_usage_add() -> None:
