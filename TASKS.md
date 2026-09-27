@@ -51,10 +51,6 @@ _None open. Continue with P1 in roadmap order._
 ### T-003b Streaming model output
 - **Status:** todo — stream tokens to the SSE channel for live thoughts.
 
-### T-004b Human approval for sensitive tools
-- **Status:** todo — pause a run and wait for approval before tools with
-  write/network permissions (policy per agent).
-
 ### T-015 Distributed execution
 - **Status:** todo — Redis-backed queue + worker process when multi-node
   execution is required.
@@ -86,3 +82,4 @@ _None open. Continue with P1 in roadmap order._
 | T-013b | Sandbox egress control | operator networks + `sandbox.proxy`, allowlisting egress proxy (stdlib, `python -m agentforge.sandbox.egress_proxy`), `sandbox.runtime` (gVisor), policy allowlists, Compose recipe; unit tests + real-Docker test (allowed host reachable, others 403, no direct route) |
 | T-013a | API hardening | server policy for submitted configs/evaluators (credential exfiltration, SSRF, arbitrary imports, sandbox), body size limit, per-client rate limit, queue cap, security headers, audit log; 18 tests |
 | T-010b | GitHub API + dashboard | `/github/status`, repo, issues, tasks (background workflow with pre-created run); Repositories and GitHub tasks pages; e2e tested with mocked GitHub + local bare remote |
+| T-004b | Human approval for sensitive tools | Opt-in per agent (`AgentConfig.approval.require_for`/`timeout_seconds`); runtime pauses (`RunStatus.AWAITING_APPROVAL`) before a tool call needing one of the listed permissions and blocks on an in-process `ApprovalGate` until decided, cancelled or timed out (then denied); denial fails only that call, not the run. `GET/POST /runs/{id}/approvals[/{call_id}]`; dashboard run page shows a Pending approval card with Approve/Deny; `agentforge run` prompts on a TTY and auto-denies without one. Migration 0002 widens `runs.status` (`String(16)` → `String(24)`, "awaiting_approval" didn't fit — caught by testing against real PostgreSQL, not just SQLite). Unit + e2e (API, real Postgres) + a regression test for a synchronous-decide race found during manual dashboard verification (screenshots: paused run + Approve card, and the resumed/succeeded run) |

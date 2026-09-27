@@ -11,7 +11,13 @@ from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import StreamingResponse
 
 from agentforge.api.deps import ServiceDep, audit, resolve_config
-from agentforge.api.schemas import RunCreate, RunList, RunSummary
+from agentforge.api.schemas import (
+    ApprovalDecision,
+    PendingApprovalOut,
+    RunCreate,
+    RunList,
+    RunSummary,
+)
 from agentforge.core.models import Run, RunStatus
 from agentforge.evaluation.base import EvaluatorSpec
 
@@ -58,6 +64,21 @@ async def get_run(run_id: str, service: ServiceDep) -> Run:
 async def cancel_run(run_id: str, service: ServiceDep, request: Request) -> Run:
     audit(request, "run.cancel", run_id=run_id)
     return await service.cancel_run(run_id)
+
+
+@router.get("/{run_id}/approvals", response_model=list[PendingApprovalOut])
+async def list_approvals(run_id: str, service: ServiceDep) -> list[PendingApprovalOut]:
+    await service.runs.get(run_id)  # 404 if the run does not exist
+    return [PendingApprovalOut.of(p) for p in service.list_pending_approvals(run_id)]
+
+
+@router.post("/{run_id}/approvals/{call_id}", response_model=Run)
+async def decide_approval(
+    run_id: str, call_id: str, body: ApprovalDecision, service: ServiceDep, request: Request
+) -> Run:
+    audit(request, "run.approval", run_id=run_id, call_id=call_id, approved=body.approved)
+    service.decide_approval(run_id, call_id, body.approved, body.reason)
+    return await service.runs.get(run_id)
 
 
 @router.post("/{run_id}/rerun", response_model=Run, status_code=status.HTTP_202_ACCEPTED)

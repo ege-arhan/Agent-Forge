@@ -42,6 +42,12 @@ export default function RunDetailPage() {
   const run = useApi(() => api.run(id), [id], {
     pollMs: (data) => (data && !isTerminal(data.status) ? 1_500 : undefined),
   });
+  const awaitingApproval = run.data?.status === "awaiting_approval";
+  const approvals = useApi(
+    () => (awaitingApproval ? api.pendingApprovals(id) : Promise.resolve([])),
+    [id, awaitingApproval],
+    { pollMs: () => (awaitingApproval ? 2_000 : undefined) },
+  );
 
   if (run.error) return <ErrorState message={run.error} />;
   if (!run.data) return <Loading />;
@@ -56,6 +62,20 @@ export default function RunDetailPage() {
       const result = await fn();
       if (navigate) router.push(`/runs/${result.id}`);
       else run.reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const decide = async (callId: string, approved: boolean) => {
+    setBusy(true);
+    setActionError(undefined);
+    try {
+      await api.decideApproval(r.id, callId, approved);
+      approvals.reload();
+      run.reload();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -136,6 +156,41 @@ export default function RunDetailPage() {
         </Card>
 
         <div className="min-w-0 space-y-5">
+          {awaitingApproval && approvals.data && approvals.data.length > 0 ? (
+            <Card>
+              <CardHeader
+                title="Pending approval"
+                description="This run is paused until each call below is approved or denied."
+              />
+              <CardBody>
+                <ul className="space-y-3">
+                  {approvals.data.map((p) => (
+                    <li key={p.call_id} className="rounded-md border border-line p-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs">{p.tool}</span>
+                        <span className="text-xs text-muted">{p.permissions.join(", ")}</span>
+                      </div>
+                      <Pre>{JSON.stringify(p.arguments, null, 2)}</Pre>
+                      <div className="mt-2 flex gap-2">
+                        <Button size="sm" disabled={busy} onClick={() => decide(p.call_id, true)}>
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          disabled={busy}
+                          onClick={() => decide(p.call_id, false)}
+                        >
+                          Deny
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardBody>
+            </Card>
+          ) : null}
+
           <Card>
             <CardHeader
               title="Evaluation"

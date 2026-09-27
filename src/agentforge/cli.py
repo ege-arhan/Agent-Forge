@@ -61,6 +61,38 @@ class ConsoleObserver:
             self._print(f"■ {run.status.value}" + (f": {run.error.message}" if run.error else ""))
 
 
+class ConsoleApprovalObserver:
+    """Prompts on the terminal when a run pauses for a sensitive tool call.
+
+    Only useful for ``agentforge run``, which executes in this same process;
+    the API server resolves approvals over HTTP instead (``POST
+    /runs/{id}/approvals/{call_id}``).
+    """
+
+    def __init__(self, runtime: Any, stream: Any = None) -> None:
+        self.runtime = runtime
+        self.stream = stream or sys.stderr
+
+    async def on_event(self, event: Any, run: Run) -> None:
+        if event.type != "tool.awaiting_approval":
+            return
+        call_id = event.data["call_id"]
+        tool = event.data["tool"]
+        permissions = ", ".join(event.data.get("permissions", []))
+        arguments = json.dumps(event.data.get("arguments", {}))
+        if not sys.stdin.isatty():
+            self.runtime.approval.decide(call_id, False, "no interactive terminal to approve")
+            return
+        self._print(f"\n⚠ approval required ({permissions}): {tool}({arguments})")
+        answer = await asyncio.to_thread(input, "  Approve? [y/N]: ")
+        approved = answer.strip().lower() in {"y", "yes"}
+        reason = None if approved else "denied via CLI prompt"
+        self.runtime.approval.decide(call_id, approved, reason)
+
+    def _print(self, text: str) -> None:
+        print(text, file=self.stream, flush=True)
+
+
 def _print_json(data: Any) -> None:
     print(json.dumps(data, indent=2, default=str))
 
@@ -155,6 +187,8 @@ async def cmd_run(args: argparse.Namespace) -> int:
             observers=observers,
             workspace_dir=args.workspace,
         )
+        if config.approval.require_for:
+            prepared.runtime.deps.observers.append(ConsoleApprovalObserver(prepared.runtime))
         run = await prepared.execute(evaluators)
     finally:
         if db is not None:

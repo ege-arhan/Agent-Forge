@@ -40,14 +40,17 @@ from agentforge.llm.types import (
     Role,
     StopReason,
     ToolResultPart,
+    ToolUsePart,
 )
 from agentforge.memory.base import MemoryRecord, MemoryScope, MemoryStore
 from agentforge.memory.context import compact_history
 from agentforge.observability.redaction import Redactor
+from agentforge.runtime.approval import ApprovalGate
 from agentforge.runtime.events import RunEvent, RunObserver, notify
 from agentforge.runtime.planner import build_plan_request, parse_plan, plan_section
 from agentforge.sandbox.base import Sandbox
 from agentforge.sandbox.workspace import Workspace
+from agentforge.tools.base import Permission
 from agentforge.tools.executor import ToolExecutor
 
 logger = logging.getLogger("agentforge.runtime")
@@ -82,6 +85,8 @@ class AgentRuntime:
         self.config = config
         self.deps = deps
         self._cancel = asyncio.Event()
+        self.approval = ApprovalGate()
+        self._approval_permissions = frozenset(Permission(p) for p in config.approval.require_for)
 
     # ------------------------------------------------------------------ control
     def cancel(self) -> None:
@@ -222,7 +227,15 @@ class AgentRuntime:
                         record, result = self._budget_exhausted(call.id, call.name)
                     else:
                         total_tool_calls += 1
-                        record, result = await self.deps.executor.execute(call)
+                        required = self._approval_permissions & self.deps.executor.permissions_for(
+                            call.name
+                        )
+                        if required:
+                            record, result = await self._execute_with_approval(
+                                run, step, call, required
+                            )
+                        else:
+                            record, result = await self.deps.executor.execute(call)
                     step.tool_calls.append(record)
                     results.append(result)
                     await self._emit(
@@ -293,6 +306,54 @@ class AgentRuntime:
     def _budget_exhausted(self, call_id: str, tool: str) -> tuple[ToolCallRecord, ToolResultPart]:
         now = utcnow()
         message = "tool call budget exhausted; finish with the information you have"
+        record = ToolCallRecord(
+            id=call_id,
+            tool=tool,
+            status=ToolCallStatus.DENIED,
+            output=message,
+            error=message,
+            started_at=now,
+            finished_at=now,
+            duration_ms=0,
+        )
+        return record, ToolResultPart(tool_use_id=call_id, content=message, is_error=True)
+
+    async def _execute_with_approval(
+        self, run: Run, step: Step, call: ToolUsePart, permissions: frozenset[Permission]
+    ) -> tuple[ToolCallRecord, ToolResultPart]:
+        previous_status = run.status
+        run.status = RunStatus.AWAITING_APPROVAL
+        permission_values = frozenset(p.value for p in permissions)
+        # Register before emitting: an observer (e.g. the non-interactive CLI) may
+        # call decide() synchronously while handling the event, before we start
+        # waiting below, and that decision must not be lost.
+        self.approval.begin(call.id, call.name, call.arguments, permission_values)
+        await self._emit(
+            run,
+            "tool.awaiting_approval",
+            step=step.index,
+            tool=call.name,
+            call_id=call.id,
+            arguments=self.deps.redactor.redact(call.arguments),
+            permissions=sorted(permission_values),
+        )
+        approved, reason = await self.approval.wait(
+            call.id, timeout=self.config.approval.timeout_seconds, cancel_event=self._cancel
+        )
+        run.status = previous_status
+        if approved:
+            await self._emit(run, "tool.approved", step=step.index, tool=call.name, call_id=call.id)
+            return await self.deps.executor.execute(call)
+        await self._emit(
+            run, "tool.denied", step=step.index, tool=call.name, call_id=call.id, reason=reason
+        )
+        return self._approval_denied(call.id, call.name, reason)
+
+    def _approval_denied(
+        self, call_id: str, tool: str, reason: str | None
+    ) -> tuple[ToolCallRecord, ToolResultPart]:
+        now = utcnow()
+        message = f"tool call denied: {reason or 'not approved'}"
         record = ToolCallRecord(
             id=call_id,
             tool=tool,

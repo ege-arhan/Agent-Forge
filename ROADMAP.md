@@ -26,7 +26,14 @@ latest session report and `TASKS.md` for task-level detail).
 
 ## Next up (in order)
 
-1. Public beta readiness (M15, T-015b): CONTRIBUTING, templates, clean-machine
+1. Merge the open PR stack (`#8` → `#9` → `#10` → `#11` at last check): stable
+   `main` + PR workflow docs, the dogfooding program and agent improvement
+   loop, and the first (inconclusive — too easy to differentiate models)
+   real-model validation run against OpenCode Go. See `docs/STATUS.md`.
+2. Public beta readiness (M15, T-015b): CONTRIBUTING, templates, clean-machine
    walkthrough, docs review, v0.2.0.
 3. Public beta checklist (M15).
 4. Real-model benchmark results with methodology (needs keys; T-009b).
+
+Human approval for sensitive tools (T-004b) is done: see `TASKS.md` and the
+"Human approval for sensitive tools" section of `README.md`.

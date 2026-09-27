@@ -47,6 +47,14 @@ All notable changes are documented here. The format follows
 - Tag-triggered release workflow (draft GitHub release, GHCR images).
 - CONTRIBUTING.md, code of conduct, issue and pull request templates.
 - Example agents, starter benchmark suite and experiments.
+- Human approval gate for sensitive tools: `AgentConfig.approval.require_for`
+  lists permissions (e.g. `process:exec`, `network`, `git:write`) that pause a
+  run (`awaiting_approval`) before the matching tool call executes, until an
+  operator approves or denies it via `GET/POST /runs/{id}/approvals[/{call_id}]`
+  (or, for `agentforge run`, an interactive terminal prompt), the run is
+  cancelled, or `approval.timeout_seconds` elapses (denied by default). A
+  denial fails only that tool call. Dashboard run page shows a Pending
+  approval card.
 
 ### Security
 - Server-side policy for API-submitted configs and evaluators: prevents
