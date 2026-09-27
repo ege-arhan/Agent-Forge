@@ -114,6 +114,7 @@ agentforge bench run SUITE.yaml -a AGENT.yaml [-r REPEATS] [-t TASK]... [-c CONC
                      [--save-agent] [--report DIR]
 agentforge bench report BENCH_ID [--out DIR] [--json]
 agentforge bench compare BASELINE_ID CANDIDATE_ID [--json]
+agentforge bench gate --baseline REPORT_OR_ID --candidate REPORT_OR_ID [thresholds] [--json] [--output FILE]   # CI gate, see regression-gate.md
 agentforge experiment run EXPERIMENT.yaml [--json]
 ```
 

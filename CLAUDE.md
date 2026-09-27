@@ -40,6 +40,7 @@ uv run agentforge --help
 uv run agentforge bench run examples/benchmarks/starter.yaml -a examples/agents/scripted-demo.yaml
 uv run python scripts/dogfood.py offline   # dogfooding suites + improvement-loop demo (OFFLINE results)
 uv run agentforge improve --help     # agent improvement loop (docs/improvement.md)
+uv run agentforge bench gate --baseline REPORT.json --candidate BENCH_ID   # CI regression gate (docs/regression-gate.md)
 uv run agentforge serve              # API on :8000, docs at /docs
 cd web && npm ci && npm run dev      # dashboard on :3000 (expects the API on :8000)
 ```

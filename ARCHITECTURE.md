@@ -64,6 +64,7 @@ flowchart LR
 | Experiments | `experiments/` | Variants over a base config, comparison against a baseline |
 | Improvement loop | `improvement/` | Failure analysis of benchmark runs, rule-based/manual proposals, applying them as new agent versions, re-benchmarking and comparison ([docs/improvement.md](docs/improvement.md)) |
 | Reports | `benchmarks/report.py` | Publication records per benchmark run, stored under `<offline\|real>/` |
+| Regression gate | `benchmarks/gate.py` | CI decision between a baseline and a candidate report: pass / regression / error with exit codes 0 / 1 / 2 and configurable thresholds ([docs/regression-gate.md](docs/regression-gate.md)) |
 | Storage | `storage/` | Async SQLAlchemy tables and repositories; persistence observer |
 | Service | `service.py` | Background execution of runs/benchmarks/experiments for the API |
 | API | `api/` | REST + SSE endpoints, API-key auth |
@@ -130,6 +131,7 @@ limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · 
 | **Scripted provider** | Deterministic, offline end-to-end tests and demos; explicitly not a model. |
 | **Result class derived, never supplied** | `offline` (scripted) vs `real` is computed from the agent config; offline and real results are stored, reported and listed separately and cannot be compared. |
 | **Immutable agent versions** | Every config change is a new snapshot; improvements and reverts add versions instead of rewriting history, so any benchmark can be traced to the exact config it ran. |
+| **A gate error is never a pass** | The regression gate returns a separate `error` verdict (exit 2) when inputs are missing, invalid, not comparable or affected by infrastructure failures, so a CI pipeline cannot pass on data it could not evaluate. |
 | **Deterministic, allowlisted proposals** | The built-in proposer is rule-based and cites evidence; all proposals may only touch an allowlist of config paths (no credentials, endpoints, sandbox or provider). |
 | **argparse CLI** | No extra dependency for a modest command surface. |
 

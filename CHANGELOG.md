@@ -6,7 +6,38 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-27
+
+First tagged release (0.1.0 was the untagged development version). AgentForge
+is an open-source Agent CI/CD and evaluation platform: build → run → evaluate
+→ analyze → improve → re-run → regression check → approve/block.
+
+### Highlights
+- CI regression gate: `agentforge bench gate` (exit 0 pass, 1 regression,
+  2 cannot decide), `GET /benchmarks/gate`, a GitHub Actions example.
+- Human approval gate for sensitive tools (pauses a run until an operator
+  approves or denies; denied on timeout).
+- Agent improvement loop with immutable agent versions, failure analysis,
+  proposals, re-benchmarking and comparison.
+- Limited real-model validation through OpenCode Go (five models) and a
+  controlled real-model improvement-loop demonstration; small samples, see
+  `docs/REAL_MODEL_BENCHMARK.md`.
+
 ### Added
+- CI regression gate `agentforge bench gate --baseline --candidate`: compares
+  two benchmark reports (report files or stored runs) under configurable
+  thresholds (overall and per-task pass-rate drop, mean-score drop, optional
+  floor; defaults allow no drop). Missing or invalid inputs, different suites,
+  task definitions, task sets or result classes, unfinished benchmarks and
+  infrastructure failures are errors (exit 2), never a pass. API
+  `GET /benchmarks/gate`; the dashboard shows the gate verdict of evaluated
+  improvement cycles; `.github/workflows/agentforge-regression.yml` example
+  with a committed offline baseline; `docs/regression-gate.md`.
+- Benchmark reports carry `suite_digest` (hash of the suite snapshot) and a
+  per-run `failure_category`; older reports still load.
+- Database migration `0003`: `runs.status` widened to fit `awaiting_approval`
+  (written as `0002` on the approval-gate branch; renumbered after the agent
+  versions migration `0002`).
 - Core domain models: agent configuration, runs, steps, tool-call and LLM-call
   records, evaluation results, metrics.
 - Provider-neutral LLM layer with adapters for Anthropic (official SDK) and

@@ -24,6 +24,7 @@ endpoint except `/health` requires `Authorization: Bearer <key>`.
 | `GET /benchmarks/runs/{id}/analysis` | failure analysis: categories, per-task counts, failed runs with evidence, tool issues |
 | `GET /benchmarks/runs/{id}/report` | publication record per task run (success, checks, tool calls, retries, duration, tokens or `null`, estimated cost, `actual_cost_usd: null`) |
 | `GET /benchmarks/compare?baseline&candidate` | comparison (verdict, intervals, per-task changes); offline vs real is refused as `not_comparable` |
+| `GET /benchmarks/gate?baseline&candidate[&max_pass_rate_drop&max_task_pass_rate_drop&max_mean_score_drop&min_pass_rate]` | CI regression gate result: `verdict` (`pass`/`regression`/`error`), `exit_code` (0/1/2), per-task counts, `errors`, `regressions`, `notes`; same rules as `agentforge bench gate` ([regression-gate.md](regression-gate.md)) |
 | `POST /experiments` | `{name, suite_id, base_agent_id or base_config, variants, repeats?, task_ids?}` |
 | `GET /experiments[/{id}]` | experiments; detail includes the comparison rows |
 | `/github/...` | see [github.md](github.md) |
