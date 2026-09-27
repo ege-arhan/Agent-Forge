@@ -38,6 +38,8 @@ uv run pytest -m docker              # needs a Docker daemon + python:3.12-slim
 AGENTFORGE_TEST_DATABASE_URL=postgresql+asyncpg://u:p@host/db uv run pytest tests/integration tests/e2e
 uv run agentforge --help
 uv run agentforge bench run examples/benchmarks/starter.yaml -a examples/agents/scripted-demo.yaml
+uv run python scripts/dogfood.py offline   # dogfooding suites + improvement-loop demo (OFFLINE results)
+uv run agentforge improve --help     # agent improvement loop (docs/improvement.md)
 uv run agentforge serve              # API on :8000, docs at /docs
 cd web && npm ci && npm run dev      # dashboard on :3000 (expects the API on :8000)
 ```
@@ -127,7 +129,10 @@ same branch until it is green. The owner reviews and merges.
   Never delete or weaken tests to make CI pass.
 - Docs describe only what exists. Mark planned features as planned.
 - The scripted provider is for tests/demos only; never present its results
-  as model performance.
+  as model performance. Benchmark results are OFFLINE (scripted) or REAL
+  (model provider); keep them in separate places and never combine or compare
+  them. Run real-model benchmarks only when credentials (and the owner's
+  budget approval) exist; record missing values as `null`, never estimate.
 - GitHub integration never merges PRs; PRs are drafts requiring human review.
 
 ## Where things are
@@ -135,6 +140,8 @@ same branch until it is green. The owner reviews and merges.
 See `ARCHITECTURE.md` for the component map. Quick index:
 `core/` models+config · `llm/` providers · `runtime/` agent loop · `tools/`
 registry+executor+builtins · `sandbox/` local+docker · `memory/` ·
-`evaluation/` · `benchmarks/` · `experiments/` · `storage/` · `api/` ·
-`service.py` background execution · `cli.py` · `integrations/github/` ·
-`web/` dashboard (Next.js).
+`evaluation/` · `benchmarks/` · `experiments/` · `improvement/` (failure
+analysis, proposals, comparison, loop) · `storage/` · `api/` · `service.py`
+background execution · `cli.py` · `integrations/github/` · `web/` dashboard
+(Next.js) · `dogfood/` (dogfooding agents, suites and results; OFFLINE and
+REAL results are kept apart and never mixed).

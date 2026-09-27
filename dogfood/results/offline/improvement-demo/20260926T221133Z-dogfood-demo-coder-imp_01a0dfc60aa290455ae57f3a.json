@@ -1,0 +1,255 @@
+{
+  "id": "imp_01a0dfc60aa290455ae57f3a",
+  "agent_id": "agt_01a0dfc6064fb96cb81f09f5",
+  "agent_name": "dogfood-demo-coder",
+  "status": "evaluated",
+  "suite_id": "dogfood-coding",
+  "suite_version": "1",
+  "result_class": "offline",
+  "task_ids": [
+    "implement-slugify",
+    "add-cli-flag"
+  ],
+  "repeats": 3,
+  "from_version": 1,
+  "to_version": 2,
+  "reverted_to_version": null,
+  "baseline_benchmark_run_id": "bench_01a0dfc606567f32e83e44ac",
+  "candidate_benchmark_run_id": "bench_01a0dfc60ab50490d018bae4",
+  "analysis": {
+    "benchmark_run_id": "bench_01a0dfc606567f32e83e44ac",
+    "suite_id": "dogfood-coding",
+    "suite_version": "1",
+    "result_class": "offline",
+    "agent_name": "dogfood-demo-coder",
+    "agent_id": "agt_01a0dfc6064fb96cb81f09f5",
+    "agent_version": 1,
+    "runs": 6,
+    "passed": 0,
+    "failed": 6,
+    "categories": {
+      "step_limit": 6
+    },
+    "tool_issues": {},
+    "tasks": [
+      {
+        "task_id": "implement-slugify",
+        "runs": 3,
+        "passed": 0,
+        "categories": {
+          "step_limit": 3
+        }
+      },
+      {
+        "task_id": "add-cli-flag",
+        "runs": 3,
+        "passed": 0,
+        "categories": {
+          "step_limit": 3
+        }
+      }
+    ],
+    "failures": [
+      {
+        "task_id": "implement-slugify",
+        "repeat": 1,
+        "run_id": "run_01a0dfc60659f6e293d7bd48",
+        "category": "step_limit",
+        "secondary": [
+          "no_final_answer"
+        ],
+        "summary": "The run reached its step limit before finishing. (3 steps used)",
+        "evidence": [
+          "max_steps: reached the limit of 3 steps",
+          "finished (no_final_answer): run status failed"
+        ]
+      },
+      {
+        "task_id": "implement-slugify",
+        "repeat": 2,
+        "run_id": "run_01a0dfc607d8dde0ddb904fe",
+        "category": "step_limit",
+        "secondary": [
+          "no_final_answer"
+        ],
+        "summary": "The run reached its step limit before finishing. (3 steps used)",
+        "evidence": [
+          "max_steps: reached the limit of 3 steps",
+          "finished (no_final_answer): run status failed"
+        ]
+      },
+      {
+        "task_id": "implement-slugify",
+        "repeat": 3,
+        "run_id": "run_01a0dfc6092f7dd5e2161df9",
+        "category": "step_limit",
+        "secondary": [
+          "no_final_answer"
+        ],
+        "summary": "The run reached its step limit before finishing. (3 steps used)",
+        "evidence": [
+          "max_steps: reached the limit of 3 steps",
+          "finished (no_final_answer): run status failed"
+        ]
+      },
+      {
+        "task_id": "add-cli-flag",
+        "repeat": 1,
+        "run_id": "run_01a0dfc606c8a24ef14787c5",
+        "category": "step_limit",
+        "secondary": [
+          "no_final_answer"
+        ],
+        "summary": "The run reached its step limit before finishing. (3 steps used)",
+        "evidence": [
+          "max_steps: reached the limit of 3 steps",
+          "finished (no_final_answer): run status failed"
+        ]
+      },
+      {
+        "task_id": "add-cli-flag",
+        "repeat": 2,
+        "run_id": "run_01a0dfc60839b7ded8b5f3aa",
+        "category": "step_limit",
+        "secondary": [
+          "no_final_answer"
+        ],
+        "summary": "The run reached its step limit before finishing. (3 steps used)",
+        "evidence": [
+          "max_steps: reached the limit of 3 steps",
+          "finished (no_final_answer): run status failed"
+        ]
+      },
+      {
+        "task_id": "add-cli-flag",
+        "repeat": 3,
+        "run_id": "run_01a0dfc60992ef8559deb639",
+        "category": "step_limit",
+        "secondary": [
+          "no_final_answer"
+        ],
+        "summary": "The run reached its step limit before finishing. (3 steps used)",
+        "evidence": [
+          "max_steps: reached the limit of 3 steps",
+          "finished (no_final_answer): run status failed"
+        ]
+      }
+    ]
+  },
+  "proposal": {
+    "proposer": "rules",
+    "changes": [
+      {
+        "id": "c1",
+        "path": "limits.max_steps",
+        "operation": "set",
+        "value": 20,
+        "current": 3,
+        "rationale": "6 failed run(s) stopped at the agent's step limit (3) while the suite allows up to 20 steps for these tasks.",
+        "addresses": [
+          "step_limit"
+        ],
+        "evidence": [
+          "run_01a0dfc60659f6e293d7bd48",
+          "run_01a0dfc607d8dde0ddb904fe",
+          "run_01a0dfc6092f7dd5e2161df9",
+          "run_01a0dfc606c8a24ef14787c5",
+          "run_01a0dfc60839b7ded8b5f3aa",
+          "run_01a0dfc60992ef8559deb639"
+        ]
+      }
+    ],
+    "notes": []
+  },
+  "applied_change_ids": [
+    "c1"
+  ],
+  "comparison": {
+    "baseline_id": "bench_01a0dfc606567f32e83e44ac",
+    "candidate_id": "bench_01a0dfc60ab50490d018bae4",
+    "suite_id": "dogfood-coding",
+    "suite_version": "1",
+    "result_class": "offline",
+    "comparable": true,
+    "reasons": [],
+    "notes": [
+      "offline (scripted) results are deterministic replays: they validate the pipeline and the benchmark, not a model; intervals over repeated replays are not evidence of model behaviour"
+    ],
+    "baseline": {
+      "benchmark_run_id": "bench_01a0dfc606567f32e83e44ac",
+      "agent_name": "dogfood-demo-coder",
+      "agent_version": 1,
+      "provider": "scripted",
+      "model": "scripted-reference-v1",
+      "runs": 6,
+      "passed": 0,
+      "pass_rate": 0.0,
+      "pass_rate_ci95": [
+        0.0,
+        0.3903
+      ],
+      "mean_score": 0.775,
+      "mean_steps": 3.0,
+      "mean_duration_seconds": 0.173,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0,
+      "total_cost_usd": 0.0
+    },
+    "candidate": {
+      "benchmark_run_id": "bench_01a0dfc60ab50490d018bae4",
+      "agent_name": "dogfood-demo-coder",
+      "agent_version": 2,
+      "provider": "scripted",
+      "model": "scripted-reference-v1",
+      "runs": 6,
+      "passed": 6,
+      "pass_rate": 1.0,
+      "pass_rate_ci95": [
+        0.6097,
+        1.0
+      ],
+      "mean_score": 1.0,
+      "mean_steps": 4.5,
+      "mean_duration_seconds": 0.189,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0,
+      "total_cost_usd": 0.0
+    },
+    "pass_rate_delta": 1.0,
+    "mean_score_delta": 0.225,
+    "mean_steps_delta": 1.5,
+    "significant": true,
+    "verdict": "improved",
+    "tasks": [
+      {
+        "task_id": "implement-slugify",
+        "baseline_passed": 0,
+        "baseline_runs": 3,
+        "candidate_passed": 3,
+        "candidate_runs": 3,
+        "pass_rate_delta": 1.0,
+        "change": "fixed"
+      },
+      {
+        "task_id": "add-cli-flag",
+        "baseline_passed": 0,
+        "baseline_runs": 3,
+        "candidate_passed": 3,
+        "candidate_runs": 3,
+        "pass_rate_delta": 1.0,
+        "change": "fixed"
+      }
+    ],
+    "categories": [
+      {
+        "category": "step_limit",
+        "baseline": 6,
+        "candidate": 0
+      }
+    ]
+  },
+  "notes": "",
+  "error": null,
+  "created_at": "2026-09-26T22:11:33.154145Z",
+  "updated_at": "2026-09-26T22:11:34.360936Z"
+}

@@ -1,0 +1,115 @@
+# Dogfooding suite: Coding Agent (suite collection "dogfood" v1, see dogfood/README.md).
+#
+# Each task has visible checks (tests the agent can run), hidden checks
+# (edge cases the agent never sees) and requires the agent to finish
+# (`completed`: a run stopped by a limit fails even if the files look right). Changing any task requires bumping
+# `version`: results are only compared within one suite version.
+id: dogfood-coding
+name: "Dogfood: coding"
+description: Implement a function from its specification and extend a CLI without breaking it.
+version: "1"
+repeats: 1
+defaults:
+  timeout_seconds: 600
+  max_steps: 20
+
+tasks:
+  - id: implement-slugify
+    goal: >-
+      Implement slugify() in text_utils.py according to its docstring. The tests in
+      test_text_utils.py must pass (`python3 test_text_utils.py`). Do not modify the tests.
+    setup:
+      files:
+        text_utils.py: |
+          def slugify(text: str) -> str:
+              """Convert text to a URL slug.
+
+              Lowercase ASCII letters and digits are kept; every run of other
+              characters becomes a single hyphen; leading and trailing hyphens
+              are removed. Example: slugify("Hello, World!") == "hello-world"
+              """
+              raise NotImplementedError
+        test_text_utils.py: |
+          from text_utils import slugify
+
+          assert slugify("Hello, World!") == "hello-world"
+          assert slugify("AgentForge 2.0") == "agentforge-2-0"
+          print("all tests passed")
+    allowed_tools: [filesystem, terminal]
+    expected_behavior: Read the spec, implement it, run the tests.
+    evaluators:
+      - type: completed
+        name: finished
+      - type: command
+        name: tests_pass
+        command: python3 test_text_utils.py
+      - type: command
+        name: hidden_edge_cases
+        command: |
+          python3 - <<'PY'
+          from text_utils import slugify
+          cases = {
+              "  Leading and trailing  ": "leading-and-trailing",
+              "a--b__c": "a-b-c",
+              "": "",
+              "---": "",
+              "MiXeD Case 42": "mixed-case-42",
+              "already-a-slug": "already-a-slug",
+          }
+          for text, expected in cases.items():
+              got = slugify(text)
+              assert got == expected, f"slugify({text!r}) = {got!r}, expected {expected!r}"
+          PY
+      - type: file_contains
+        name: tests_untouched
+        path: test_text_utils.py
+        text: 'assert slugify("AgentForge 2.0") == "agentforge-2-0"'
+    tags: [coding, spec]
+
+  - id: add-cli-flag
+    goal: >-
+      Add a `--lines` option to wordcount.py: when given, print the number of lines in the
+      file instead of the number of words. Without the option the behaviour must not change,
+      and `--help` must document the new option. Check your change with sample.txt.
+    setup:
+      files:
+        wordcount.py: |
+          """Count words in a text file."""
+
+          import argparse
+
+
+          def main() -> None:
+              parser = argparse.ArgumentParser(description=__doc__)
+              parser.add_argument("path")
+              args = parser.parse_args()
+              with open(args.path, encoding="utf-8") as handle:
+                  text = handle.read()
+              print(len(text.split()))
+
+
+          if __name__ == "__main__":
+              main()
+        sample.txt: "one two three\nfour five\n\nsix\n"
+    allowed_tools: [filesystem, terminal]
+    expected_behavior: Extend the argument parser, keep the default output, verify both modes.
+    evaluators:
+      - type: completed
+        name: finished
+      - type: command
+        name: words_unchanged
+        command: test "$(python3 wordcount.py sample.txt)" = 6
+      - type: command
+        name: lines_option
+        command: test "$(python3 wordcount.py --lines sample.txt)" = 4
+      - type: command
+        name: help_documents_option
+        command: python3 wordcount.py --help | grep -q -- --lines
+      - type: command
+        name: hidden_other_file
+        command: |
+          printf 'a b\nc\n' > .hidden_check.txt
+          test "$(python3 wordcount.py --lines .hidden_check.txt)" = 2 \
+            && test "$(python3 wordcount.py .hidden_check.txt)" = 3
+          status=$?; rm -f .hidden_check.txt; exit $status
+    tags: [coding, cli]

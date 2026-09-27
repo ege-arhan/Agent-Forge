@@ -113,7 +113,15 @@ untrusted input. `agentforge/policy.py` rejects (HTTP 400,
 
 The policy is checked when agents are created/updated and again whenever
 work starts (runs, re-runs, benchmarks, every experiment variant, GitHub
-tasks), so tightening settings also applies to stored agents. The CLI runs the
+tasks, improvement apply/evaluate), so tightening settings also applies to
+stored agents.
+
+Improvement proposals (`POST /improvements`) are additionally limited to an
+allowlist of config paths (prompt, tools, model name/temperature/max tokens,
+limits, retries, planner, memory); credentials, endpoints (`base_url`,
+`api_key_env`), `tool_settings`, the sandbox and the provider cannot be
+changed through the improvement loop (HTTP 409). The rule-based proposer never
+copies evaluator details into prompts. The CLI runs the
 operator's own files and does not apply it.
 
 ### API transport controls

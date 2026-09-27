@@ -1,0 +1,125 @@
+# OFFLINE reference agent for the dogfooding program (scripted provider).
+#
+# Replays a known-good solution for every task in dogfood/benchmarks/issues.yaml.
+# Its results validate the benchmark (each task is solvable and its checks
+# accept a correct solution) and the AgentForge pipeline. They say nothing
+# about any model and are reported separately as OFFLINE results.
+name: dogfood-github-issue-solver-offline
+description: Scripted reference solutions for the issue suite.
+model:
+  provider: scripted
+  model: scripted-reference-v1
+  options:
+    turns:
+    - text: No scripted solution matches this task.
+    rules:
+    - when: Resolve the issue described in ISSUE\.md
+      turns:
+      - text: Reading the issue and the contribution rules.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: ISSUE.md
+        - name: read_file
+          arguments:
+            path: CONTRIBUTING.md
+      - text: 'Bug fix for #7: branch fix/issue-7.'
+        tool_calls:
+        - name: git_branch
+          arguments:
+            name: fix/issue-7
+      - text: Fixing the century rule.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: dates.py
+            content: |
+              def is_leap_year(year: int) -> bool:
+                  return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+      - text: Adding a regression test.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: test_dates.py
+            content: |
+              from dates import is_leap_year
+
+              assert is_leap_year(2024)
+              assert not is_leap_year(2023)
+              assert not is_leap_year(1900)  # regression test for #7
+              assert is_leap_year(2000)
+              print("all tests passed")
+      - text: Running the tests.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 test_dates.py
+      - text: Committing.
+        tool_calls:
+        - name: git_commit
+          arguments:
+            message: 'Fix leap years for centuries (#7)
+
+
+              Century years are leap years only when divisible by 400.'
+      - text: 'Fixed #7 on fix/issue-7: is_leap_year now applies the 100/400 rule; added a regression
+          test for 1900 and 2000; tests pass.'
+    - when: Implement the feature requested in ISSUE\.md
+      turns:
+      - text: Reading the issue and the contribution rules.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: ISSUE.md
+        - name: read_file
+          arguments:
+            path: CONTRIBUTING.md
+      - text: 'Feature #12: branch feature/issue-12.'
+        tool_calls:
+        - name: git_branch
+          arguments:
+            name: feature/issue-12
+      - text: Adding the punctuation parameter.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: greeting.py
+            content: |
+              def greet(name: str, punctuation: str = "!") -> str:
+                  return f"Hello, {name}{punctuation}"
+      - text: Adding a test.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: test_greeting.py
+            content: |
+              from greeting import greet
+
+              assert greet("World") == "Hello, World!"
+              assert greet("Ada", punctuation="?") == "Hello, Ada?"
+              print("all tests passed")
+      - text: Running the tests.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 test_greeting.py
+      - text: Committing.
+        tool_calls:
+        - name: git_commit
+          arguments:
+            message: Add punctuation option to greet() (#12)
+      - text: 'Implemented #12 on feature/issue-12: greet(name, punctuation="!"), with a test; tests pass.'
+tools:
+- filesystem
+- terminal
+- git
+limits:
+  max_steps: 20
+  timeout_seconds: 300
+memory:
+  persist: false
+sandbox:
+  kind: local
+labels:
+  program: dogfood
+  result_class: offline

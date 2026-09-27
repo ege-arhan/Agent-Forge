@@ -171,6 +171,28 @@ class Agent(BaseModel):
         return self.config.name
 
 
+class AgentVersionSource(StrEnum):
+    CREATED = "created"
+    UPDATED = "updated"
+    IMPROVEMENT = "improvement"
+    REVERT = "revert"
+
+
+class AgentVersion(BaseModel):
+    """Immutable snapshot of a stored agent's configuration at one version."""
+
+    agent_id: str
+    version: int = Field(ge=1)
+    config: AgentConfig
+    source: AgentVersionSource = AgentVersionSource.CREATED
+    change_summary: str = ""
+    improvement_id: str | None = Field(
+        default=None, description="Improvement cycle that produced this version, if any."
+    )
+    parent_version: int | None = None
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class Run(BaseModel):
     id: str = Field(default_factory=lambda: new_id("run"))
     agent_id: str | None = None

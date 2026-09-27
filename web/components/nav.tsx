@@ -11,6 +11,7 @@ import {
   Play,
   Settings,
   Sun,
+  TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -25,6 +26,7 @@ const LINKS = [
   { href: "/runs", label: "Runs", icon: Play },
   { href: "/benchmarks", label: "Benchmarks", icon: Gauge },
   { href: "/experiments", label: "Experiments", icon: FlaskConical },
+  { href: "/improvement", label: "Improvement", icon: TrendingUp },
   { href: "/repositories", label: "Repositories", icon: FolderGit2 },
   { href: "/github", label: "GitHub tasks", icon: GitPullRequest },
   { href: "/settings", label: "Settings", icon: Settings },

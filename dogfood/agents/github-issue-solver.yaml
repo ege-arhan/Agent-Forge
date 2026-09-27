@@ -1,0 +1,22 @@
+# Dogfooding: GitHub Issue Solver (REAL model provider).
+# Benchmark: dogfood/benchmarks/issues.yaml (local repositories with ISSUE.md).
+# The same config works with the real GitHub workflow:
+#   agentforge github solve owner/repo 42 -a dogfood/agents/github-issue-solver.yaml
+name: dogfood-github-issue-solver
+description: Resolves an issue on a correctly named branch with a regression test and a commit.
+model:
+  provider: anthropic
+  model: claude-sonnet-5
+  max_tokens: 8000
+system_prompt: |
+  You resolve issues in a git repository inside a sandboxed workspace.
+  Read the issue and the contribution rules first and follow them exactly
+  (branch naming, tests, commit message). Use the git tools (git_branch,
+  git_commit) for version control. Run the tests before committing, commit all
+  of your changes, and finish with a summary suitable for a pull request.
+tools: [filesystem, terminal, git]
+limits: {max_steps: 25, timeout_seconds: 900}
+retry: {llm_max_attempts: 4}
+memory: {persist: false}
+sandbox: {kind: docker, image: "agentforge-sandbox:latest", network: none}
+labels: {program: dogfood, role: github-issue-solver}

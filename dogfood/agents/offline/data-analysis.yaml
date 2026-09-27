@@ -1,0 +1,93 @@
+# OFFLINE reference agent for the dogfooding program (scripted provider).
+#
+# Replays a known-good solution for every task in dogfood/benchmarks/data-analysis.yaml.
+# Its results validate the benchmark (each task is solvable and its checks
+# accept a correct solution) and the AgentForge pipeline. They say nothing
+# about any model and are reported separately as OFFLINE results.
+name: dogfood-data-analysis-offline
+description: Scripted reference solutions for the data analysis suite.
+model:
+  provider: scripted
+  model: scripted-reference-v1
+  options:
+    turns:
+    - text: No scripted solution matches this task.
+    rules:
+    - when: sales\.csv
+      turns:
+      - text: Inspecting the data.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: sales.csv
+      - text: Aggregating revenue per region with a script.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: summarize.py
+            content: |
+              import csv, json
+              revenue = {}
+              with open("sales.csv", newline="") as handle:
+                  for row in csv.DictReader(handle):
+                      revenue[row["region"]] = revenue.get(row["region"], 0.0) + int(row["units"]) * float(row["unit_price"])
+              summary = {"revenue_by_region": {k: round(v, 2) for k, v in revenue.items()},
+                         "top_region": max(revenue, key=revenue.get)}
+              json.dump(summary, open("summary.json", "w"), indent=2)
+              print(summary)
+      - text: Running it.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 summarize.py && rm summarize.py
+      - text: Checking the output file.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: summary.json
+      - text: 'Wrote summary.json: north 359.00, south 158.00, east 140.25; top region: north.'
+    - when: app\.log
+      turns:
+      - text: Inspecting the log format.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: app.log
+      - text: Computing per-service error rates, skipping malformed lines.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: rates.py
+            content: |
+              import json, re
+              pattern = re.compile(r"^\S+ (DEBUG|INFO|WARN|ERROR) (\S+) ")
+              totals, errors = {}, {}
+              for line in open("app.log"):
+                  match = pattern.match(line)
+                  if match:
+                      level, service = match.groups()
+                      totals[service] = totals.get(service, 0) + 1
+                      errors[service] = errors.get(service, 0) + (level == "ERROR")
+              rates = {s: round(100 * errors[s] / totals[s], 1) for s in totals}
+              json.dump(rates, open("error_rates.json", "w"), indent=2)
+              print(rates)
+      - text: Running it.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 rates.py && rm rates.py
+      - text: Wrote error_rates.json (checkout 25.0, search 0.0, auth 75.0). The service with the highest
+          error rate is auth (75.0%).
+tools:
+- filesystem
+- terminal
+limits:
+  max_steps: 20
+  timeout_seconds: 300
+memory:
+  persist: false
+sandbox:
+  kind: local
+labels:
+  program: dogfood
+  result_class: offline

@@ -43,6 +43,7 @@ flowchart LR
 
     BE[Benchmark Engine] --> RT
     XP[Experiment Tracker] --> BE
+    IL[Improvement Loop<br/>analysis, proposal, compare] --> BE
     GH[GitHub Integration] --> RT
 
     RT -- events --> OBS[Observers<br/>persistence, logs, SSE]
@@ -61,6 +62,8 @@ flowchart LR
 | Evaluation | `evaluation/` | Evaluator interface + built-ins, aggregation, objective run metrics |
 | Benchmarks | `benchmarks/` | Suite spec, repeated execution, statistics (Wilson CI, stddev) |
 | Experiments | `experiments/` | Variants over a base config, comparison against a baseline |
+| Improvement loop | `improvement/` | Failure analysis of benchmark runs, rule-based/manual proposals, applying them as new agent versions, re-benchmarking and comparison ([docs/improvement.md](docs/improvement.md)) |
+| Reports | `benchmarks/report.py` | Publication records per benchmark run, stored under `<offline\|real>/` |
 | Storage | `storage/` | Async SQLAlchemy tables and repositories; persistence observer |
 | Service | `service.py` | Background execution of runs/benchmarks/experiments for the API |
 | API | `api/` | REST + SSE endpoints, API-key auth |
@@ -115,6 +118,9 @@ limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · 
 | **Benchmarks as normal runs** | Every benchmark attempt is a fully recorded run, inspectable in the same UI. Task/suite limits act as caps on the agent's own limits. |
 | **Wilson score intervals** | Benchmark samples are small and pass rates near 0/1; comparisons show uncertainty rather than implying rankings. |
 | **Scripted provider** | Deterministic, offline end-to-end tests and demos; explicitly not a model. |
+| **Result class derived, never supplied** | `offline` (scripted) vs `real` is computed from the agent config; offline and real results are stored, reported and listed separately and cannot be compared. |
+| **Immutable agent versions** | Every config change is a new snapshot; improvements and reverts add versions instead of rewriting history, so any benchmark can be traced to the exact config it ran. |
+| **Deterministic, allowlisted proposals** | The built-in proposer is rule-based and cites evidence; all proposals may only touch an allowlist of config paths (no credentials, endpoints, sandbox or provider). |
 | **argparse CLI** | No extra dependency for a modest command surface. |
 
 ## Trust boundaries
@@ -126,6 +132,8 @@ sandbox is **not** a security boundary.
 
 ## Data model (tables)
 
-`agents` · `runs` (config snapshot, steps JSON, metrics, evaluation, labels) ·
-`tool_calls` (denormalised for analytics) · `memories` · `benchmark_runs` ·
-`experiments`.
+`agents` · `agent_versions` (immutable config snapshots) · `runs` (config
+snapshot, steps JSON, metrics, evaluation, labels) · `tool_calls`
+(denormalised for analytics) · `memories` · `benchmark_runs` (suite snapshot,
+results, summary, `agent_id`/`agent_version`, `result_class`) · `experiments` ·
+`improvement_cycles` (analysis, proposal, applied changes, comparison).

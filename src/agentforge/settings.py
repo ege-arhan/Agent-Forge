@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -31,7 +33,10 @@ class Settings(BaseSettings):
     log_json: bool = False
     pricing_file: Path | None = None
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
-    benchmarks_dir: Path = Field(default=Path("examples/benchmarks"))
+    benchmarks_dir: str = Field(
+        default=os.pathsep.join(["examples/benchmarks", "dogfood/benchmarks"]),
+        description="Directories with benchmark suites, separated by the OS path separator.",
+    )
     keep_workspaces: bool = True
     otel_enabled: bool = Field(
         default=False,
@@ -97,6 +102,19 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
+
+    @field_validator("benchmarks_dir", mode="before")
+    @classmethod
+    def _join_dirs(cls, value: Any) -> Any:
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, list | tuple):
+            return os.pathsep.join(str(v) for v in value)
+        return value
+
+    @property
+    def benchmark_dirs(self) -> list[Path]:
+        return [Path(p) for p in self.benchmarks_dir.split(os.pathsep) if p.strip()]
 
     @property
     def workspaces_dir(self) -> Path:

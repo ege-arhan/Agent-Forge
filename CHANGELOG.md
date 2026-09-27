@@ -47,11 +47,38 @@ All notable changes are documented here. The format follows
 - Tag-triggered release workflow (draft GitHub release, GHCR images).
 - CONTRIBUTING.md, code of conduct, issue and pull request templates.
 - Example agents, starter benchmark suite and experiments.
+- Agent improvement loop (`agentforge.improvement`): failure analysis of
+  benchmark runs (categories with evidence), deterministic rule-based or
+  developer-written proposals limited to an allowlist of config paths,
+  applying a proposal as a new agent version, re-benchmarking on the
+  baseline's suite snapshot and comparing (Wilson intervals, per-task changes,
+  verdict). CLI `agentforge improve analyze|propose|apply|evaluate|reject|run|history`,
+  API `/improvements`, dashboard **Improvement** pages.
+- Agent version history: every stored-agent change is an immutable snapshot
+  (`GET /agents/{id}/versions`); benchmark runs record the agent version they
+  ran.
+- Result classes: benchmark runs are `offline` (scripted provider) or `real`,
+  derived from the config; they are filtered, reported and shown separately
+  and never compared with each other.
+- Benchmark reports (`agentforge bench report`, `bench run --report`,
+  `GET /benchmarks/runs/{id}/report`) with per-run checks, tool calls,
+  retries, duration, tokens (`null` when unreported), estimated cost and
+  `actual_cost_usd` (always `null`); `agentforge bench compare`.
+- Dogfooding program (`dogfood/`): five agents (coding, debugging, data
+  analysis, security analysis, GitHub issue solver), five suites with visible,
+  hidden and process checks, offline reference agents, `scripts/dogfood.py`
+  (offline and real modes) and the first OFFLINE results.
+- Database migration `0002`: `agent_versions`, `improvement_cycles`,
+  `benchmark_runs.agent_id/agent_version/result_class` (backfilled).
+- `AGENTFORGE_BENCHMARKS_DIR` accepts several directories (default
+  `examples/benchmarks:dogfood/benchmarks`).
 
 ### Changed
 - Development workflow: `main` is the stable, always-releasable branch; all
   work (including autonomous sessions) happens on feature branches and
   reaches `main` only through pull requests merged by the owner.
+- Updating a stored agent with an identical configuration no longer creates a
+  new version.
 
 ### Security
 - Server-side policy for API-submitted configs and evaluators: prevents
@@ -65,6 +92,12 @@ All notable changes are documented here. The format follows
   security headers and an audit log for state-changing API calls.
 
 ### Fixed
+- Concurrent updates of a stored agent could fail with a unique-constraint
+  error on PostgreSQL; the agent row is now locked while the next version is
+  allocated.
+- Benchmark runs left running by a stopped API process stayed "running"
+  forever; they (and interrupted improvement evaluations) are now marked
+  failed on startup.
 - Sandboxed Python could execute stale bytecode after a same-second,
   same-size edit; sandboxes now set `PYTHONDONTWRITEBYTECODE=1`.
 - Benchmark limits overrode stricter agent limits; they now act as caps.

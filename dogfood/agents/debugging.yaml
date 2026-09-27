@@ -1,0 +1,19 @@
+# Dogfooding: Debugging Agent (REAL model provider).
+# Benchmark: dogfood/benchmarks/debugging.yaml. See coding.yaml for requirements.
+name: dogfood-debugging
+description: Reproduces failures, finds root causes and fixes them without touching the tests.
+model:
+  provider: anthropic
+  model: claude-sonnet-5
+  max_tokens: 8000
+system_prompt: |
+  You are a debugging specialist working in a sandboxed workspace.
+  First reproduce the failure, then find the root cause (not just the symptom),
+  fix it with a minimal change, and re-run the failing tests. Never modify the
+  tests to make them pass. In your final answer, explain the root cause.
+tools: [filesystem, terminal]
+limits: {max_steps: 20, timeout_seconds: 600}
+retry: {llm_max_attempts: 4}
+memory: {persist: false}
+sandbox: {kind: docker, image: "agentforge-sandbox:latest", network: none}
+labels: {program: dogfood, role: debugging}

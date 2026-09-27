@@ -7,9 +7,10 @@ import logging
 import platform
 import sys
 from datetime import datetime
+from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from agentforge import __version__
 from agentforge.benchmarks.spec import BenchmarkSuite, BenchmarkTask
@@ -24,6 +25,25 @@ from agentforge.runtime.factory import prepare_run
 from agentforge.settings import Settings
 
 logger = logging.getLogger("agentforge.benchmarks")
+
+
+OFFLINE_PROVIDERS = frozenset({"scripted"})
+
+
+class ResultClass(StrEnum):
+    """Benchmark results are never mixed across these classes.
+
+    ``offline`` results come from the deterministic scripted provider and only
+    validate the pipeline and the benchmark itself; ``real`` results come from
+    an actual model provider.
+    """
+
+    OFFLINE = "offline"
+    REAL = "real"
+
+
+def result_class_of(config: AgentConfig) -> ResultClass:
+    return ResultClass.OFFLINE if config.model.provider in OFFLINE_PROVIDERS else ResultClass.REAL
 
 
 class TaskRunResult(BaseModel):
@@ -88,6 +108,18 @@ class BenchmarkRun(BaseModel):
     experiment_id: str | None = None
     variant: str | None = None
     environment: dict[str, Any] = Field(default_factory=dict)
+    agent_id: str | None = Field(default=None, description="Stored agent that was benchmarked.")
+    agent_version: int | None = Field(default=None, description="Its version at the time.")
+    result_class: ResultClass = Field(
+        default=ResultClass.REAL,
+        description="Derived from the agent's provider: 'offline' (scripted) or 'real'.",
+    )
+
+    @model_validator(mode="after")
+    def _derive_result_class(self) -> BenchmarkRun:
+        # Always derived, never trusted from input, so classes cannot be mixed up.
+        self.result_class = result_class_of(self.agent_config)
+        return self
 
 
 def environment_info(config: AgentConfig) -> dict[str, Any]:
@@ -227,6 +259,8 @@ class BenchmarkRunner:
         experiment_id: str | None = None,
         variant: str | None = None,
         bench: BenchmarkRun | None = None,
+        agent_id: str | None = None,
+        agent_version: int | None = None,
     ) -> BenchmarkRun:
         tasks = [suite.task(t) for t in task_ids] if task_ids else list(suite.tasks)
         if not tasks:
@@ -242,6 +276,8 @@ class BenchmarkRunner:
             experiment_id=experiment_id,
             variant=variant,
             environment=environment_info(config),
+            agent_id=agent_id,
+            agent_version=agent_version,
         )
         bench.status = RunStatus.RUNNING
         await self.recorder.save_benchmark(bench)

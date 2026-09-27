@@ -1,0 +1,113 @@
+# Dogfooding suite: Debugging Agent (suite collection "dogfood" v1, see dogfood/README.md).
+id: dogfood-debugging
+name: "Dogfood: debugging"
+description: Find root causes of failing tests (off-by-one errors, shared mutable state) and fix them.
+version: "1"
+repeats: 1
+defaults:
+  timeout_seconds: 600
+  max_steps: 20
+
+tasks:
+  - id: pagination-off-by-one
+    goal: >-
+      `python3 test_pagination.py` fails. Find the root cause(s) in pagination.py and fix
+      them without changing the tests. Explain the bug(s) in your final answer.
+    setup:
+      files:
+        pagination.py: |
+          def paginate(items, page, per_page):
+              """Return the items on a 1-based page."""
+              start = page * per_page
+              return items[start:start + per_page]
+
+
+          def page_count(total, per_page):
+              """Number of pages needed to show `total` items."""
+              return total // per_page
+        test_pagination.py: |
+          from pagination import page_count, paginate
+
+          items = list(range(1, 11))
+          assert paginate(items, 1, 3) == [1, 2, 3], paginate(items, 1, 3)
+          assert paginate(items, 4, 3) == [10], paginate(items, 4, 3)
+          assert page_count(10, 3) == 4, page_count(10, 3)
+          assert page_count(9, 3) == 3
+          print("all tests passed")
+    allowed_tools: [filesystem, terminal]
+    expected_behavior: Reproduce, find both defects (1-based offset, rounding down), fix, re-run.
+    evaluators:
+      - type: completed
+        name: finished
+      - type: command
+        name: tests_pass
+        command: python3 test_pagination.py
+      - type: command
+        name: hidden_edge_cases
+        command: |
+          python3 - <<'PY'
+          from pagination import page_count, paginate
+          assert paginate([], 1, 5) == []
+          assert paginate(list(range(5)), 2, 2) == [2, 3]
+          assert paginate(list(range(5)), 4, 2) == []
+          assert page_count(0, 5) == 0
+          assert page_count(1, 5) == 1
+          assert page_count(10, 5) == 2
+          PY
+      - type: file_contains
+        name: tests_untouched
+        path: test_pagination.py
+        text: "assert page_count(10, 3) == 4, page_count(10, 3)"
+      - type: output_matches
+        name: explains_cause
+        pattern: "(?i)(off[- ]by[- ]one|1-based|page ?- ?1|round(s|ed|ing)? (up|down)|ceil)"
+        required: false
+        weight: 0.5
+    tags: [debugging]
+
+  - id: shared-mutable-default
+    goal: >-
+      `python3 test_inventory.py` fails: a new Inventory is not empty. Find the root cause in
+      inventory.py and fix it without changing the tests.
+    setup:
+      files:
+        inventory.py: |
+          class Inventory:
+              def __init__(self, items=[]):
+                  self.items = items
+
+              def add(self, item):
+                  self.items.append(item)
+                  return len(self.items)
+        test_inventory.py: |
+          from inventory import Inventory
+
+          first = Inventory()
+          first.add("apple")
+          second = Inventory()
+          assert second.items == [], f"new inventory is not empty: {second.items}"
+          print("all tests passed")
+    allowed_tools: [filesystem, terminal]
+    expected_behavior: Recognise the shared mutable default argument and replace it.
+    evaluators:
+      - type: completed
+        name: finished
+      - type: command
+        name: tests_pass
+        command: python3 test_inventory.py
+      - type: command
+        name: hidden_independence
+        command: |
+          python3 - <<'PY'
+          from inventory import Inventory
+          a, b, c = Inventory(), Inventory(), Inventory(["x"])
+          a.add(1); a.add(2)
+          assert b.items == [] and b.add(3) == 1
+          assert c.add("y") == 2 and c.items == ["x", "y"]
+          assert Inventory().items == []
+          PY
+      - type: file_contains
+        name: tests_untouched
+        path: test_inventory.py
+        text: 'assert second.items == [], f"new inventory is not empty: {second.items}"'
+    tags: [debugging]

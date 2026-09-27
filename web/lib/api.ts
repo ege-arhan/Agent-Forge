@@ -3,13 +3,18 @@
 import type {
   Agent,
   AgentConfig,
+  AgentVersion,
+  BenchmarkComparison,
   BenchmarkRun,
   ComparisonRow,
   EvaluatorInfo,
   Experiment,
+  FailureAnalysis,
   Health,
+  ImprovementCycle,
   Issue,
   Page,
+  ProposedChange,
   ProviderInfo,
   Run,
   RunSummary,
@@ -119,6 +124,20 @@ export const api = {
   agent: (id: string) => request<Agent>(`/agents/${id}`),
   createAgent: (config: AgentConfig) => request<Agent>("/agents", { method: "POST", body: config }),
   deleteAgent: (id: string) => request<void>(`/agents/${id}`, { method: "DELETE" }),
+  agentVersions: (id: string) => request<AgentVersion[]>(`/agents/${id}/versions`),
+
+  failureCategories: () => request<Record<string, string>>("/improvements/categories"),
+  improvements: (query: { agent_id?: string; limit?: number } = {}) =>
+    request<ImprovementCycle[]>("/improvements", { query }),
+  improvement: (id: string) => request<ImprovementCycle>(`/improvements/${id}`),
+  proposeImprovement: (body: { benchmark_run_id: string; changes?: Partial<ProposedChange>[]; notes?: string }) =>
+    request<ImprovementCycle>("/improvements", { method: "POST", body }),
+  applyImprovement: (id: string, change_ids?: string[]) =>
+    request<ImprovementCycle>(`/improvements/${id}/apply`, { method: "POST", body: { change_ids } }),
+  evaluateImprovement: (id: string) =>
+    request<ImprovementCycle>(`/improvements/${id}/evaluate`, { method: "POST" }),
+  rejectImprovement: (id: string, reason = "") =>
+    request<ImprovementCycle>(`/improvements/${id}/reject`, { method: "POST", body: { reason } }),
 
   runs: (query: { status?: string; agent_id?: string; benchmark_run_id?: string; limit?: number; offset?: number }) =>
     request<Page<RunSummary>>("/runs", { query }),
@@ -129,8 +148,18 @@ export const api = {
   rerun: (id: string) => request<Run>(`/runs/${id}/rerun`, { method: "POST" }),
 
   suites: () => request<Suite[]>("/benchmarks/suites"),
-  benchmarkRuns: (query: { suite_id?: string; experiment_id?: string; limit?: number } = {}) =>
-    request<BenchmarkRun[]>("/benchmarks/runs", { query }),
+  benchmarkRuns: (
+    query: {
+      suite_id?: string;
+      experiment_id?: string;
+      agent_id?: string;
+      result_class?: "offline" | "real";
+      limit?: number;
+    } = {},
+  ) => request<BenchmarkRun[]>("/benchmarks/runs", { query }),
+  benchmarkAnalysis: (id: string) => request<FailureAnalysis>(`/benchmarks/runs/${id}/analysis`),
+  compareBenchmarks: (baseline: string, candidate: string) =>
+    request<BenchmarkComparison>("/benchmarks/compare", { query: { baseline, candidate } }),
   benchmarkRun: (id: string) => request<BenchmarkRun>(`/benchmarks/runs/${id}`),
   startBenchmark: (body: { suite_id: string; agent_id: string; repeats?: number; task_ids?: string[] }) =>
     request<BenchmarkRun>("/benchmarks/runs", { method: "POST", body }),

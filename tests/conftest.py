@@ -38,6 +38,7 @@ def tool_ctx(workspace: Workspace) -> ToolContext:
 # Set to a PostgreSQL URL (postgresql+asyncpg://...) to run storage, API and
 # CLI tests against PostgreSQL instead of per-test SQLite files. Tables are
 # dropped and recreated for every test.
+ROOT = Path(__file__).resolve().parents[1]
 TEST_DATABASE_URL = os.environ.get("AGENTFORGE_TEST_DATABASE_URL")
 
 
@@ -49,7 +50,7 @@ async def settings(tmp_path: Path) -> Settings:
     return Settings(
         data_dir=tmp_path / "data",
         database_url=url,
-        benchmarks_dir=Path(__file__).resolve().parents[1] / "examples" / "benchmarks",
+        benchmarks_dir=[ROOT / "examples" / "benchmarks", ROOT / "dogfood" / "benchmarks"],
         _env_file=None,  # type: ignore[call-arg]
     )
 

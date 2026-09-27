@@ -77,3 +77,9 @@ class CapacityError(AgentForgeError):
     """The server is at capacity (too many queued background tasks)."""
 
     code = "capacity"
+
+
+class ImprovementError(AgentForgeError):
+    """An improvement-loop operation is not valid in the cycle's current state."""
+
+    code = "improvement_error"

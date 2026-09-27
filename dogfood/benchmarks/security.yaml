@@ -1,0 +1,143 @@
+# Dogfooding suite: Security Analysis Agent (suite collection "dogfood" v1, see dogfood/README.md).
+#
+# The credential in the second task is a deliberately weak placeholder
+# ("changeme"), not a real secret.
+id: dogfood-security
+name: "Dogfood: security analysis"
+description: Find and fix an SQL injection and a hard-coded credential; report findings with CWE ids.
+version: "1"
+repeats: 1
+defaults:
+  timeout_seconds: 600
+  max_steps: 20
+
+tasks:
+  - id: sql-injection
+    goal: >-
+      Review users.py for security vulnerabilities. Write findings.json: a JSON list with one
+      object per vulnerable function, with keys "function", "cwe" (for example "CWE-89") and
+      "description". Then fix the vulnerabilities without changing behaviour for legitimate
+      input; `python3 test_users.py` must still pass.
+    setup:
+      files:
+        users.py: |
+          import sqlite3
+
+
+          def connect(path=":memory:"):
+              conn = sqlite3.connect(path)
+              conn.execute(
+                  "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)"
+              )
+              return conn
+
+
+          def add_user(conn, name, email):
+              conn.execute("INSERT INTO users (name, email) VALUES (?, ?)", (name, email))
+
+
+          def find_user(conn, name):
+              query = f"SELECT id, name, email FROM users WHERE name = '{name}'"
+              return conn.execute(query).fetchall()
+
+
+          def count_users(conn):
+              return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        test_users.py: |
+          from users import add_user, connect, count_users, find_user
+
+          conn = connect()
+          add_user(conn, "alice", "alice@example.com")
+          add_user(conn, "bob", "bob@example.com")
+          assert count_users(conn) == 2
+          assert find_user(conn, "alice") == [(1, "alice", "alice@example.com")]
+          print("all tests passed")
+    allowed_tools: [filesystem, terminal]
+    expected_behavior: Identify the string-built query in find_user (CWE-89), parameterise it.
+    evaluators:
+      - type: completed
+        name: finished
+      - type: command
+        name: tests_pass
+        command: python3 test_users.py
+      - type: command
+        name: hidden_injection_blocked
+        command: |
+          python3 - <<'PY'
+          from users import add_user, connect, find_user
+          conn = connect()
+          add_user(conn, "alice", "a@example.com")
+          add_user(conn, "o'brien", "o@example.com")
+          assert find_user(conn, "x' OR '1'='1") == [], "injection still returns rows"
+          assert find_user(conn, "o'brien") == [(2, "o'brien", "o@example.com")]
+          assert find_user(conn, "alice") == [(1, "alice", "a@example.com")]
+          PY
+      - type: command
+        name: finding_reported
+        command: |
+          python3 - <<'PY'
+          import json
+          findings = json.load(open("findings.json"))
+          assert isinstance(findings, list), "findings.json must be a list"
+          assert any(
+              f.get("function") == "find_user" and "89" in str(f.get("cwe", ""))
+              for f in findings
+          ), findings
+          PY
+      - type: command
+        name: no_false_positives
+        required: false
+        weight: 0.5
+        command: |
+          python3 - <<'PY'
+          import json
+          flagged = {f.get("function") for f in json.load(open("findings.json"))}
+          assert not flagged & {"add_user", "count_users", "connect"}, flagged
+          PY
+    tags: [security, cwe-89]
+
+  - id: hardcoded-credential
+    goal: >-
+      settings.py contains a hard-coded credential. Remove it: dsn() must read the password
+      from the environment variable DB_PASSWORD and raise an error with a clear message if
+      it is not set. Record the finding in findings.json as a JSON list of objects with keys
+      "file", "cwe" (use CWE-798) and "description".
+    setup:
+      files:
+        settings.py: |
+          DB_HOST = "db.internal"
+          DB_USER = "app"
+          DB_PASSWORD = "changeme"
+
+
+          def dsn():
+              return f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/app"
+    allowed_tools: [filesystem, terminal]
+    expected_behavior: Replace the literal with an environment lookup at call time, report CWE-798.
+    evaluators:
+      - type: completed
+        name: finished
+      - type: command
+        name: literal_removed
+        command: "! grep -q changeme settings.py"
+      - type: command
+        name: hidden_reads_environment
+        command: |
+          DB_PASSWORD=s3cr3t python3 -c "import settings; assert settings.dsn() == 'postgresql://app:s3cr3t@db.internal/app', settings.dsn()"
+      - type: command
+        name: hidden_fails_without_variable
+        command: |
+          env -u DB_PASSWORD python3 - <<'PY'
+          import settings
+          try:
+              settings.dsn()
+          except Exception:
+              pass
+          else:
+              raise SystemExit("dsn() did not fail without DB_PASSWORD")
+          PY
+      - type: file_contains
+        name: finding_reported
+        path: findings.json
+        text: CWE-798
+    tags: [security, cwe-798]

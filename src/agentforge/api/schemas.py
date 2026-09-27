@@ -11,6 +11,7 @@ from agentforge.core.config import AgentConfig
 from agentforge.core.models import Agent, Run, RunStatus
 from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.experiments import Variant
+from agentforge.improvement.proposal import ProposedChange
 
 
 class _Request(BaseModel):
@@ -156,3 +157,23 @@ class Health(BaseModel):
     status: str
     version: str
     database: str
+
+
+class ImprovementCreate(_Request):
+    benchmark_run_id: str
+    changes: list[ProposedChange] | None = Field(
+        default=None,
+        description="Developer-written changes; omit to use the rule-based proposer.",
+        max_length=50,
+    )
+    notes: str = Field(default="", max_length=10_000)
+
+
+class ImprovementApply(_Request):
+    change_ids: list[str] | None = Field(
+        default=None, description="Subset of proposal change ids to apply (default: all)."
+    )
+
+
+class ImprovementReject(_Request):
+    reason: str = Field(default="", max_length=10_000)
