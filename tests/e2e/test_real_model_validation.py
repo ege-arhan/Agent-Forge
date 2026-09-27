@@ -359,7 +359,8 @@ def test_limited_validation_end_to_end_env_mode(
     assert all(json.loads(p.read_text())["provider"] == "opencode-go" for p in reports)
     assert not (results / "offline").exists()
     markdown = next((results / "real").glob("limited-validation-*/summary.md")).read_text()
-    assert "REAL MODEL · GLM-5.3 Flash" in markdown and "not available" in markdown
+    assert "REAL MODEL · OpenCode Go · GLM-5.3 Flash" in markdown
+    assert "NOT AVAILABLE" in markdown
     assert "Authentication: env" in markdown
     assert "HTTP Request: POST" in caplog.text  # the log capture is live, not vacuous
     assert_key_nowhere(tmp_path, out, caplog.text)
@@ -459,3 +460,33 @@ def test_execution_cap_is_enforced(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     unlisted = [r for r in rows if r.model_id not in good]
     assert unlisted and all(r.failure_category == "configuration failure" for r in unlisted)
     assert all(c["model"] in good for c in calls)
+
+
+def test_benchmark_plan_runs_two_tasks_per_model_without_listing_or_smoke(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls: list[dict[str, Any]] = []
+    module = load_script(monkeypatch)
+    monkeypatch.setenv("OPENCODE_API_KEY", FAKE_KEY)
+    # Nothing is listed: the benchmark plan must not depend on (or call) /models.
+    with serve(fake_app([], set(ALL_MODELS), calls, auth="env")) as base_url:
+        code = run_main(module, base_url, tmp_path, "--plan", "benchmark")
+    out = capsys.readouterr().out
+    assert code == 0, out
+    summary = load_summary(tmp_path)
+    assert summary["plan"] == "benchmark" and summary["max_executions"] == 10
+    assert summary["executions"] == 10
+    assert set(summary["tasks"]) == {"task-a", "task-b"}
+    rows = summary["rows"]
+    assert [(r["model_id"], r["phase"]) for r in rows] == [
+        (m, phase) for m in ALL_MODELS for phase in ("task-a", "task-b")
+    ]
+    for r in rows:  # every task ran once, whatever the previous result
+        assert r["executed"] is True and r["llm_retries"] == 0
+        assert r["llm_calls"] >= 1 and r["avg_llm_latency_ms"] is not None
+        assert r["total_tokens"] == r["input_tokens"] + r["output_tokens"]
+        assert r["token_limit_hit"] is False and r["provider_error"] is None
+    assert {c["session"] for c in calls} == {r["run_id"] for r in rows}
+    markdown = next((tmp_path / "results" / "real").glob("*/summary.md")).read_text()
+    assert "LIMITED REAL-MODEL VALIDATION" in markdown and "plan: benchmark" in markdown
+    assert_key_nowhere(tmp_path, out)

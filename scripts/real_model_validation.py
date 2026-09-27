@@ -7,9 +7,14 @@ Runs, sequentially and at most once each:
 - only for models whose smoke task passed, two existing benchmark tasks
   (``dogfood-coding/add-cli-flag`` and ``dogfood-debugging/pagination-off-by-one``),
 
-for at most 15 task executions in total. Every model gets the same task
-definitions, evaluators, system prompts and limits. Failed model calls are not
-retried (``retry.llm_max_attempts = 1``) and each task has a token budget.
+for at most 15 task executions in total (``--plan validation``, the default).
+
+``--plan benchmark`` runs only the two benchmark tasks for every model, once
+each (at most 10 task executions), with no model listing and no smoke task.
+
+Every model gets the same task definitions, evaluators, system prompts and
+limits. Failed model calls are not retried (``retry.llm_max_attempts = 1``)
+and each task has a token budget.
 
 Before any task runs, ``GET <base>/models`` (lists models, invokes none)
 checks that the endpoint is reachable and which requested model ids exist.
@@ -58,6 +63,7 @@ AUTH_MODES = {
 PROVIDER = "opencode-go"
 PROVIDER_LABEL = "OpenCode Go"
 MAX_EXECUTIONS = 15
+BENCHMARK_MAX_EXECUTIONS = 10
 DEFAULT_TOKEN_BUDGET = 150_000
 SANDBOX_IMAGE = "python:3.12-slim"  # the tasks below need only python3
 BASE_URL = "https://opencode.ai/zen/go/v1"
@@ -236,6 +242,11 @@ class Row:
     agentforge_category: str | None = None
     failure_reason: str | None = None
     auth_failed: bool = False
+    total_tokens: int | None = None
+    llm_calls: int | None = None
+    avg_llm_latency_ms: float | None = None
+    token_limit_hit: bool | None = None
+    provider_error: str | None = None
     checks: list[dict[str, Any]] = field(default_factory=list)
     tool_usage: dict[str, dict[str, int]] = field(default_factory=dict)
 
@@ -266,6 +277,15 @@ def fill_row(row: Row, bench: Any, run: Any, report: Any) -> None:
     row.tool_success_rate = run.metrics.tool_success_rate
     row.timeout = run.status.value == "timed_out"
     row.step_limit_hit = bool(run.error and run.error.type == "max_steps")
+    row.token_limit_hit = bool(run.error and run.error.type == "token_budget")
+    if row.input_tokens is not None and row.output_tokens is not None:
+        row.total_tokens = row.input_tokens + row.output_tokens
+    calls = [s.llm_call for s in run.steps if s.llm_call is not None]
+    row.llm_calls = len(calls)
+    if calls:
+        row.avg_llm_latency_ms = sum(c.latency_ms for c in calls) / len(calls)
+    if run.error is not None and run.error.type.startswith("llm."):
+        row.provider_error = f"{run.error.type}: {run.error.message}"
     command_checks = {
         str(spec.get("name") or spec.get("type"))
         for spec in run.evaluators
@@ -314,8 +334,10 @@ async def run_experiment(
     models: list[tuple[str, str]] | None = None,
     max_executions: int = MAX_EXECUTIONS,
     auth: str = AUTH_ENV,
+    phases: tuple[TaskRef, ...] = (SMOKE, TASK_A, TASK_B),
 ) -> list[Row]:
-    """Sequential execution under a hard cap; benchmarks only after a passed smoke task.
+    """Sequential execution under a hard cap. With a smoke phase, a model's
+    benchmark tasks run only after its smoke task passed.
 
     A model call rejected with 401/403 stops everything: no further calls are made.
     """
@@ -324,8 +346,8 @@ async def run_experiment(
     auth_failed = False
     for name, model_id in models or MODELS:
         api_model = resolve_model_id(model_id, available)
-        smoke_passed = False
-        for ref in (SMOKE, TASK_A, TASK_B):
+        smoke_passed = SMOKE not in phases
+        for ref in phases:
             row = Row(
                 model=name,
                 model_id=model_id,
@@ -372,9 +394,12 @@ async def run_experiment(
 
 
 # ----------------------------------------------------------------- output
+NOT_AVAILABLE = "NOT AVAILABLE"
+
+
 def _fmt(value: Any) -> str:
     if value is None:
-        return "not available"
+        return NOT_AVAILABLE
     if isinstance(value, bool):
         return "yes" if value else "no"
     if isinstance(value, float):
@@ -384,7 +409,7 @@ def _fmt(value: Any) -> str:
 
 def render_markdown(summary: dict[str, Any]) -> str:
     lines = [
-        "# Limited Real-Model Validation — results",
+        f"# LIMITED REAL-MODEL VALIDATION — results (plan: {summary['plan']})",
         "",
         "**REAL MODEL** results. Provider: **OpenCode Go** (`opencode-go`). Offline/scripted",
         "results are stored separately and are not part of this file.",
@@ -398,8 +423,9 @@ def render_markdown(summary: dict[str, Any]) -> str:
         f"- Secret scan of stored results and logs: {summary['secret_scan']}",
         "",
         "| Model | Phase | Task | Success | Tests | Score | Tool calls (errors) | Steps "
-        "| Retries | Duration (s) | Tokens in/out | Cost | Failure |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| Retries | Duration (s) | Avg model-call latency (ms) | Tokens in/out/total | Cost "
+        "| Failure |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in summary["rows"]:
         retries = None
@@ -412,14 +438,16 @@ def render_markdown(summary: dict[str, Any]) -> str:
         )
         failure = r["failure_category"] or ("—" if r["task_success"] else r["failure_reason"])
         lines.append(
-            f"| REAL MODEL · {r['model']} (`{r['model_id']}`) | {r['phase']} | {r['task']} "
+            f"| REAL MODEL · OpenCode Go · {r['model']} (`{r['model_id']}`) | {r['phase']} "
+            f"| {r['task']} "
             f"| {_fmt(r['task_success']) if r['executed'] else 'not run'} "
             f"| {_fmt(r['test_success']) if r['executed'] else 'not run'} | {_fmt(r['score'])} "
             f"| {tools} | {_fmt(r['steps'])} | {_fmt(retries)} | {_fmt(r['duration_seconds'])} "
-            f"| {_fmt(r['input_tokens'])} / {_fmt(r['output_tokens'])} "
+            f"| {_fmt(r['avg_llm_latency_ms'])} "
+            f"| {_fmt(r['input_tokens'])} / {_fmt(r['output_tokens'])} / {_fmt(r['total_tokens'])} "
             f"| {_fmt(r['actual_cost_usd'])} | {failure or '—'} |"
         )
-    lines += ["", "Cost: actual cost is not available (AgentForge does not read billing).", ""]
+    lines += ["", f"Cost: {NOT_AVAILABLE} (AgentForge does not read billing).", ""]
     return "\n".join(lines)
 
 
@@ -501,14 +529,22 @@ async def main_async(
     from agentforge.storage.tracking import BenchmarkRepository
 
     base_url = args.base_url or BASE_URL
-    try:
-        available = await preflight(base_url, key)
-    except PreflightError as exc:
-        print(f"preflight failed ({exc.kind}): {exc.message}. No model was called.")
-        return 2
-    print(f"endpoint {base_url}: reachable, {len(available)} models listed")
-    print("authentication: not verified by the listing (it is unauthenticated); the first")
-    print("model call verifies it, and a 401/403 there stops the run.")
+    benchmark_plan = args.plan == "benchmark"
+    phases = (TASK_A, TASK_B) if benchmark_plan else (SMOKE, TASK_A, TASK_B)
+    max_executions = BENCHMARK_MAX_EXECUTIONS if benchmark_plan else MAX_EXECUTIONS
+    if benchmark_plan:
+        # No listing: the ids were verified against /models before this plan runs.
+        available = {model_id for _, model_id in MODELS}
+        print(f"plan benchmark: {len(MODELS)} models x {len(phases)} tasks, no preflight")
+    else:
+        try:
+            available = await preflight(base_url, key)
+        except PreflightError as exc:
+            print(f"preflight failed ({exc.kind}): {exc.message}. No model was called.")
+            return 2
+        print(f"endpoint {base_url}: reachable, {len(available)} models listed")
+        print("authentication: not verified by the listing (it is unauthenticated); the first")
+        print("model call verifies it, and a 401/403 there stops the run.")
 
     settings = Settings(data_dir=data_dir, _env_file=None)  # type: ignore[call-arg]
     db = Database(settings.resolved_database_url)
@@ -523,6 +559,8 @@ async def main_async(
             token_budget=args.token_budget,
             sandbox=args.sandbox,
             auth=args.auth,
+            phases=phases,
+            max_executions=max_executions,
         )
         for row in rows:
             if row.benchmark_run_id:
@@ -549,11 +587,12 @@ async def main_async(
         "commit": _commit(),
         "started_at": started.isoformat(timespec="seconds"),
         "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "max_executions": MAX_EXECUTIONS,
+        "plan": args.plan,
+        "max_executions": max_executions,
         "executions": sum(1 for r in rows if r.executed),
         "token_budget": args.token_budget,
         "sandbox": f"{args.sandbox} ({SANDBOX_IMAGE}, network none)",
-        "tasks": {ref.phase: f"{ref.suite}::{ref.task}" for ref in (SMOKE, TASK_A, TASK_B)},
+        "tasks": {ref.phase: f"{ref.suite}::{ref.task}" for ref in phases},
         "secret_scan": "pending",
         "rows": [r.__dict__ for r in rows],
     }
@@ -565,6 +604,13 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--base-url", help=f"OpenAI-compatible endpoint (default: {BASE_URL})")
+    parser.add_argument(
+        "--plan",
+        choices=["validation", "benchmark"],
+        default="validation",
+        help="validation: listing + smoke + gated tasks (<= 15); "
+        f"benchmark: the two tasks for every model, no smoke (<= {BENCHMARK_MAX_EXECUTIONS})",
+    )
     parser.add_argument(
         "--auth",
         choices=sorted(AUTH_MODES),
