@@ -16,9 +16,11 @@ _None open. Continue with P1 in roadmap order._
   clean-clone walkthrough of the README quick start (verified), example
   agents fixed to use the sandbox image with git/pytest, test that every
   example config/suite/experiment stays valid.
-- **Remaining:** owner decision to cut `v0.2.0` (bump versions, move the
-  changelog section, push the tag — this publishes GHCR images and drafts a
-  release); a `main` branch / default-branch decision (see docs/STATUS.md).
+- **Done (owner request):** stable `main` branch created; PR-based workflow
+  documented in CLAUDE.md, DEVELOPMENT.md and CONTRIBUTING.md.
+- **Remaining:** owner sets `main` as default branch with branch protection;
+  owner decision to cut `v0.2.0` (bump versions, move the changelog section,
+  tag `main` — this publishes GHCR images and drafts a release).
 
 ### T-009b Real-model benchmark results
 - **Status:** blocked (needs API keys / budget approval from the owner)

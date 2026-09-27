@@ -4,8 +4,13 @@ Date: 2026-09-26
 
 Current milestone: 15 — Public beta (Milestones 0–14 complete)
 
-Latest work branch: `claude/focused-newton-j0z9l1` (this is also the
-repository's default branch; no `main` branch exists yet).
+Stable branch: `main` (created at `7eb61d8`, the last commit with green CI
+and all 198 tests passing locally). All further work arrives through pull
+requests against `main`; see CLAUDE.md "Git workflow".
+
+Open pull requests: the workflow-documentation PR from
+`claude/focused-newton-j0z9l1`; Dependabot PRs #1–#7 (they target the old
+session branch and should be closed or retargeted to `main` by the owner).
 
 Completed:
 - M0 repository foundation (uv, ruff, mypy --strict, pytest, src layout, Apache-2.0)
@@ -35,10 +40,10 @@ Known issues:
 - (resolved) CI and Security workflows are green on GitHub.
 - Not verifiable in the dev sandbox: API Dockerfile apt layer (Debian mirrors
   blocked), dashboard image (Docker Hub rate limit). CI builds both.
-- No `main` branch yet; work lives on session branches chained as described
-  in CLAUDE.md ("Branches and continuity"). Owner decision pending on a
-  `main` + pull-request workflow.
-- Seven Dependabot PRs (#1–#7) target the session branch; left for the owner.
+- Owner action: set `main` as the repository's default branch and add branch
+  protection (require PR + passing CI/Security checks). Until the default
+  branch is changed, new Dependabot PRs keep targeting the session branch.
+- Seven Dependabot PRs (#1–#7) target the old session branch; left for the owner.
 - Databases created before migrations existed (earlier builds of this
   session) are rejected with a clear message; recreate them.
 - No real-model benchmark results yet (needs API keys; T-009b).

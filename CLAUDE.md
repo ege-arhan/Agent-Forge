@@ -9,8 +9,8 @@ previous session that is not written down here or in the files below.**
 At the start of every session:
 
 1. Read this file, `ROADMAP.md`, `TASKS.md`, `docs/STATUS.md`, `ARCHITECTURE.md`.
-2. `git status`, `git log --oneline -20`, `git branch -a` — find the most recent
-   work (see *Branches* below).
+2. Inspect `main`, open pull requests and CI (see *Git workflow* below)
+   before starting new work.
 3. Set up the environment and run the checks (commands below). If anything is
    red, fixing it is the first task.
 4. Pick the highest-value incomplete task from `TASKS.md` (P0 before P1 before
@@ -23,7 +23,8 @@ Before ending a session:
 - Update `TASKS.md` (status, remaining work), `ROADMAP.md`, `CHANGELOG.md`
   (under *Unreleased*) and `docs/STATUS.md` (dated, factual — never claim
   unverified progress).
-- Review `git diff`, commit with a descriptive message, push.
+- Review `git diff`, commit with a descriptive message, push your feature
+  branch and open (or update) a pull request against `main`. Never merge.
 
 ## Commands
 
@@ -44,26 +45,70 @@ cd web && npm ci && npm run dev      # dashboard on :3000 (expects the API on :8
 In cloud sessions without a Docker daemon, `dockerd &` usually works; Debian
 apt mirrors and ghcr.io may be blocked by the environment's network policy.
 
-## Branches and continuity (important)
+## Git workflow (mandatory)
 
-Each cloud session works on its own designated branch (`claude/<name>`) and
-must never push to other branches without permission. Sessions do not merge
-each other's work, so **a new session must start from the latest work**, not
-from whatever branch was checked out:
+`main` is the stable branch and must **always be releasable**. All work
+reaches it only through reviewed pull requests merged by the owner.
+
+**Never** commit or push to `main`, force-push it, merge any pull request
+(including Dependabot's), or push tags. Never push to branches other than
+your own feature branch without the owner's permission.
+
+### 1. Start of every session: inspect `main` and open PRs first
 
 ```bash
-git fetch origin
-# Latest work = the branch in docs/STATUS.md "Latest work branch" on the most
-# recently updated claude/* branch. Find candidates:
-git for-each-ref --sort=-committerdate --format='%(committerdate:iso) %(refname:short)' refs/remotes/origin/claude | head
-# Then base your designated branch on it (history is preserved; no force):
-git checkout -B <your-designated-branch> origin/<latest-claude-branch>
+git fetch origin --prune
+git log --oneline -15 origin/main               # what is released
+# Open PRs (GitHub tools, or without them:)
+curl -s "https://api.github.com/repos/ege-arhan/Agent-Forge/pulls?state=open&per_page=50" \
+  | python3 -c "import json,sys; [print(p['number'], p['head']['ref'], '->', p['base']['ref'], '|', p['title']) for p in json.load(sys.stdin)]"
+# CI on main and on open PR branches:
+curl -s "https://api.github.com/repos/ege-arhan/Agent-Forge/actions/runs?per_page=10" \
+  | python3 -c "import json,sys; [print(r['head_branch'], r['name'], r['status'], r['conclusion']) for r in json.load(sys.stdin)['workflow_runs']]"
 ```
 
-Before ending, set "Latest work branch" in `docs/STATUS.md` to your branch.
-If a `main` branch exists and contains the latest work, start from `main`
-instead. Never merge pull requests (including Dependabot's) without the
-owner's approval.
+Then, before starting anything new:
+
+- If CI on `main` is red, fixing it (via a PR) is the top priority.
+- For each open agent PR: check its CI and review comments. Address failures
+  and feedback first — push to that PR's branch if your session is allowed
+  to, otherwise open a follow-up PR from your branch that references it.
+- Do not duplicate work that an open PR already covers; record in
+  `docs/STATUS.md` which PRs are awaiting review.
+- Dependabot PRs are the owner's to merge; note failing ones in STATUS.
+
+### 2. Develop on a feature branch
+
+Use your session's designated branch (`claude/<name>`) or `feature/<topic>`,
+always created from the latest `origin/main`:
+
+```bash
+git checkout -B <feature-branch> origin/main
+```
+
+If the work genuinely depends on an unmerged open PR, branch from that PR's
+head instead and state the dependency ("depends on #N; merge #N first") in
+the PR description. Keep one coherent change per PR where practical.
+
+### 3. Verify before opening a PR
+
+Run everything relevant and make sure it passes:
+
+```bash
+uv run ruff check . && uv run ruff format --check . && uv run mypy
+uv run pytest                                   # start dockerd for docker tests
+cd web && npm ci && npm run lint && npm run typecheck && npm test && npm run build   # if web/ changed
+```
+
+Update `TASKS.md`, `ROADMAP.md`, `CHANGELOG.md` (*Unreleased*) and
+`docs/STATUS.md` in the same branch.
+
+### 4. Open a pull request against `main` — never merge it
+
+Push the branch (`git push -u origin <feature-branch>`) and open a PR with
+base `main`, following `.github/pull_request_template.md` (summary, changes,
+tests run and their results, checklist). Then watch CI and push fixes to the
+same branch until it is green. The owner reviews and merges.
 
 ## Conventions
 
