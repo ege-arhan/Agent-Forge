@@ -4,8 +4,11 @@
 > tasks), all passed. Section 3: the hard suite, validated OFFLINE. Sections
 > 4–9: the real-model improvement experiment ran v1 only — `deepseek-v4.1-flash`
 > passed both hard tasks, so **no improvement was attempted or claimed** and
-> v2 was not run (2 task executions). All REAL MODEL results use Provider:
-> OpenCode Go. Small samples, one run per task: no rankings, no statistics.
+> v2 was not run (2 task executions). Section 11: a controlled
+> improvement-loop demonstration (2 task executions): a baseline with a
+> documented tighter step limit failed, the loop proposed a higher limit, and
+> v2 passed the same task. All REAL MODEL results use Provider: OpenCode Go.
+> Small samples, one run per task: no rankings, no statistics.
 
 OFFLINE RESULTS (scripted reference agents; they validate tasks and pipeline,
 not any model) and REAL-MODEL RESULTS are stored and reported separately:
@@ -267,6 +270,87 @@ Improvement experiment (sections 4–9):
 - No v2 was run, so nothing can be said about the effect of the improvement
   loop on a real model.
 - The rule-based proposer only changes configuration and prompt guidance.
+
+## 11. Controlled Improvement-Loop Demonstration — REAL MODEL · Provider: OpenCode Go · Model: DeepSeek V4.1 Flash (`deepseek-v4.1-flash`)
+
+**What this is:** a controlled engineering demonstration of AgentForge's
+improvement lifecycle on a real model. The baseline agent is deliberately
+constrained by one documented configuration option, so that a real failure
+exists for the loop to work on. **It is not evidence that the model learned
+anything or became more capable**: the model is the same in v1 and v2; only the
+agent configuration changed, and it changed back towards the unconstrained
+agent that already solved this task in section 5. The OFFLINE/SCRIPTED
+improvement-loop demo (`dogfood/results/offline/improvement-demo/`) is a
+separate dataset and says nothing about any model.
+
+| Item | Value |
+|---|---|
+| Date | 2026-09-27, 08:42:03 – 08:43:55 UTC |
+| AgentForge | 0.1.0, commit `0bda883` |
+| Command | `scripts/real_improvement_experiment.py --auth proxy --sandbox docker --task ledger-root-causes --baseline-max-steps 8` |
+| Task | `dogfood-hard` v1 · `ledger-root-causes` — unchanged; identical task definition in both benchmark snapshots |
+| Baseline constraint | `limits.max_steps: 8` (the Engineering Agent has 20). Chosen as about 60% of the 13 steps the unconstrained agent used on this task in section 5. No prompt, tool, environment or evaluator change. |
+| Executions | **2** (limit 2): v1 once, v2 once; sequential; no retries (`llm_max_attempts: 1`, no evaluation retries) |
+| Authentication | proxy (environment API Credential; no key in the process) |
+| Sandbox | Docker `python:3.12`, network none |
+| Secret scan | clean (stored results, database, log) |
+| Stored | `dogfood/results/real/improvement-demo-20260927T084203Z/summary.{json,md}`; reports in `dogfood/results/real/dogfood-hard-v1/`; agent `dogfood-engineer-deepseek-constrained` v1 (created) and v2 (improvement), benchmarks `bench_01a0e207483dbe7bbe7f8ef9` / `bench_01a0e2081cf45710e1ea0c56` (result class `real`), cycle `imp_01a0e2081cd461d9a7b0655f` (evaluated) in the experiment database |
+
+### v1 (constrained baseline): failed
+
+| Result | Score | Tests | Tool calls (errors) | Steps | Retries | Duration (s) | Avg latency per model call (ms) | Tokens in / out / total | Cost |
+|---|---|---|---|---|---|---|---|---|---|
+| failed — stopped at the step limit | 0.667 | no | 16 (0) | 8 of 8 | 0 | 53.943 | 5858 | 24639 / 5071 / 29710 | NOT AVAILABLE |
+
+- Failure category: **step-limit failure** (`step_limit`; secondary:
+  `no_final_answer`, `tests_failed`).
+- Evidence: `max_steps: reached the limit of 8 steps`; run status failed.
+- Checks: finished ✗, regression_test_per_root_cause ✗, names_both_causes ✗;
+  unit_tests, report_correct, existing_tests_kept, data_and_main_untouched,
+  hidden_edge_cases ✓. The parser fix was already correct (the report and the
+  hidden edge cases passed); the run ran out of steps before its regression
+  tests covered both root causes and before it gave a final answer.
+
+### Improvement (AgentForge failure analysis → rule-based proposal)
+
+- Observed problem: 1 failed run stopped at the agent's step limit (8).
+- Proposed change `c1`: `set limits.max_steps: 8 → 25` — "1 failed run(s)
+  stopped at the agent's step limit (8) while the suite allows up to 25 steps
+  for these tasks." (25 is the suite's cap; the proposer never exceeds it.)
+- Applied: `c1` only (nothing was excluded). Exact configuration difference
+  between the stored v1 and v2: **`limits.max_steps` 8 → 25**; nothing else.
+
+### v2: passed
+
+| Result | Score | Tests | Tool calls (errors) | Steps | Retries | Duration (s) | Avg latency per model call (ms) | Tokens in / out / total | Cost |
+|---|---|---|---|---|---|---|---|---|---|
+| passed | 1.0 | yes | 18 (0) | 10 of 25 | 0 | 57.666 | 5310 | 40733 / 6128 / 46861 | NOT AVAILABLE |
+
+All eight checks passed, including the mutation-checked
+`regression_test_per_root_cause` and `names_both_causes`.
+
+### v1 vs v2
+
+| | v1 (max_steps 8) | v2 (max_steps 25) |
+|---|---|---|
+| Task success | no | yes |
+| Score | 0.667 | 1.0 |
+| Steps | 8 (limit hit) | 10 |
+| Tool calls | 16 | 18 |
+| Tokens (total) | 29 710 | 46 861 |
+| Duration | 53.9 s | 57.7 s |
+
+AgentForge's comparison: task `fixed` (0/1 → 1/1), `step_limit` failures
+1 → 0, verdict **`inconclusive`** — "the 95% intervals overlap: run more
+repeats before concluding that the change helped or hurt". With one run per
+version that is the correct verdict.
+
+What this shows: the loop recorded a real failure, classified it correctly,
+proposed the change that addresses it, stored the new version without
+overwriting v1, re-ran the identical task and compared. What it does not
+show: that the model improved (it did not change), that 8 → 25 is the best
+limit, or anything about other tasks — the observed failure was produced by a
+constraint chosen for the demonstration, and the fix removes that constraint.
 
 ## Appendix A — Validation design (section 1)
 

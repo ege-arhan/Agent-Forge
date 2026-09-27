@@ -112,6 +112,10 @@ All notable changes are documented here. The format follows
   at 4 task executions, no retries. Run with `deepseek-v4.1-flash`: v1 passed
   both tasks, so no improvement was attempted (REAL results in
   `dogfood/results/real/`).
+- Controlled improvement-loop demonstration (`--task`, `--baseline-max-steps`):
+  a step-limited baseline failed `ledger-root-causes`, the loop proposed
+  `limits.max_steps 8 → 25`, v2 passed (2 REAL executions; verdict
+  inconclusive; not evidence of model learning).
 - `AGENTFORGE_BENCHMARKS_DIR` accepts several directories (default
   `examples/benchmarks:dogfood/benchmarks`).
 

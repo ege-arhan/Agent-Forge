@@ -53,7 +53,11 @@ improvement experiment (one model, two tasks, ≤ 4 executions). **Run
 v1 passed both `coupons-feature` and `ledger-root-causes` with every hidden
 check, so no improvement was proposed, v2 was not run and no improvement is
 claimed (2 task executions, 28 model calls). The hard suite is still too easy
-for this model; the loop has not been demonstrated on a real model. Earlier the same day:
+for this model. **Controlled demonstration** (commit `0bda883`, 2 executions):
+the same agent with a documented `limits.max_steps: 8` failed
+`ledger-root-causes` at the step limit; the loop proposed `max_steps 8 → 25`
+(the only change) and v2 passed the unchanged task in 10 steps; comparison
+`inconclusive` (one run each). Not evidence of model learning. Earlier the same day:
 `opencode.ai` is reachable and `GET /zen/go/v1/models` lists all five models.
 One manual smoke request returned `HTTP 400 MissingSessionID` (no tokens, no
 result). Fixed on `claude/clever-bohr-woxzdb` (stacked on

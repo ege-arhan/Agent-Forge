@@ -18,4 +18,12 @@ improvement was attempted and there is no v2.
 `improvement-20260927T020338Z/summary.{json,md}` and
 `dogfood-hard-v1/`.
 
+## Controlled improvement-loop demonstration (2026-09-27)
+
+Same model, `ledger-root-causes` only: agent
+`dogfood-engineer-deepseek-constrained` v1 (`limits.max_steps: 8`) failed at the
+step limit; v2 (`limits.max_steps: 25`, proposed by the loop) passed.
+`improvement-demo-20260927T084203Z/summary.{json,md}` and
+`dogfood-hard-v1/`. A controlled demonstration, not evidence of model learning.
+
 Reports are named `<suite>-v<version>/<timestamp>-<suite>-<benchmark-id>.{json,md}`.

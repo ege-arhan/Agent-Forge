@@ -50,7 +50,9 @@ _None open. Continue with P1 in roadmap order._
   `deepseek-v4.1-flash`, 2 tasks, ≤ 4 executions). Run: v1 passed both tasks
   (2 executions), so no improvement was attempted. Remaining: harder tasks (or
   a weaker baseline) before the loop can be shown on a real model; needs a new
-  budget approval.
+  budget approval. Controlled demonstration done (2 executions): a baseline
+  constrained to 8 steps failed at the step limit, the proposer raised it to
+  25, v2 passed; see `docs/REAL_MODEL_BENCHMARK.md` section 11.
 
 ### T-018 Scheduled routine can access the repository
 - **Status:** blocked (owner action; see DEVELOPMENT.md "Scheduled autonomous
