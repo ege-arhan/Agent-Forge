@@ -30,6 +30,14 @@ _None open. Continue with P1 in roadmap order._
   publish the reports under `dogfood/results/real/` with methodology.
 - **Tooling ready:** real-model agent configs, report format, credential check
   (refuses to run without keys and records nothing).
+- **2026-09-27 (owner request):** Limited Real-Model Validation with five
+  OpenCode Go models prepared: `opencode-go` preset, token budget,
+  `scripts/real_model_validation.py` (≤ 15 task executions, sequential, no
+  retries), `docs/REAL_MODEL_BENCHMARK.md`, tests against a fake endpoint.
+  **Not run:** the cloud environment's network policy blocks `opencode.ai`.
+  Needs: `opencode.ai` allowed in the environment's network settings,
+  `OPENCODE_API_KEY` stored as an environment secret, the endpoint URL
+  confirmed (the preflight lists models without calling any).
 
 ### T-018 Scheduled routine can access the repository
 - **Status:** blocked (owner action; see DEVELOPMENT.md "Scheduled autonomous

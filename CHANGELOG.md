@@ -70,6 +70,16 @@ All notable changes are documented here. The format follows
   (offline and real modes) and the first OFFLINE results.
 - Database migration `0002`: `agent_versions`, `improvement_cycles`,
   `benchmark_runs.agent_id/agent_version/result_class` (backfilled).
+- `opencode-go` provider preset (OpenCode Go through the existing
+  OpenAI-compatible provider; requires `model.base_url`, key from
+  `OPENCODE_API_KEY`).
+- Optional per-run token budget `limits.max_total_tokens` (off by default);
+  runs that reach it stop with error type `token_budget` (failure category
+  `token_budget`).
+- `scripts/real_model_validation.py`: Limited Real-Model Validation harness
+  (at most 15 sequential task executions, no retries, token budget, model
+  listing preflight, REAL results only, secret scan) and
+  `docs/REAL_MODEL_BENCHMARK.md`. Not run yet (network policy).
 - `AGENTFORGE_BENCHMARKS_DIR` accepts several directories (default
   `examples/benchmarks:dogfood/benchmarks`).
 

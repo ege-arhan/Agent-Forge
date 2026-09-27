@@ -21,7 +21,8 @@ measurable.
 ## Features
 
 - **Multi-provider**: Anthropic (Claude), OpenAI, OpenRouter, Gemini
-  (OpenAI-compatible endpoint), local OpenAI-compatible servers (Ollama, vLLM,
+  (OpenAI-compatible endpoint), OpenCode Go (OpenAI-compatible endpoint, set
+  `model.base_url`), local OpenAI-compatible servers (Ollama, vLLM,
   LM Studio), plus a deterministic *scripted* provider for offline tests.
 - **Instrumented runtime**: ReAct or plan-and-execute loop with LLM retry
   policies, timeouts, cancellation, step and tool-call budgets, and
@@ -133,7 +134,7 @@ Agents are YAML/JSON documents validated by `AgentConfig`:
 ```yaml
 name: my-coder
 model:
-  provider: anthropic          # anthropic | openai | openrouter | gemini | local | scripted
+  provider: anthropic          # anthropic | openai | openrouter | gemini | opencode-go | local | scripted
   model: claude-opus-5
   max_tokens: 16000
   # api_key_env: MY_KEY_VAR    # defaults to the provider's standard variable
@@ -142,7 +143,7 @@ system_prompt: |
 tools: [filesystem, terminal, git, memory]   # toolsets or individual tool names
 tool_settings:
   http_request: {allowed_hosts: ["api.example.com"]}
-limits: {max_steps: 30, timeout_seconds: 900, max_tool_calls: 100}
+limits: {max_steps: 30, timeout_seconds: 900, max_tool_calls: 100}   # optional: max_total_tokens
 retry: {llm_max_attempts: 4, evaluation_retries: 1}
 planner: {strategy: react}      # or plan_execute
 memory: {persist: true, recall_limit: 5}

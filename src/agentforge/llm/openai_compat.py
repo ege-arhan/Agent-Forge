@@ -39,6 +39,9 @@ class OpenAICompatPreset:
     api_key_env: str | None
     requires_key: bool = True
     token_param: str = "max_tokens"  # noqa: S105 - request field name, not a secret
+    # Presets without a fixed endpoint must never fall back to the OpenAI SDK's
+    # default host (that would send their key to api.openai.com).
+    requires_base_url: bool = False
 
 
 PRESETS: dict[str, OpenAICompatPreset] = {
@@ -57,6 +60,12 @@ PRESETS: dict[str, OpenAICompatPreset] = {
         name="gemini",
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         api_key_env="GEMINI_API_KEY",
+    ),
+    "opencode-go": OpenAICompatPreset(
+        name="opencode-go",
+        base_url=None,
+        api_key_env="OPENCODE_API_KEY",
+        requires_base_url=True,
     ),
     "local": OpenAICompatPreset(
         name="local",
@@ -140,6 +149,10 @@ class OpenAICompatibleProvider(LLMProvider):
             raise ConfigurationError(
                 "the 'openai' package is required: pip install 'agentforge[openai]'"
             ) from exc
+        if preset.requires_base_url and not (base_url or preset.base_url):
+            raise ConfigurationError(
+                f"provider '{preset.name}' requires model.base_url (its OpenAI-compatible endpoint)"
+            )
         if not api_key:
             if preset.requires_key:
                 raise ConfigurationError(

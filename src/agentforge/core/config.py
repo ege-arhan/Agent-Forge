@@ -48,6 +48,12 @@ class RunLimits(_Strict):
     timeout_seconds: float = Field(default=600.0, gt=0, le=86_400)
     max_tool_calls: int = Field(default=100, ge=0, le=5_000)
     max_consecutive_tool_errors: int = Field(default=5, ge=1, le=100)
+    max_total_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description="Stop the run once reported input+output tokens reach this budget "
+        "(off by default; providers that report no usage are not limited).",
+    )
     max_output_chars: int = Field(
         default=20_000, ge=256, description="Tool output is truncated beyond this size."
     )

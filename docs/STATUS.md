@@ -1,15 +1,15 @@
 # AgentForge Development Status
 
-Date: 2026-09-26
+Date: 2026-09-27
 
 Current milestone: 15 — Public beta (Milestones 0–14 complete; M15 in progress)
 
 Stable branch: `main` (created at `7eb61d8`). All work arrives through pull
 requests against `main`; see CLAUDE.md "Git workflow".
 
-Latest work branch: `feature/dogfooding-improvement-loop` (stacked on
-`claude/focused-newton-j0z9l1`, the workflow-documentation PR; merge that PR
-first).
+Latest work branch: `feature/real-model-validation` (stacked on
+`feature/dogfooding-improvement-loop`, which is stacked on
+`claude/focused-newton-j0z9l1`; merge in that order).
 
 Open pull requests awaiting the owner:
 - Workflow documentation (`claude/focused-newton-j0z9l1` → `main`).
@@ -38,6 +38,17 @@ Completed in this session:
 - Benchmark-design fix found while dogfooding: a run stopped by its step limit
   counted as passed when the workspace happened to satisfy the checks. The
   dogfood suites now require `completed` (the starter suite is unchanged).
+
+Limited Real-Model Validation (2026-09-27, owner request, five OpenCode Go
+models): **not run.** The environment's network policy denies `opencode.ai`
+(HTTP 403 at the proxy), so no endpoint, model listing or model was reached;
+no model call was made and no result exists. Prepared on
+`feature/real-model-validation` (stacked on the improvement-loop PR): the
+`opencode-go` provider preset, an optional per-run token budget, the harness
+`scripts/real_model_validation.py` and `docs/REAL_MODEL_BENCHMARK.md`.
+Owner actions: allow `opencode.ai` in the environment's network settings,
+store the key as `OPENCODE_API_KEY` (and rotate the key that was pasted into
+chat), confirm the OpenCode Go endpoint URL.
 
 Results:
 - OFFLINE / SCRIPTED PROVIDER (validates tasks and pipeline, not a model):

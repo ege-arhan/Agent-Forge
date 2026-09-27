@@ -310,3 +310,40 @@ async def test_broadcaster_end_marker_survives_full_queue() -> None:
     while not queue.empty():
         items.append(queue.get_nowait())
     assert items[-1] is None
+
+
+class TokenHungryProvider(LLMProvider):
+    """Keeps asking for a tool call and reports 400 tokens per turn."""
+
+    name = "hungry"
+
+    async def complete(self, request: CompletionRequest) -> CompletionResponse:
+        from agentforge.core.models import TokenUsage
+        from agentforge.llm.types import ToolUsePart
+
+        turn = sum(1 for m in request.messages if m.role == Role.ASSISTANT)
+        return CompletionResponse(
+            message=Message(
+                role=Role.ASSISTANT,
+                content=[ToolUsePart(id=f"c{turn}", name="list_directory", arguments={})],
+            ),
+            stop_reason=StopReason.TOOL_USE,
+            usage=TokenUsage(input_tokens=300, output_tokens=100),
+            model="m",
+        )
+
+
+async def test_token_budget_stops_the_run(settings: Settings) -> None:
+    config = scripted_config([], limits=RunLimits(max_steps=20, max_total_tokens=1_000))
+    prepared = prepare_run(config, "g", settings=settings, provider=TokenHungryProvider())
+    run = await prepared.execute()
+    assert run.status == RunStatus.FAILED
+    assert run.error is not None and run.error.type == "token_budget"
+    assert run.usage.total_tokens == 1_200  # stopped after the 3rd call (>= 1000)
+    assert len(run.steps) == 3
+    # Default: no budget, so the same provider runs until the step limit.
+    unlimited = scripted_config([], limits=RunLimits(max_steps=4))
+    run = await prepare_run(
+        unlimited, "g", settings=settings, provider=TokenHungryProvider()
+    ).execute()
+    assert run.error is not None and run.error.type == "max_steps"
