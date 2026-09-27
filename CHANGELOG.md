@@ -95,6 +95,12 @@ All notable changes are documented here. The format follows
   fallbacks), exact model ids, the unauthenticated `/models` listing is no
   longer treated as proof of authentication, a 401/403 model call stops the
   experiment, and a credential-pattern scan runs in both auth modes.
+- Validation script `--plan benchmark`: the two benchmark tasks once per model
+  (at most 10 executions), no listing, no smoke task; rows also record total
+  tokens, model-call latency, token-limit hits and provider errors.
+- First REAL MODEL results (Limited Real-Model Validation, OpenCode Go, five
+  models × two tasks) in `dogfood/results/real/` and
+  `docs/REAL_MODEL_BENCHMARK.md`.
 - `AGENTFORGE_BENCHMARKS_DIR` accepts several directories (default
   `examples/benchmarks:dogfood/benchmarks`).
 

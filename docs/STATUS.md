@@ -40,7 +40,12 @@ Completed in this session:
   dogfood suites now require `completed` (the starter suite is unchanged).
 
 Limited Real-Model Validation (2026-09-27, owner request, five OpenCode Go
-models): **not run; no result exists.** Update (later on 2026-09-27):
+models): **run on 2026-09-27** (`--plan benchmark`, commit `6d4812b`):
+5 models × 2 existing tasks (`add-cli-flag`, `pagination-off-by-one`), 10 task
+executions, 59 model calls, no retries, Docker sandbox. All 10 passed (score
+1.0, 0 tool errors); cost NOT AVAILABLE; secret scan clean. REAL results in
+`dogfood/results/real/`, write-up in `docs/REAL_MODEL_BENCHMARK.md` (small
+sample, no ranking). Earlier the same day:
 `opencode.ai` is reachable and `GET /zen/go/v1/models` lists all five models.
 One manual smoke request returned `HTTP 400 MissingSessionID` (no tokens, no
 result). Fixed on `claude/clever-bohr-woxzdb` (stacked on

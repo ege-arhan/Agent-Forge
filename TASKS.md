@@ -38,8 +38,12 @@ _None open. Continue with P1 in roadmap order._
   endpoint is `https://opencode.ai/zen/go/v1`. A first manual smoke request
   failed with `400 MissingSessionID`; the provider now sends
   `x-opencode-session` (run id) and routes Muse Spark to `/responses`, and the
-  script supports `--auth proxy` (Claude Cloud API Credentials). Remaining:
-  one verified smoke call, then the 15-execution run on owner approval.
+  script supports `--auth proxy` (Claude Cloud API Credentials).
+  **Run 2026-09-27** (`--plan benchmark`, owner-approved limit of 10 task
+  executions): 5 models × `add-cli-flag` + `pagination-off-by-one`, all 10
+  passed; results in `docs/REAL_MODEL_BENCHMARK.md` and
+  `dogfood/results/real/`. Remaining under T-009b: larger real-model runs
+  only on further owner approval.
 
 ### T-018 Scheduled routine can access the repository
 - **Status:** blocked (owner action; see DEVELOPMENT.md "Scheduled autonomous

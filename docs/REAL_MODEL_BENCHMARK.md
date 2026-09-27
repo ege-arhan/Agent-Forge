@@ -1,12 +1,9 @@
-# Limited Real-Model Validation
+# LIMITED REAL-MODEL VALIDATION
 
-> **Status (2026-09-27): NOT RUN — no real-model results exist.**
-> `opencode.ai` is now reachable and `GET /zen/go/v1/models` lists all five
-> models. One manual smoke request (outside this script) returned
-> `HTTP 400 MissingSessionID`: OpenCode Go requires an `x-opencode-session`
-> header, which AgentForge did not send. The provider now sends it (see
-> *Provider requirements*). The experiment itself has not run; the Results
-> section stays empty until it does.
+> **Status (2026-09-27): RUN — 10 task executions (5 models × 2 tasks).**
+> REAL MODEL results, Provider: OpenCode Go. A small sample: one run per model
+> and task. It shows what these runs did, not how the models compare in
+> general. No ranking, no statistics.
 
 ## 1. Offline / scripted results
 
@@ -15,12 +12,75 @@ Separate dataset, never combined with the section below:
 agents on the dogfood suites. They validate the tasks and the pipeline, not
 any model.
 
-## 2. Real-model results
+## 2. Real-model results (REAL MODEL · Provider: OpenCode Go)
 
-**None yet.** When the experiment runs, results are written to
-`dogfood/results/real/limited-validation-<timestamp>/summary.{json,md}` plus one
-report per task under `dogfood/results/real/<suite>-v<version>/`. Every row is
-labelled `REAL MODEL`, `Provider: OpenCode Go`, and the model.
+| Item | Value |
+|---|---|
+| Date | 2026-09-27, 01:33:10 – 01:36:12 UTC |
+| AgentForge | 0.1.0, commit `6d4812b` (branch `claude/clever-bohr-woxzdb`) |
+| Command | `scripts/real_model_validation.py --plan benchmark --sandbox docker` |
+| Endpoint | `https://opencode.ai/zen/go/v1` (`/chat/completions`; Muse Spark: `/responses`) |
+| Authentication | env (`OPENCODE_API_KEY`, process environment only) |
+| Task executions | 10 of 10 allowed; sequential; each task once |
+| Model calls | 59 in total (one per agent step); no retries (`llm_max_attempts: 1`, `evaluation_retries: 0`) |
+| Sandbox | Docker `python:3.12-slim`, network none |
+| Secret scan | clean (stored results, database, log) |
+| Stored | `dogfood/results/real/limited-validation-20260927T013310Z/summary.{json,md}`; one report per task in `dogfood/results/real/dogfood-coding-v1/` and `dogfood-debugging-v1/`; run records in the harness database (`benchmark_runs.result_class = real`) |
+
+Tasks (unchanged definitions, evaluators, prompts and limits, identical for every model):
+
+- **Task 1 — coding/editing:** `dogfood-coding` v1 · `add-cli-flag`, agent
+  `dogfood/agents/coding.yaml`. Checks: finished, words_unchanged,
+  lines_option, help_documents_option, hidden_other_file.
+- **Task 2 — debugging/testing/tool use:** `dogfood-debugging` v1 ·
+  `pagination-off-by-one`, agent `dogfood/agents/debugging.yaml`. Checks:
+  finished, tests_pass, hidden_edge_cases, tests_untouched, explains_cause.
+
+Limits: max 20 steps, 600 s per task, 8000 max tokens per model call, token
+budget 150 000 per task.
+
+### Comparison
+
+Latency is the mean wall time per model call over both tasks. Tokens are as
+reported by the endpoint (input / output / total, both tasks).
+
+| Model (exact id) | Coding | Debugging | Task success | Test success | Tool success | Avg steps | Avg latency per call | Tokens in / out / total | Cost |
+|---|---|---|---|---|---|---|---|---|---|
+| REAL MODEL · DeepSeek V4.1 Flash (`deepseek-v4.1-flash`) | pass | pass | 2/2 | 2/2 | 17/17 | 7.5 | 2196 ms | 30453 / 2367 / 32820 | NOT AVAILABLE |
+| REAL MODEL · MiMo-V2.6-Flash (`mimo-v2.6-flash`) | pass | pass | 2/2 | 2/2 | 13/13 | 5.0 | 4602 ms | 17297 / 1573 / 18870 | NOT AVAILABLE |
+| REAL MODEL · Muse Spark 1.3 Contributor (`muse-spark-1.3-contributor`) | pass | pass | 2/2 | 2/2 | 13/13 | 6.5 | 3403 ms | 28761 / 2939 / 31700 | NOT AVAILABLE |
+| REAL MODEL · GLM-5.3 Flash (`glm-5.3-flash`) | pass | pass | 2/2 | 2/2 | 13/13 | 5.0 | 2101 ms | 16556 / 2041 / 18597 | NOT AVAILABLE |
+| REAL MODEL · Kimi K2.7 Code (`kimi-k2.7-code`) | pass | pass | 2/2 | 2/2 | 13/13 | 5.5 | 2107 ms | 13186 / 1110 / 14296 | NOT AVAILABLE |
+
+### Per-task details
+
+All ten runs: status `succeeded`, evaluation score 1.0, all five checks
+passed, 0 tool errors, 0 LLM retries, 0 evaluation retries, no timeout, no
+step-limit hit, no token-budget hit, no provider error.
+
+| Model | Task | Steps (= model calls) | Tool calls | Duration (s) | Avg latency per call (ms) | Tokens in / out / total | Cost |
+|---|---|---|---|---|---|---|---|
+| `deepseek-v4.1-flash` | add-cli-flag | 9 | 9 | 22.873 | 2243 | 18604 / 1445 / 20049 | NOT AVAILABLE |
+| `deepseek-v4.1-flash` | pagination-off-by-one | 6 | 8 | 13.475 | 2126 | 11849 / 922 / 12771 | NOT AVAILABLE |
+| `mimo-v2.6-flash` | add-cli-flag | 5 | 6 | 23.260 | 4320 | 8592 / 857 / 9449 | NOT AVAILABLE |
+| `mimo-v2.6-flash` | pagination-off-by-one | 5 | 7 | 25.088 | 4884 | 8705 / 716 / 9421 | NOT AVAILABLE |
+| `muse-spark-1.3-contributor` | add-cli-flag | 6 | 6 | 29.235 | 4564 | 13128 / 1765 / 14893 | NOT AVAILABLE |
+| `muse-spark-1.3-contributor` | pagination-off-by-one | 7 | 7 | 17.505 | 2407 | 15633 / 1174 / 16807 | NOT AVAILABLE |
+| `glm-5.3-flash` | add-cli-flag | 4 | 5 | 14.041 | 3118 | 6159 / 886 / 7045 | NOT AVAILABLE |
+| `glm-5.3-flash` | pagination-off-by-one | 6 | 8 | 9.186 | 1422 | 10397 / 1155 / 11552 | NOT AVAILABLE |
+| `kimi-k2.7-code` | add-cli-flag | 5 | 7 | 10.947 | 1856 | 5620 / 387 / 6007 | NOT AVAILABLE |
+| `kimi-k2.7-code` | pagination-off-by-one | 6 | 6 | 14.531 | 2316 | 7566 / 723 / 8289 | NOT AVAILABLE |
+
+### Failure analysis
+
+No task failed, so there is nothing to classify. There were no provider, network,
+infrastructure or configuration failures during the ten executions.
+
+### Earlier calls (not part of the benchmark)
+
+Two manual `deepseek-v4.1-flash` requests preceded the run: one
+`HTTP 400 MissingSessionID` (before the session-header fix), one success
+(37 input / 16 output tokens).
 
 ## Design
 
@@ -125,8 +185,14 @@ for the key itself, and reports "secret scan: clean" or fails.
 
 ## Limitations
 
-- Three tasks per model at most, one run each: results describe these runs
-  only. They do not support rankings, significance or general claims.
+- Two tasks per model, one run each: results describe these runs only. They
+  do not support rankings, significance or general claims. Both tasks are
+  small; all ten runs passed, so they do not separate the models.
+- Durations and latencies depend on the endpoint's load at the time and
+  include network time from the cloud environment.
+- The `--plan benchmark` run skipped the smoke task and the model listing (the
+  ids had been checked against `/models` beforehand); the `--plan validation`
+  design described above has not been run.
 - Model availability and behaviour on OpenCode Go can change over time; the
   summary records the endpoint, commit and date.
 - Token counts are whatever the endpoint reports; cost is not available.

@@ -1,0 +1,908 @@
+{
+  "experiment": "Limited Real-Model Validation",
+  "result_class": "real",
+  "provider": "OpenCode Go",
+  "provider_id": "opencode-go",
+  "base_url": "https://opencode.ai/zen/go/v1",
+  "auth_mode": "env (OPENCODE_API_KEY)",
+  "authentication": "verified by a successful model call",
+  "agentforge_version": "0.1.0",
+  "commit": "6d4812b",
+  "started_at": "2026-09-27T01:33:10+00:00",
+  "finished_at": "2026-09-27T01:36:12+00:00",
+  "plan": "benchmark",
+  "max_executions": 10,
+  "executions": 10,
+  "token_budget": 150000,
+  "sandbox": "docker (python:3.12-slim, network none)",
+  "tasks": {
+    "task-a": "dogfood/benchmarks/coding.yaml::add-cli-flag",
+    "task-b": "dogfood/benchmarks/debugging.yaml::pagination-off-by-one"
+  },
+  "secret_scan": "clean",
+  "rows": [
+    {
+      "model": "DeepSeek V4.1 Flash",
+      "model_id": "deepseek-v4.1-flash",
+      "phase": "task-a",
+      "suite": "dogfood/benchmarks/coding.yaml",
+      "task": "add-cli-flag",
+      "api_model": "deepseek-v4.1-flash",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e07ea382e429bbd29170",
+      "run_id": "run_01a0e07ea3a52e9287cdd0f6",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 9,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 9,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 22.873,
+      "input_tokens": 18604,
+      "output_tokens": 1445,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 20049,
+      "llm_calls": 9,
+      "avg_llm_latency_ms": 2242.777777777778,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "words_unchanged",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "lines_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "help_documents_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_other_file",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "read_file": {
+          "success": 2
+        },
+        "run_command": {
+          "success": 5
+        },
+        "edit_file": {
+          "success": 1
+        }
+      }
+    },
+    {
+      "model": "DeepSeek V4.1 Flash",
+      "model_id": "deepseek-v4.1-flash",
+      "phase": "task-b",
+      "suite": "dogfood/benchmarks/debugging.yaml",
+      "task": "pagination-off-by-one",
+      "api_model": "deepseek-v4.1-flash",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e07efebfa02437dc36f4",
+      "run_id": "run_01a0e07efec3750896a9876c",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 8,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 6,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 13.475,
+      "input_tokens": 11849,
+      "output_tokens": 922,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 12771,
+      "llm_calls": 6,
+      "avg_llm_latency_ms": 2125.5,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "explains_cause",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": ""
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "run_command": {
+          "success": 2
+        },
+        "read_file": {
+          "success": 3
+        },
+        "edit_file": {
+          "success": 2
+        }
+      }
+    },
+    {
+      "model": "MiMo-V2.6-Flash",
+      "model_id": "mimo-v2.6-flash",
+      "phase": "task-a",
+      "suite": "dogfood/benchmarks/coding.yaml",
+      "task": "add-cli-flag",
+      "api_model": "mimo-v2.6-flash",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e07f33b7653ec46d2de8",
+      "run_id": "run_01a0e07f33bae8c664af020f",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 6,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 5,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 23.26,
+      "input_tokens": 8592,
+      "output_tokens": 857,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 9449,
+      "llm_calls": 5,
+      "avg_llm_latency_ms": 4320.0,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "words_unchanged",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "lines_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "help_documents_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_other_file",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "search_files": {
+          "success": 1
+        },
+        "read_file": {
+          "success": 2
+        },
+        "edit_file": {
+          "success": 1
+        },
+        "run_command": {
+          "success": 1
+        }
+      }
+    },
+    {
+      "model": "MiMo-V2.6-Flash",
+      "model_id": "mimo-v2.6-flash",
+      "phase": "task-b",
+      "suite": "dogfood/benchmarks/debugging.yaml",
+      "task": "pagination-off-by-one",
+      "api_model": "mimo-v2.6-flash",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e07f8edcac309653ee1c",
+      "run_id": "run_01a0e07f8edfe3464f168a9c",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 7,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 5,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 25.088,
+      "input_tokens": 8705,
+      "output_tokens": 716,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 9421,
+      "llm_calls": 5,
+      "avg_llm_latency_ms": 4883.6,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "explains_cause",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": ""
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "run_command": {
+          "success": 2
+        },
+        "read_file": {
+          "success": 2
+        },
+        "edit_file": {
+          "success": 2
+        }
+      }
+    },
+    {
+      "model": "Muse Spark 1.3 Contributor",
+      "model_id": "muse-spark-1.3-contributor",
+      "phase": "task-a",
+      "suite": "dogfood/benchmarks/coding.yaml",
+      "task": "add-cli-flag",
+      "api_model": "muse-spark-1.3-contributor",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e07ff123d3cb47c80d9d",
+      "run_id": "run_01a0e07ff126db7a0b0ffeec",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 6,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 6,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 29.235,
+      "input_tokens": 13128,
+      "output_tokens": 1765,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 14893,
+      "llm_calls": 6,
+      "avg_llm_latency_ms": 4564.333333333333,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "words_unchanged",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "lines_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "help_documents_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_other_file",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "read_file": {
+          "success": 2
+        },
+        "run_command": {
+          "success": 2
+        },
+        "edit_file": {
+          "success": 1
+        }
+      }
+    },
+    {
+      "model": "Muse Spark 1.3 Contributor",
+      "model_id": "muse-spark-1.3-contributor",
+      "phase": "task-b",
+      "suite": "dogfood/benchmarks/debugging.yaml",
+      "task": "pagination-off-by-one",
+      "api_model": "muse-spark-1.3-contributor",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e0806398b633306b4ad4",
+      "run_id": "run_01a0e080639b802778849ecd",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 7,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 7,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 17.505,
+      "input_tokens": 15633,
+      "output_tokens": 1174,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 16807,
+      "llm_calls": 7,
+      "avg_llm_latency_ms": 2407.285714285714,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "explains_cause",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": ""
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "read_file": {
+          "success": 2
+        },
+        "run_command": {
+          "success": 2
+        },
+        "edit_file": {
+          "success": 2
+        }
+      }
+    },
+    {
+      "model": "GLM-5.3 Flash",
+      "model_id": "glm-5.3-flash",
+      "phase": "task-a",
+      "suite": "dogfood/benchmarks/coding.yaml",
+      "task": "add-cli-flag",
+      "api_model": "glm-5.3-flash",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e080a8441ed38a914161",
+      "run_id": "run_01a0e080a847b12f26272e9f",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 5,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 4,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 14.041,
+      "input_tokens": 6159,
+      "output_tokens": 886,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 7045,
+      "llm_calls": 4,
+      "avg_llm_latency_ms": 3118.25,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "words_unchanged",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "lines_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "help_documents_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_other_file",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "read_file": {
+          "success": 2
+        },
+        "write_file": {
+          "success": 1
+        },
+        "run_command": {
+          "success": 1
+        }
+      }
+    },
+    {
+      "model": "GLM-5.3 Flash",
+      "model_id": "glm-5.3-flash",
+      "phase": "task-b",
+      "suite": "dogfood/benchmarks/debugging.yaml",
+      "task": "pagination-off-by-one",
+      "api_model": "glm-5.3-flash",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e080df656eacc5b4e171",
+      "run_id": "run_01a0e080df680c9381a8c849",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 8,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 6,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 9.186,
+      "input_tokens": 10397,
+      "output_tokens": 1155,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 11552,
+      "llm_calls": 6,
+      "avg_llm_latency_ms": 1422.1666666666667,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "explains_cause",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": ""
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "read_file": {
+          "success": 3
+        },
+        "edit_file": {
+          "success": 2
+        },
+        "run_command": {
+          "success": 2
+        }
+      }
+    },
+    {
+      "model": "Kimi K2.7 Code",
+      "model_id": "kimi-k2.7-code",
+      "phase": "task-a",
+      "suite": "dogfood/benchmarks/coding.yaml",
+      "task": "add-cli-flag",
+      "api_model": "kimi-k2.7-code",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e081038e42e29c94086e",
+      "run_id": "run_01a0e08103919c8f9a7bdd66",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 7,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 5,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 10.947,
+      "input_tokens": 5620,
+      "output_tokens": 387,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 6007,
+      "llm_calls": 5,
+      "avg_llm_latency_ms": 1856.2,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "words_unchanged",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "lines_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "help_documents_option",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_other_file",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "read_file": {
+          "success": 2
+        },
+        "edit_file": {
+          "success": 1
+        },
+        "run_command": {
+          "success": 3
+        }
+      }
+    },
+    {
+      "model": "Kimi K2.7 Code",
+      "model_id": "kimi-k2.7-code",
+      "phase": "task-b",
+      "suite": "dogfood/benchmarks/debugging.yaml",
+      "task": "pagination-off-by-one",
+      "api_model": "kimi-k2.7-code",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e0812e953a5c950c6f01",
+      "run_id": "run_01a0e0812e98e11ea2f83d5f",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 6,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 6,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 14.531,
+      "input_tokens": 7566,
+      "output_tokens": 723,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 8289,
+      "llm_calls": 6,
+      "avg_llm_latency_ms": 2315.8333333333335,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "tests_pass",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "explains_cause",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": ""
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "read_file": {
+          "success": 2
+        },
+        "run_command": {
+          "success": 2
+        },
+        "edit_file": {
+          "success": 1
+        }
+      }
+    }
+  ]
+}
