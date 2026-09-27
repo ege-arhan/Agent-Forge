@@ -419,3 +419,10 @@ def test_report_marks_missing_runs() -> None:
     b = bench([_passing("t1", False)])
     report = build_report(b, {})
     assert report.runs[0].status == "missing" and report.runs[0].tool_calls is None
+
+
+def test_token_budget_is_its_own_category() -> None:
+    failure = classify_run(
+        run(status=RunStatus.FAILED, error=ErrorInfo(type="token_budget", message="x"))
+    )
+    assert failure is not None and failure.category == FailureCategory.TOKEN_BUDGET

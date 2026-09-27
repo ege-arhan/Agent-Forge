@@ -210,6 +210,19 @@ class AgentRuntime:
                 await self._emit(run, "step.finished", step=step.index, error=exc.message)
                 raise
 
+            budget = limits.max_total_tokens
+            if budget is not None and run.usage.total_tokens >= budget:
+                step.thought = response.message.text
+                step.finished_at = utcnow()
+                await self._emit(run, "step.finished", step=step.index)
+                raise _RunTerminatedError(
+                    RunStatus.FAILED,
+                    ErrorInfo(
+                        type="token_budget",
+                        message=f"stopped after {run.usage.total_tokens} tokens (budget {budget})",
+                    ),
+                )
+
             step.thought = response.message.text
             messages.append(response.message)
             tool_uses = response.message.tool_uses

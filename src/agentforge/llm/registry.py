@@ -62,6 +62,7 @@ _FACTORIES: dict[str, ProviderFactory] = {
     "openai": _openai_compat("openai"),
     "openrouter": _openai_compat("openrouter"),
     "gemini": _openai_compat("gemini"),
+    "opencode-go": _openai_compat("opencode-go"),
     "local": _openai_compat("local"),
 }
 
@@ -78,6 +79,12 @@ _INFO: dict[str, ProviderInfo] = {
     ),
     "gemini": ProviderInfo(
         "gemini", "Google Gemini via its OpenAI-compatible endpoint.", "GEMINI_API_KEY", True
+    ),
+    "opencode-go": ProviderInfo(
+        "opencode-go",
+        "OpenCode Go subscription models via an OpenAI-compatible endpoint; set model.base_url.",
+        "OPENCODE_API_KEY",
+        True,
     ),
     "local": ProviderInfo(
         "local",

@@ -388,3 +388,64 @@ def test_price_table_from_file(tmp_path: Any) -> None:
     table = PriceTable.from_file(path)
     usage = TokenUsage(input_tokens=500_000, output_tokens=250_000)
     assert table.estimate("openai", "my-model", usage) == pytest.approx(3.0)
+
+
+# -------------------------------------------------------------------- opencode-go
+def test_opencode_go_requires_explicit_endpoint() -> None:
+    # Without a base_url the key must never go to the OpenAI SDK's default host.
+    with pytest.raises(ConfigurationError, match=r"requires model\.base_url"):
+        create_provider(
+            ModelConfig(provider="opencode-go", model="m"), {"OPENCODE_API_KEY": "k-123456789"}
+        )
+    with pytest.raises(ConfigurationError, match="no API key"):
+        create_provider(
+            ModelConfig(provider="opencode-go", model="m", base_url="https://go.test/v1"), {}
+        )
+    provider = create_provider(
+        ModelConfig(provider="opencode-go", model="m", base_url="https://go.test/v1"),
+        {"OPENCODE_API_KEY": "k-123456789"},
+    )
+    assert provider.name == "opencode-go"
+    info = {p.name: p for p in available_providers()}["opencode-go"]
+    assert info.api_key_env == "OPENCODE_API_KEY" and info.requires_model
+
+
+async def test_opencode_go_speaks_chat_completions() -> None:
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.update(json.loads(request.content))
+        return httpx2.Response(
+            200,
+            json={
+                "id": "x",
+                "model": "glm-5.3-flash",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "tool_calls",
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "c1",
+                                    "type": "function",
+                                    "function": {"name": "read_file", "arguments": '{"path": "a"}'},
+                                }
+                            ],
+                        },
+                    }
+                ],
+                "usage": {"prompt_tokens": 12, "completion_tokens": 3},
+            },
+        )
+
+    provider = OpenAICompatibleProvider(PRESETS["opencode-go"], client=openai_client(handler))
+    response = await provider.complete(
+        CompletionRequest(model="glm-5.3-flash", messages=[Message.user("hi")], max_tokens=64)
+    )
+    assert seen["max_tokens"] == 64 and "max_completion_tokens" not in seen
+    assert response.stop_reason == StopReason.TOOL_USE
+    assert response.message.tool_uses[0].arguments == {"path": "a"}
+    assert (response.usage.input_tokens, response.usage.output_tokens) == (12, 3)

@@ -13,6 +13,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   step_limit: "Step limit reached",
   timeout: "Timed out",
   tool_budget: "Tool budget exhausted",
+  token_budget: "Token budget reached",
   tool_errors: "Repeated tool errors",
   inefficient: "Too many steps",
   llm_error: "Provider error",

@@ -25,6 +25,7 @@ class FailureCategory(StrEnum):
     TIMEOUT = "timeout"
     STEP_LIMIT = "step_limit"
     TOOL_BUDGET = "tool_budget"
+    TOKEN_BUDGET = "token_budget"  # noqa: S105 - category name, not a secret
     TOOL_ERRORS = "tool_errors"
     LLM_ERROR = "llm_error"
     LLM_REFUSAL = "llm_refusal"
@@ -48,6 +49,7 @@ CATEGORY_DESCRIPTIONS: dict[FailureCategory, str] = {
     FailureCategory.TIMEOUT: "The run exceeded its time limit.",
     FailureCategory.STEP_LIMIT: "The run reached its step limit before finishing.",
     FailureCategory.TOOL_BUDGET: "The run exhausted its tool-call budget.",
+    FailureCategory.TOKEN_BUDGET: "The run was stopped by its token budget.",
     FailureCategory.TOOL_ERRORS: "The run was stopped after consecutive failing tool calls.",
     FailureCategory.LLM_ERROR: "The model provider returned an error.",
     FailureCategory.LLM_REFUSAL: "The model declined the request.",
@@ -169,6 +171,8 @@ def _error_category(run: Run) -> FailureCategory | None:
         return FailureCategory.TIMEOUT
     if error_type == "max_steps":
         return FailureCategory.STEP_LIMIT
+    if error_type == "token_budget":
+        return FailureCategory.TOKEN_BUDGET
     if error_type == "tool_errors":
         return FailureCategory.TOOL_ERRORS
     if error_type == "llm.refusal":
