@@ -88,6 +88,7 @@ def fake_app(
     *,
     auth: str,
     reject_auth: bool = False,
+    endless_tools: bool = False,
 ) -> FastAPI:
     """``auth="env"`` expects the bearer key; ``auth="proxy"`` expects no header at all
     (the real egress proxy adds it after the request leaves the process)."""
@@ -122,6 +123,15 @@ def fake_app(
         if (rejected := gate(request, model, "chat")) is not None:
             return rejected
         assert "max_tokens" in body
+        if endless_tools:  # never finishes: every turn is another tool call
+            call = {
+                "id": f"c{len(body['messages'])}",
+                "type": "function",
+                "function": {"name": "list_directory", "arguments": "{}"},
+            }
+            return _completion(
+                model, {"role": "assistant", "content": None, "tool_calls": [call]}, "tool_calls"
+            )
         assistant_turns = sum(1 for m in body["messages"] if m["role"] == "assistant")
         goal = next(m["content"] for m in body["messages"] if m["role"] == "user")
         if model in good_models and "hello.txt" in goal and assistant_turns == 0:

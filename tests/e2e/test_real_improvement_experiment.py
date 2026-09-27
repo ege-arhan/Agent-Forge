@@ -226,3 +226,37 @@ def test_config_has_no_retries_and_the_fixed_budget(monkeypatch: pytest.MonkeyPa
     assert config.retry.llm_max_attempts == 1 and config.retry.evaluation_retries == 0
     assert config.limits.max_total_tokens == 150_000
     assert (config.sandbox.image, config.sandbox.network) == ("python:3.12", "none")
+
+
+def test_controlled_demo_step_limit_to_raised_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """One task, a baseline with fewer steps, 2 executions: step_limit -> max_steps raised."""
+    calls: list[dict[str, Any]] = []
+    module = load(monkeypatch)
+    monkeypatch.setenv("OPENCODE_API_KEY", FAKE_KEY)
+    app = fake_app(ALL_MODELS, set(), calls, auth="env", endless_tools=True)
+    with serve(app) as base_url:
+        code = run_main(
+            module, base_url, tmp_path, "--task", "ledger-root-causes", "--baseline-max-steps", "3"
+        )
+    assert code == 0, capsys.readouterr().out
+    [path] = (tmp_path / "results" / "real").glob("improvement-demo-*/summary.json")
+    summary = json.loads(path.read_text())
+    assert summary["experiment"] == "Controlled Improvement-Loop Demonstration"
+    assert summary["baseline_constraint"].startswith("limits.max_steps = 3")
+    assert summary["tasks"] == ["ledger-root-causes"]
+    assert summary["executions"] == 2 == summary["max_executions"]
+    [v1] = summary["v1_rows"]
+    [v2] = summary["v2_rows"]
+    assert v1["task"] == v2["task"] == "ledger-root-causes"
+    assert v1["steps"] == 3 and v1["step_limit_hit"] is True
+    assert v1["failure_category"] == "step-limit failure"
+    cycle = summary["cycle"]
+    assert cycle["analysis"]["categories"] == {"step_limit": 1}
+    [change] = [c for c in cycle["proposal"]["changes"] if c["id"] in cycle["applied_change_ids"]]
+    assert (change["path"], change["value"], change["current"]) == ("limits.max_steps", 25, 3)
+    # v2 runs the same task with the raised limit; this fake never finishes, so it
+    # uses all 25 steps - the point here is the plumbing, not the outcome.
+    assert v2["steps"] == 25 and v2["step_limit_hit"] is True
+    assert {c["session"] for c in calls} == {v1["run_id"], v2["run_id"]}

@@ -14,6 +14,11 @@ changes to the retry policy or the token budget are not applied. v2 is not
 run when v1 passes every task (the tasks would then be too easy to show an
 improvement), when authentication fails, or when nothing can be proposed.
 
+Controlled demonstration (``--task ledger-root-causes --baseline-max-steps 8``):
+one task, and a baseline whose only difference from the Engineering Agent is a
+documented, tighter ``limits.max_steps``. The budget is then 2 executions
+(v1 + v2); the task, evaluators, tools, prompt, model and sandbox are unchanged.
+
 Authentication: ``--auth env`` (``OPENCODE_API_KEY``) or ``--auth proxy`` (an
 egress proxy injects the credential, e.g. Claude Cloud API Credentials; no key
 in this process). Results are REAL-model results, stored under
@@ -77,13 +82,27 @@ class ExecutionBudget:
         self.used += executions
 
 
-def v1_config(*, base_url: str, auth: str, token_budget: int, sandbox: str) -> Any:
-    """The engineer agent with the model swapped in; no retries, fixed budget."""
+def v1_config(
+    *,
+    base_url: str,
+    auth: str,
+    token_budget: int,
+    sandbox: str,
+    max_steps: int | None = None,
+    name: str = AGENT_NAME,
+) -> Any:
+    """The engineer agent with the model swapped in; no retries, fixed budget.
+
+    ``max_steps`` is the documented baseline constraint of the controlled
+    demonstration (the only other difference from the engineer agent).
+    """
     from agentforge.config_files import load_agent_config
     from agentforge.core.config import AgentConfig
 
     data = load_agent_config(AGENT_FILE).model_dump(mode="json")
-    data["name"] = AGENT_NAME
+    data["name"] = name
+    if max_steps is not None:
+        data["limits"]["max_steps"] = max_steps
     data["model"].update(
         {
             "provider": rmv.PROVIDER,
@@ -157,14 +176,16 @@ async def run_experiment(
     config: Any,
     results: Path,
     budget: ExecutionBudget,
+    tasks: list[str] | None = None,
 ) -> dict[str, Any]:
     from agentforge.benchmarks import BenchmarkRunner, load_suite
     from agentforge.improvement.loop import ImprovementLoop
     from agentforge.storage import AgentRepository
     from agentforge.storage.tracking import BenchmarkRepository, StorageRecorder
 
+    tasks = tasks or TASKS
     suite = load_suite(SUITE_FILE)
-    missing = set(TASKS) - {t.id for t in suite.tasks}
+    missing = set(tasks) - {t.id for t in suite.tasks}
     if missing:
         raise SystemExit(f"tasks not in {SUITE_FILE.name}: {sorted(missing)}")
     runner = BenchmarkRunner(settings, recorder=StorageRecorder(db), concurrency=1)
@@ -172,10 +193,10 @@ async def run_experiment(
     agent = await agents.register(config, change_summary="baseline (v1)")
     out: dict[str, Any] = {"agent_id": agent.id, "v1_version": agent.version}
 
-    budget.reserve(len(TASKS))
-    print(f"v1: {MODEL_ID} on {', '.join(TASKS)}", flush=True)
+    budget.reserve(len(tasks))
+    print(f"v1: {MODEL_ID} on {', '.join(tasks)}", flush=True)
     v1 = await runner.run(
-        suite, config, repeats=1, task_ids=TASKS, agent_id=agent.id, agent_version=agent.version
+        suite, config, repeats=1, task_ids=tasks, agent_id=agent.id, agent_version=agent.version
     )
     await save_reports(db, results, v1)
     v1_rows = await rows_for(db, v1, agent.version)
@@ -238,7 +259,7 @@ def _row_line(r: dict[str, Any]) -> str:
 
 def render_markdown(summary: dict[str, Any]) -> str:
     lines = [
-        "# LIMITED REAL-MODEL IMPROVEMENT EXPERIMENT — results",
+        f"# {summary['experiment'].upper()} — results",
         "",
         f"**REAL MODEL** · Provider: **OpenCode Go** · Model: **{MODEL_NAME}** "
         f"(`{MODEL_ID}`). Offline/scripted results are stored separately.",
@@ -247,6 +268,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
         f"- AgentForge: {summary['agentforge_version']} (commit `{summary['commit']}`)",
         f"- Endpoint: `{summary['base_url']}`; authentication: {summary['auth_mode']}",
         f"- Suite: `{summary['suite']}` v1, tasks: {', '.join(summary['tasks'])}",
+        f"- Baseline constraint (v1): {summary.get('baseline_constraint') or 'none'}",
         f"- Task executions: {summary['executions']} (limit {summary['max_executions']}); "
         "model-call retries: none; token budget per task: "
         f"{summary['token_budget']}",
@@ -306,23 +328,43 @@ async def main_async(args: argparse.Namespace, data_dir: Path) -> dict[str, Any]
     from agentforge.storage import Database
 
     base_url = args.base_url or rmv.BASE_URL
+    tasks = args.task or TASKS
+    demo = args.baseline_max_steps is not None
     config = v1_config(
-        base_url=base_url, auth=args.auth, token_budget=args.token_budget, sandbox=args.sandbox
+        base_url=base_url,
+        auth=args.auth,
+        token_budget=args.token_budget,
+        sandbox=args.sandbox,
+        max_steps=args.baseline_max_steps,
+        name=f"{AGENT_NAME}-constrained" if demo else AGENT_NAME,
     )
     settings = Settings(data_dir=data_dir, _env_file=None)  # type: ignore[call-arg]
     db = Database(settings.resolved_database_url)
     await db.migrate()
-    budget = ExecutionBudget(MAX_EXECUTIONS)
+    max_executions = min(MAX_EXECUTIONS, 2 * len(tasks))
+    budget = ExecutionBudget(max_executions)
     started = datetime.now(UTC)
     try:
         out = await run_experiment(
-            db=db, settings=settings, config=config, results=Path(args.results), budget=budget
+            db=db,
+            settings=settings,
+            config=config,
+            results=Path(args.results),
+            budget=budget,
+            tasks=tasks,
         )
     finally:
         await db.dispose()
     rows = out.pop("v1_rows"), out.pop("v2_rows", [])
     return {
-        "experiment": "Limited Real-Model Improvement Experiment",
+        "experiment": (
+            "Controlled Improvement-Loop Demonstration"
+            if demo
+            else "Limited Real-Model Improvement Experiment"
+        ),
+        "baseline_constraint": (
+            f"limits.max_steps = {args.baseline_max_steps} (engineer agent: 20)" if demo else None
+        ),
         "result_class": "real",
         "provider": rmv.PROVIDER_LABEL,
         "provider_id": rmv.PROVIDER,
@@ -335,8 +377,8 @@ async def main_async(args: argparse.Namespace, data_dir: Path) -> dict[str, Any]
         "started_at": started.isoformat(timespec="seconds"),
         "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "suite": str(SUITE_FILE.relative_to(ROOT)),
-        "tasks": TASKS,
-        "max_executions": MAX_EXECUTIONS,
+        "tasks": tasks,
+        "max_executions": max_executions,
         "executions": sum(1 for r in rows[0] + rows[1] if r.executed),
         "token_budget": args.token_budget,
         "sandbox": f"{args.sandbox} ({SANDBOX_IMAGE}, network none)",
@@ -358,6 +400,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--data-dir", default=str(ROOT / ".agentforge" / "real-improvement"))
     parser.add_argument("--token-budget", type=int, default=DEFAULT_TOKEN_BUDGET)
     parser.add_argument("--sandbox", choices=["docker", "local"], default="docker")
+    parser.add_argument(
+        "--task",
+        action="append",
+        choices=TASKS,
+        help=f"run only these tasks (repeatable; default: {', '.join(TASKS)})",
+    )
+    parser.add_argument(
+        "--baseline-max-steps",
+        type=int,
+        help="controlled demonstration: v1 gets this tighter limits.max_steps",
+    )
     args = parser.parse_args(argv)
 
     if args.auth == rmv.AUTH_ENV and not os.environ.get(rmv.KEY_ENV):
@@ -385,7 +438,8 @@ def main(argv: list[str] | None = None) -> int:
     summary = asyncio.run(main_async(args, data_dir))
     results_root = Path(args.results)
     stamp = summary["started_at"].replace(":", "").replace("-", "").replace("+0000", "Z")
-    out_dir = results_root / "real" / f"improvement-{stamp}"
+    prefix = "improvement-demo" if summary.get("baseline_constraint") else "improvement"
+    out_dir = results_root / "real" / f"{prefix}-{stamp}"
     out_dir.mkdir(parents=True, exist_ok=True)
     scan_key = os.environ.get(rmv.KEY_ENV)
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
@@ -396,7 +450,7 @@ def main(argv: list[str] | None = None) -> int:
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
     (out_dir / "summary.md").write_text(render_markdown(summary))
     print(f"summary: {out_dir / 'summary.md'}")
-    print(f"task executions: {summary['executions']} (limit {MAX_EXECUTIONS})")
+    print(f"task executions: {summary['executions']} (limit {summary['max_executions']})")
     if leaked:
         print("secret scan: FOUND - a credential appears in stored results or logs; delete them.")
         return 1
