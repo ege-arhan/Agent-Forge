@@ -34,10 +34,12 @@ _None open. Continue with P1 in roadmap order._
   OpenCode Go models prepared: `opencode-go` preset, token budget,
   `scripts/real_model_validation.py` (≤ 15 task executions, sequential, no
   retries), `docs/REAL_MODEL_BENCHMARK.md`, tests against a fake endpoint.
-  **Not run:** the cloud environment's network policy blocks `opencode.ai`.
-  Needs: `opencode.ai` allowed in the environment's network settings,
-  `OPENCODE_API_KEY` stored as an environment secret, the endpoint URL
-  confirmed (the preflight lists models without calling any).
+  **Not run.** `opencode.ai` is now reachable and lists all five models; the
+  endpoint is `https://opencode.ai/zen/go/v1`. A first manual smoke request
+  failed with `400 MissingSessionID`; the provider now sends
+  `x-opencode-session` (run id) and routes Muse Spark to `/responses`, and the
+  script supports `--auth proxy` (Claude Cloud API Credentials). Remaining:
+  one verified smoke call, then the 15-execution run on owner approval.
 
 ### T-018 Scheduled routine can access the repository
 - **Status:** blocked (owner action; see DEVELOPMENT.md "Scheduled autonomous

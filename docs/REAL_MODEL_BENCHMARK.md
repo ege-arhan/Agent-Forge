@@ -1,10 +1,12 @@
 # Limited Real-Model Validation
 
 > **Status (2026-09-27): NOT RUN — no real-model results exist.**
-> The development environment's network policy blocks `opencode.ai`, so the
-> endpoint could not be reached (not even the model listing). No model was
-> called and no result was recorded. Everything below describes the prepared
-> method; the Results section stays empty until the experiment actually runs.
+> `opencode.ai` is now reachable and `GET /zen/go/v1/models` lists all five
+> models. One manual smoke request (outside this script) returned
+> `HTTP 400 MissingSessionID`: OpenCode Go requires an `x-opencode-session`
+> header, which AgentForge did not send. The provider now sends it (see
+> *Provider requirements*). The experiment itself has not run; the Results
+> section stays empty until it does.
 
 ## 1. Offline / scripted results
 
@@ -25,8 +27,10 @@ labelled `REAL MODEL`, `Provider: OpenCode Go`, and the model.
 | Item | Value |
 |---|---|
 | Label | Limited Real-Model Validation (intentionally small; no statistics) |
-| Provider | OpenCode Go (`provider: opencode-go`, the existing OpenAI-compatible provider with an `opencode-go` preset; key from `OPENCODE_API_KEY`) |
-| Models | `opencode-go/deepseek-v4.1-flash`, `opencode-go/mimo-v2.6-flash`, `opencode-go/muse-spark-1.3-contributor`, `opencode-go/glm-5.3-flash`, `opencode-go/kimi-k2.7-code` |
+| Provider | OpenCode Go (`provider: opencode-go`, the existing OpenAI-compatible provider with an `opencode-go` preset) |
+| Endpoint | `https://opencode.ai/zen/go/v1` (no fallbacks) |
+| Authentication | `--auth env` (key from `OPENCODE_API_KEY`) or `--auth proxy` (credential injected by an egress proxy); see below |
+| Models (exact ids from `/models`) | `deepseek-v4.1-flash`, `mimo-v2.6-flash`, `muse-spark-1.3-contributor`, `glm-5.3-flash`, `kimi-k2.7-code` |
 | Smoke task (1 per model) | `starter` v1 · `create-greeting` (tool call `write_file`, file checks) |
 | Task A (coding / editing) | `dogfood-coding` v1 · `add-cli-flag` (modify an existing CLI; visible + hidden checks) |
 | Task B (tools + testing / debugging) | `dogfood-debugging` v1 · `pagination-off-by-one` (run tests, find two root causes, fix, re-run) |
@@ -41,15 +45,41 @@ labelled `REAL MODEL`, `Provider: OpenCode Go`, and the model.
 A task execution is one AgentForge run; each run makes several model calls
 (one per step, bounded by the step limit and the token budget).
 
+### Provider requirements (OpenCode Go)
+
+From the OpenCode Go documentation (<https://opencode.ai/docs/go/>, checked
+2026-09-27), implemented in the `opencode-go` preset:
+
+- `x-opencode-session: <id>` on every model request. The id is the AgentForge
+  run id: stable across all model calls (and retries) of one run, different
+  for every run. Requests without it are rejected with `400 MissingSessionID`.
+  It is an identifier, not a credential.
+- `User-Agent: agentforge/<version>` instead of the SDK's generic user agent.
+- Per-model endpoint: `muse-spark-1.3-contributor` is served on `/responses`
+  (Responses API); the other four models on `/chat/completions`. Models that
+  OpenCode serves on the Anthropic-format `/messages` endpoint are refused
+  before any request. The `/models` listing carries no endpoint metadata, so
+  the table in `agentforge/llm/openai_compat.py` is the source.
+
+### Authentication modes
+
+| Mode | Use | Behaviour |
+|---|---|---|
+| `--auth env` (default) | normal environments | reads `OPENCODE_API_KEY` and sends it as a bearer token; refuses to start without it |
+| `--auth proxy` | Claude Cloud environments with an opencode.ai API Credential | an egress proxy adds the credential to requests to opencode.ai. `OPENCODE_API_KEY` is neither required nor read, and requests leave the process **without** an `Authorization` header; requires `HTTPS_PROXY` |
+
+In both modes the key is never printed, logged or stored.
+
 ### Preflight (no model calls)
 
-Before any task, `GET <endpoint>/models` verifies the key and which requested
-model ids the endpoint lists. The ids are sent as listed (the `opencode-go/`
-prefix is dropped when the endpoint lists the short id). An unlisted model is a
-configuration failure and is never called. If `--base-url` is not given, the
-candidates `https://opencode.ai/zen/go/v1` and `https://opencode.ai/zen/v1` are
-tried in that order. **They could not be verified from this environment**;
-the endpoint actually used is recorded in the summary.
+Before any task, `GET https://opencode.ai/zen/go/v1/models` checks that the
+endpoint is reachable and which requested model ids it lists. Ids must match
+the listing exactly; an unlisted model is a configuration failure and is never
+called. **The listing is served without authentication, so it proves nothing
+about the credential.** Authentication is established only by the first model
+call; if that call is rejected with HTTP 401/403, the experiment stops
+immediately (no further model calls) and the summary records
+`authentication: FAILED`.
 
 ### Measurements
 
@@ -78,17 +108,20 @@ require reading the trace and are marked as such.
 ## Reproducing
 
 ```bash
-# Requirements: OPENCODE_API_KEY as an environment secret (never on the
-# command line), network access to opencode.ai, a Docker daemon.
+# Requirements: network access to opencode.ai, a Docker daemon, and either
+# OPENCODE_API_KEY as an environment secret (never on the command line) or an
+# egress proxy that injects the opencode.ai credential.
 docker pull python:3.12-slim
-uv run python scripts/real_model_validation.py            # tries the candidate endpoints
-uv run python scripts/real_model_validation.py --base-url https://<verified-endpoint>/v1
+uv run python scripts/real_model_validation.py               # --auth env
+uv run python scripts/real_model_validation.py --auth proxy  # Claude Cloud API Credentials
 ```
 
 The script stops after the plan above ("Stopped: the limited validation is
-complete"). It never runs the full suite, repeats, the improvement loop or
-statistics. After the run it scans the stored results, the database and the log
-for the key and reports "secret scan: clean" or fails.
+complete"), or earlier on an authentication failure (exit code 3). It never
+runs the full suite, repeats, the improvement loop or statistics. After the run
+it scans the stored results, the database and the log for credential-shaped
+strings (bearer tokens, known key formats) and, when `OPENCODE_API_KEY` is set,
+for the key itself, and reports "secret scan: clean" or fails.
 
 ## Limitations
 
@@ -100,9 +133,12 @@ for the key and reports "secret scan: clean" or fails.
 
 ## Infrastructure issues
 
-- 2026-09-27: `opencode.ai` is denied by the cloud environment's network
-  policy (HTTP 403 on CONNECT); the documentation site is also unreachable from
-  this environment, so the endpoint URL could not be confirmed.
+- 2026-09-27 (earlier session): `opencode.ai` was denied by the cloud
+  environment's network policy (HTTP 403 on CONNECT).
+- 2026-09-27 (later): reachable. `GET /zen/go/v1/models` lists all five
+  models. One manual chat-completions request to `deepseek-v4.1-flash` returned
+  `HTTP 400 MissingSessionID` (no tokens, no result); fixed by sending
+  `x-opencode-session` (see *Provider requirements*).
 - The API key was provided in a chat message rather than as an environment
   secret. It was kept outside the repository for the session and deleted; it
   should be rotated and stored as `OPENCODE_API_KEY` in the environment's

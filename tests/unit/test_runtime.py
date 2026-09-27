@@ -10,7 +10,14 @@ from agentforge.core.errors import LLMError
 from agentforge.core.models import RunStatus, StepKind, ToolCallStatus
 from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.llm.base import LLMProvider
-from agentforge.llm.types import CompletionRequest, CompletionResponse, Message, Role, StopReason
+from agentforge.llm.types import (
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    Role,
+    StopReason,
+    ToolUsePart,
+)
 from agentforge.memory.base import InMemoryMemoryStore, MemoryRecord, MemoryScope
 from agentforge.runtime.events import RunEvent
 from agentforge.runtime.factory import prepare_run, run_agent
@@ -347,3 +354,50 @@ async def test_token_budget_stops_the_run(settings: Settings) -> None:
         unlimited, "g", settings=settings, provider=TokenHungryProvider()
     ).execute()
     assert run.error is not None and run.error.type == "max_steps"
+
+
+class SessionRecordingProvider(LLMProvider):
+    """One transient failure, then a tool call, then a final answer - per run."""
+
+    name = "sessions"
+
+    def __init__(self) -> None:
+        self.sessions: list[str | None] = []
+        self._turn = 0
+
+    async def complete(self, request: CompletionRequest) -> CompletionResponse:
+        self.sessions.append(request.session_id)
+        self._turn += 1
+        phase = self._turn % 3
+        if phase == 1:
+            raise LLMError("overloaded", retryable=True)
+        if phase == 2:
+            return CompletionResponse(
+                message=Message(
+                    role=Role.ASSISTANT,
+                    content=[ToolUsePart(id="t1", name="list_directory", arguments={})],
+                ),
+                stop_reason=StopReason.TOOL_USE,
+                model="m",
+            )
+        return CompletionResponse(
+            message=Message.assistant("done"), stop_reason=StopReason.END_TURN, model="m"
+        )
+
+
+async def test_session_id_is_the_run_id_and_stable_across_calls_and_retries(
+    settings: Settings,
+) -> None:
+    provider = SessionRecordingProvider()  # shared by both runs, like a reused provider
+    runs = []
+    for _ in range(2):
+        prepared = prepare_run(
+            scripted_config([], retry=FAST_RETRY), "g", settings=settings, provider=provider
+        )
+        runs.append(await prepared.execute())
+    assert all(run.status == RunStatus.SUCCEEDED for run in runs)
+    assert runs[0].metrics.llm_retries == 1  # retry behaviour unchanged
+    first, second = provider.sessions[:3], provider.sessions[3:]
+    assert first == [runs[0].id] * 3  # failed attempt, its retry, and the next call
+    assert second == [runs[1].id] * 3
+    assert runs[0].id != runs[1].id

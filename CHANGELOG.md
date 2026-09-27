@@ -79,7 +79,22 @@ All notable changes are documented here. The format follows
 - `scripts/real_model_validation.py`: Limited Real-Model Validation harness
   (at most 15 sequential task executions, no retries, token budget, model
   listing preflight, REAL results only, secret scan) and
-  `docs/REAL_MODEL_BENCHMARK.md`. Not run yet (network policy).
+  `docs/REAL_MODEL_BENCHMARK.md`. Not run yet.
+- `opencode-go` sends `x-opencode-session` on every model request (the run id:
+  stable across a run's calls and retries, distinct per run; new
+  `CompletionRequest.session_id`) and an `agentforge/<version>` user agent, as
+  OpenCode Go requires. Without it OpenCode Go answered `400 MissingSessionID`.
+- `opencode-go` routes models that OpenCode serves on `/responses` (e.g.
+  `muse-spark-1.3-contributor`) through the Responses API; `/messages`-only
+  models are refused before any request.
+- OpenAI-compatible providers: `model.options.auth: proxy` for credentials
+  injected by an egress proxy (e.g. Claude Cloud API Credentials): no key is
+  read and no `Authorization` header is sent. The validation script exposes it
+  as `--auth proxy`; `--auth env` (`OPENCODE_API_KEY`) stays the default.
+- Validation script: single endpoint `https://opencode.ai/zen/go/v1` (no
+  fallbacks), exact model ids, the unauthenticated `/models` listing is no
+  longer treated as proof of authentication, a 401/403 model call stops the
+  experiment, and a credential-pattern scan runs in both auth modes.
 - `AGENTFORGE_BENCHMARKS_DIR` accepts several directories (default
   `examples/benchmarks:dogfood/benchmarks`).
 

@@ -102,6 +102,9 @@ class CompletionRequest(BaseModel):
     tools: list[ToolSpec] = Field(default_factory=list)
     max_tokens: int = 4096
     temperature: float | None = None
+    # Stable id of the conversation this request belongs to (the run id), for
+    # providers that route or cache per session. Not a credential.
+    session_id: str | None = None
 
 
 class CompletionResponse(BaseModel):

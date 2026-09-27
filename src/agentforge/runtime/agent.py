@@ -199,6 +199,7 @@ class AgentRuntime:
                 tools=self.deps.executor.specs,
                 max_tokens=config.model.max_tokens,
                 temperature=config.model.temperature,
+                session_id=run.id,
             )
             try:
                 response = await self._complete(run, step, request)
@@ -399,6 +400,7 @@ class AgentRuntime:
             messages=[plan_request.prompt],
             max_tokens=min(self.config.model.max_tokens, 2_048),
             temperature=self.config.model.temperature,
+            session_id=run.id,
         )
         response = await self._complete(run, step, request)
         plan = parse_plan(response, self.config.planner.max_plan_steps)

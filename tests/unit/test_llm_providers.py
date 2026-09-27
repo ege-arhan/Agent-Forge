@@ -449,3 +449,252 @@ async def test_opencode_go_speaks_chat_completions() -> None:
     assert response.stop_reason == StopReason.TOOL_USE
     assert response.message.tool_uses[0].arguments == {"path": "a"}
     assert (response.usage.input_tokens, response.usage.output_tokens) == (12, 3)
+
+
+# ---------------------------------------------- opencode-go: session, auth modes
+OC_KEY = "oc-unit-key-7d1e0c2b9a584f36"
+
+
+def _chat_ok(model: str = "deepseek-v4.1-flash") -> dict[str, Any]:
+    return {
+        "id": "x",
+        "model": model,
+        "choices": [
+            {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "ok"}}
+        ],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6},
+    }
+
+
+def opencode_handler(seen: list[httpx2.Request]) -> Handler:
+    """Rejects requests without x-opencode-session, exactly like OpenCode Go (HTTP 400)."""
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        if not request.headers.get("x-opencode-session"):
+            return httpx2.Response(
+                400, json={"error": {"type": "MissingSessionID", "message": "missing session"}}
+            )
+        return httpx2.Response(200, json=_chat_ok())
+
+    return handler
+
+
+def _request(session_id: str | None) -> CompletionRequest:
+    return CompletionRequest(
+        model="deepseek-v4.1-flash",
+        messages=[Message.user("hi")],
+        max_tokens=16,
+        session_id=session_id,
+    )
+
+
+async def test_missing_session_header_is_what_opencode_rejects() -> None:
+    # The original bug: a plain OpenAI-compatible request has no session header.
+    seen: list[httpx2.Request] = []
+    provider = OpenAICompatibleProvider(
+        PRESETS["openai"], client=openai_client(opencode_handler(seen))
+    )
+    with pytest.raises(LLMError, match="400"):
+        await provider.complete(_request("run_a"))
+    assert "x-opencode-session" not in seen[0].headers  # other presets never send it
+
+
+async def test_opencode_go_sends_stable_session_per_run() -> None:
+    seen: list[httpx2.Request] = []
+    provider = OpenAICompatibleProvider(
+        PRESETS["opencode-go"], client=openai_client(opencode_handler(seen))
+    )
+    for _ in range(2):  # two model calls of one run (or a retry of the same request)
+        response = await provider.complete(_request("run_a"))
+        assert response.message.text == "ok"
+    await provider.complete(_request("run_b"))
+    sessions = [r.headers["x-opencode-session"] for r in seen]
+    assert sessions == ["run_a", "run_a", "run_b"]
+    assert all(r.url.path.endswith("/chat/completions") for r in seen)
+    assert all(r.headers["user-agent"].startswith("agentforge/") for r in seen)
+
+
+async def test_opencode_go_session_fallback_is_per_provider_not_per_request() -> None:
+    seen: list[httpx2.Request] = []
+    first = OpenAICompatibleProvider(
+        PRESETS["opencode-go"], client=openai_client(opencode_handler(seen))
+    )
+    second = OpenAICompatibleProvider(
+        PRESETS["opencode-go"], client=openai_client(opencode_handler(seen))
+    )
+    await first.complete(_request(None))
+    await first.complete(_request(None))
+    await second.complete(_request(None))
+    a1, a2, b = (r.headers["x-opencode-session"] for r in seen)
+    assert a1 == a2 != b
+    assert len(a1) == 32 and int(a1, 16) >= 0  # a uuid4 hex: nothing derived from a credential
+
+
+async def test_session_header_never_carries_the_key() -> None:
+    seen: list[httpx2.Request] = []
+    client = openai.AsyncOpenAI(
+        api_key=OC_KEY,
+        base_url="http://go.test/v1",
+        max_retries=0,
+        http_client=openai.DefaultAsyncHttpxClient(
+            transport=httpx2.MockTransport(opencode_handler(seen))
+        ),
+    )
+    provider = OpenAICompatibleProvider(PRESETS["opencode-go"], client=client)
+    await provider.complete(_request("run_a"))
+    headers = seen[0].headers
+    assert headers["authorization"] == f"Bearer {OC_KEY}"  # api_key mode: bearer auth
+    assert OC_KEY not in headers["x-opencode-session"] and OC_KEY not in headers["user-agent"]
+
+
+async def test_proxy_auth_sends_no_authorization_header() -> None:
+    seen: list[httpx2.Request] = []
+    # Even a client that holds a key sends none in proxy mode: the proxy injects it.
+    provider = OpenAICompatibleProvider(
+        PRESETS["opencode-go"], client=openai_client(opencode_handler(seen)), auth="proxy"
+    )
+    await provider.complete(_request("run_a"))
+    assert "authorization" not in seen[0].headers
+    assert seen[0].headers["x-opencode-session"] == "run_a"
+
+
+async def test_proxy_auth_via_registry_reads_no_key_and_sends_none() -> None:
+    config = ModelConfig(
+        provider="opencode-go",
+        model="deepseek-v4.1-flash",
+        base_url="http://go.test/v1",
+        options={"auth": "proxy"},
+    )
+    # No key in the environment: proxy mode must not require one...
+    provider = create_provider(config, {})
+    assert isinstance(provider, OpenAICompatibleProvider)
+    # ...and a key that is present is not read either.
+    provider = create_provider(config, {"OPENCODE_API_KEY": OC_KEY})
+    assert isinstance(provider, OpenAICompatibleProvider)
+    seen: list[httpx2.Request] = []
+    provider._client = provider._client.with_options(
+        http_client=openai.DefaultAsyncHttpxClient(
+            transport=httpx2.MockTransport(opencode_handler(seen))
+        )
+    )
+    await provider.complete(_request("run_a"))
+    assert "authorization" not in seen[0].headers
+    assert all(OC_KEY not in value for value in seen[0].headers.values())
+    assert provider._client.max_retries == 0  # retry policy stays with the runtime
+
+
+def test_unknown_auth_mode_is_rejected() -> None:
+    with pytest.raises(ConfigurationError, match="unknown auth mode"):
+        create_provider(
+            ModelConfig(
+                provider="opencode-go",
+                model="m",
+                base_url="http://go.test/v1",
+                options={"auth": "cookie"},
+            ),
+            {"OPENCODE_API_KEY": OC_KEY},
+        )
+
+
+async def test_opencode_go_routes_responses_models_to_responses_api() -> None:
+    seen: list[httpx2.Request] = []
+    bodies: list[dict[str, Any]] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        body = json.loads(request.content)
+        bodies.append(body)
+        assert request.url.path.endswith("/responses")
+        if not request.headers.get("x-opencode-session"):
+            return httpx2.Response(400, json={"error": {"type": "MissingSessionID"}})
+        return httpx2.Response(
+            200,
+            json={
+                "id": "resp_1",
+                "object": "response",
+                "created_at": 0,
+                "model": body["model"],
+                "status": "completed",
+                "output": [
+                    {"type": "reasoning", "id": "rs_1", "summary": []},
+                    {
+                        "type": "message",
+                        "id": "m1",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [{"type": "output_text", "text": "Reading.", "annotations": []}],
+                    },
+                    {
+                        "type": "function_call",
+                        "id": "fc1",
+                        "call_id": "call_9",
+                        "name": "read_file",
+                        "arguments": '{"path": "b.txt"}',
+                        "status": "completed",
+                    },
+                ],
+                "usage": {
+                    "input_tokens": 30,
+                    "output_tokens": 7,
+                    "total_tokens": 37,
+                    "input_tokens_details": {"cached_tokens": 4},
+                    "output_tokens_details": {"reasoning_tokens": 0},
+                },
+                "parallel_tool_calls": True,
+                "tool_choice": "auto",
+                "tools": [],
+            },
+        )
+
+    provider = OpenAICompatibleProvider(PRESETS["opencode-go"], client=openai_client(handler))
+    response = await provider.complete(
+        CompletionRequest(
+            model="muse-spark-1.3-contributor",
+            system="Be brief.",
+            messages=CONVERSATION,
+            tools=TOOLS,
+            max_tokens=64,
+            session_id="run_m",
+        )
+    )
+    body = bodies[0]
+    assert seen[0].headers["x-opencode-session"] == "run_m"
+    assert body["instructions"] == "Be brief." and body["max_output_tokens"] == 64
+    assert body["tools"] == [
+        {
+            "type": "function",
+            "name": "read_file",
+            "description": "Read",
+            "parameters": {"type": "object"},
+        }
+    ]
+    assert body["input"] == [
+        {"role": "user", "content": "Read a.txt"},
+        {"role": "assistant", "content": "Reading."},
+        {
+            "type": "function_call",
+            "call_id": "tu_1",
+            "name": "read_file",
+            "arguments": '{"path": "a.txt"}',
+        },
+        {"type": "function_call_output", "call_id": "tu_1", "output": "hello"},
+    ]
+    assert response.stop_reason == StopReason.TOOL_USE
+    assert response.message.text == "Reading."
+    assert response.message.tool_uses[0].id == "call_9"
+    assert response.message.tool_uses[0].arguments == {"path": "b.txt"}
+    usage = response.usage
+    assert (usage.input_tokens, usage.output_tokens, usage.cache_read_tokens) == (30, 7, 4)
+
+
+async def test_opencode_go_refuses_messages_api_models_without_a_request() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        raise AssertionError("no request may be sent")
+
+    provider = OpenAICompatibleProvider(PRESETS["opencode-go"], client=openai_client(handler))
+    with pytest.raises(LLMError, match="'messages' endpoint") as info:
+        await provider.complete(
+            CompletionRequest(model="qwen3.8-max", messages=[Message.user("x")], session_id="r")
+        )
+    assert info.value.code == "unsupported_api" and not info.value.retryable

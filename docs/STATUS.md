@@ -40,9 +40,14 @@ Completed in this session:
   dogfood suites now require `completed` (the starter suite is unchanged).
 
 Limited Real-Model Validation (2026-09-27, owner request, five OpenCode Go
-models): **not run.** The environment's network policy denies `opencode.ai`
-(HTTP 403 at the proxy), so no endpoint, model listing or model was reached;
-no model call was made and no result exists. Prepared on
+models): **not run; no result exists.** Update (later on 2026-09-27):
+`opencode.ai` is reachable and `GET /zen/go/v1/models` lists all five models.
+One manual smoke request returned `HTTP 400 MissingSessionID` (no tokens, no
+result). Fixed on `claude/clever-bohr-woxzdb` (stacked on
+`feature/real-model-validation`): the `opencode-go` preset sends
+`x-opencode-session` (the run id) and an `agentforge/<version>` user agent,
+routes `/responses` models (Muse Spark) through the Responses API, and the
+script gains `--auth proxy` for proxy-injected credentials. Prepared on
 `feature/real-model-validation` (stacked on the improvement-loop PR): the
 `opencode-go` provider preset, an optional per-run token budget, the harness
 `scripts/real_model_validation.py` and `docs/REAL_MODEL_BENCHMARK.md`.
