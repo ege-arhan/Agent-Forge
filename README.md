@@ -177,6 +177,7 @@ retry: {llm_max_attempts: 4, evaluation_retries: 1}
 planner: {strategy: react}      # or plan_execute
 memory: {persist: true, recall_limit: 5}
 sandbox: {kind: docker, image: agentforge-sandbox:latest, network: none, memory: 1g}
+approval: {require_for: [process:exec, network], timeout_seconds: 3600}
 ```
 
 More examples in [`examples/agents/`](examples/agents). Store agents for the
@@ -207,6 +208,24 @@ API/dashboard with `agentforge agents create my-coder.yaml` or
 globally (`AGENTFORGE_DENIED_PERMISSIONS=network,github:write`). Custom tools
 plug in via the `agentforge.tools` entry-point group — see
 [docs/tools.md](docs/tools.md).
+
+### Human approval for sensitive tools
+
+Set `approval.require_for` on an agent to a list of permissions (`fs:write`,
+`process:exec`, `network`, `git:write`, `github:write`, ...); a run pauses
+(`status: awaiting_approval`) before any tool call needing one of them,
+instead of executing it. Resolve it with:
+
+- API: `GET /api/v1/runs/{id}/approvals` lists pending calls;
+  `POST /api/v1/runs/{id}/approvals/{call_id} {"approved": true, "reason": "..."}`
+  decides one and lets the run continue. The dashboard's run page shows the
+  same as a "Pending approval" card with Approve/Deny buttons.
+- CLI (`agentforge run`, which executes in the same process): prompts on the
+  terminal; without a TTY it auto-denies so the run cannot hang unattended.
+
+A denial fails only that tool call (the agent sees why and can try something
+else); the run keeps going. Unanswered after `approval.timeout_seconds`
+(default 1h) is treated as a denial too.
 
 ## Memory
 

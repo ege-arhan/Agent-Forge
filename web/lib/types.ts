@@ -1,6 +1,13 @@
 // Types mirroring the AgentForge HTTP API (src/agentforge/api, core/models.py).
 
-export type RunStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled" | "timed_out";
+export type RunStatus =
+  | "pending"
+  | "running"
+  | "awaiting_approval"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "timed_out";
 
 export type ToolCallStatus = "success" | "error" | "denied" | "timeout" | "invalid_input";
 
@@ -150,6 +157,14 @@ export interface Run {
   labels: Record<string, string>;
   parent_run_id: string | null;
   evaluators: Record<string, unknown>[];
+}
+
+export interface PendingApproval {
+  call_id: string;
+  tool: string;
+  arguments: Record<string, unknown>;
+  permissions: string[];
+  requested_at: string;
 }
 
 export interface RunSummary {

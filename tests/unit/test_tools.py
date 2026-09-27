@@ -136,6 +136,12 @@ async def test_executor_enforces_denied_permissions(tool_ctx: ToolContext) -> No
     assert record.status == ToolCallStatus.DENIED
 
 
+async def test_executor_permissions_for(tool_ctx: ToolContext) -> None:
+    executor = ToolExecutor([EchoTool()], tool_ctx)
+    assert executor.permissions_for("echo") == {Permission.NETWORK}
+    assert executor.permissions_for("nope") == frozenset()
+
+
 async def test_executor_timeout(tool_ctx: ToolContext) -> None:
     record, result = await ToolExecutor([SlowTool()], tool_ctx).execute(call("slow"))
     assert record.status == ToolCallStatus.TIMEOUT

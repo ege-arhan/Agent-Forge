@@ -22,7 +22,16 @@ __all__ = [
 ]
 
 _PERSIST_ON = frozenset(
-    {"run.started", "plan.created", "step.finished", "evaluation.finished", "run.finished"}
+    {
+        "run.started",
+        "plan.created",
+        "step.finished",
+        "evaluation.finished",
+        "run.finished",
+        "tool.awaiting_approval",
+        "tool.approved",
+        "tool.denied",
+    }
 )
 
 

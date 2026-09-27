@@ -12,6 +12,40 @@ Latest work branch: `claude/clever-bohr-woxzdb` (PR #11), stacked on
 (#9) → `claude/focused-newton-j0z9l1` (#8); merge #8, #9, #10, #11 in that
 order.
 
+Also completed (PR #12, merged into this branch):
+- **T-004b Human approval for sensitive tools** (P2, now done): opt-in per
+  agent (`AgentConfig.approval.require_for` permissions,
+  `approval.timeout_seconds`); the runtime pauses a run
+  (`RunStatus.AWAITING_APPROVAL`) before a tool call needing one of the listed
+  permissions, blocking on an in-process `ApprovalGate` until an operator
+  decides via `GET/POST /runs/{id}/approvals[/{call_id}]`, the run is
+  cancelled, or the timeout elapses (denied by default; denial fails only
+  that tool call, not the run). `agentforge run` (in-process) prompts on a
+  TTY and auto-denies without one, so it can never hang a non-interactive
+  invocation. Dashboard run page shows a "Pending approval" card with
+  Approve/Deny.
+  - Migration `0003` (numbered `0002` on PR #12; renumbered after the
+    stack's `0002`) widens `runs.status` from `String(16)` to `String(24)`:
+    `"awaiting_approval"` (17 chars) didn't fit the original column. Caught by
+    running the migration-drift test and the full e2e suite against a real
+    PostgreSQL 16 instance, not just the SQLite default (SQLite doesn't
+    enforce `VARCHAR` length, so this would have shipped silently broken for
+    Postgres deployments).
+  - A synchronous-decide race (an observer deciding while handling the same
+    `tool.awaiting_approval` event the gate is about to wait on — the
+    non-interactive CLI's auto-deny) was found by manually running
+    `agentforge run` end-to-end, not by the automated tests: the run blocked
+    for the full timeout instead of returning immediately. Fixed by splitting
+    `ApprovalGate.request` into a synchronous `begin()` (register) called
+    before the event is emitted and an async `wait()` called after; added a
+    regression test.
+  - Manually verified against the real dashboard: started the API and web dev
+    servers, created a run through the API with `approval.require_for:
+    [fs:write]`, confirmed the run paused with a working "Pending approval"
+    card (screenshotted), clicked Approve in a real headless-Chromium
+    session, and confirmed the run resumed and succeeded.
+
+
 Open pull requests awaiting the owner:
 - #8 Workflow documentation (`claude/focused-newton-j0z9l1` → `main`).
 - #9 Dogfooding program + agent improvement loop (depends on #8).
@@ -132,7 +166,10 @@ Technical debt:
 - ESLint pinned to 9.x (eslint-plugin-react incompatible with ESLint 10).
 - Vitest cannot be installed with npm 10.9 (resolver crash); web unit tests
   use node:test with type stripping.
-- `service.py` executes work in-process (fine for one node).
+- `service.py` executes work in-process (fine for one node); the approval
+  gate follows the same model (in-process futures, not persisted — a server
+  restart while a run is `awaiting_approval` fails it, like any other
+  in-flight run).
 
 Next priority:
 - Owner actions above, then T-009b real-model dogfooding results and a real

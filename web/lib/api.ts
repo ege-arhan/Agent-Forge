@@ -14,6 +14,7 @@ import type {
   ImprovementCycle,
   Issue,
   Page,
+  PendingApproval,
   ProposedChange,
   ProviderInfo,
   Run,
@@ -146,6 +147,9 @@ export const api = {
     request<Run>("/runs", { method: "POST", body }),
   cancelRun: (id: string) => request<Run>(`/runs/${id}/cancel`, { method: "POST" }),
   rerun: (id: string) => request<Run>(`/runs/${id}/rerun`, { method: "POST" }),
+  pendingApprovals: (id: string) => request<PendingApproval[]>(`/runs/${id}/approvals`),
+  decideApproval: (id: string, callId: string, approved: boolean, reason?: string) =>
+    request<Run>(`/runs/${id}/approvals/${callId}`, { method: "POST", body: { approved, reason } }),
 
   suites: () => request<Suite[]>("/benchmarks/suites"),
   benchmarkRuns: (

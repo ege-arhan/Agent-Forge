@@ -96,10 +96,6 @@ _None open. Continue with P1 in roadmap order._
 ### T-003b Streaming model output
 - **Status:** todo — stream tokens to the SSE channel for live thoughts.
 
-### T-004b Human approval for sensitive tools
-- **Status:** todo — pause a run and wait for approval before tools with
-  write/network permissions (policy per agent).
-
 ### T-015 Distributed execution
 - **Status:** todo — Redis-backed queue + worker process when multi-node
   execution is required.
@@ -133,3 +129,4 @@ _None open. Continue with P1 in roadmap order._
 | T-016 | Dogfooding program | `dogfood/`: 5 agents (coding, debugging, data analysis, security analysis, GitHub issue solver) with real-model and offline configs, 5 suites / 10 tasks with visible, hidden and process checks, `scripts/dogfood.py` (offline/real, credential check), reports per result class; tests prove every task is solvable by the reference agent and fails for an idle agent; OFFLINE results recorded; REAL not run (no credentials) |
 | T-017 | Agent improvement loop | migration 0002 (agent versions, improvement cycles, benchmark provenance + result class), failure analysis, rule-based/manual proposals with path allowlist, apply → new version, evaluate on the baseline suite snapshot, comparison with Wilson verdicts, reject/revert as a new version; CLI, API, dashboard Improvement pages; unit/integration/e2e tests on SQLite and PostgreSQL |
 | T-010b | GitHub API + dashboard | `/github/status`, repo, issues, tasks (background workflow with pre-created run); Repositories and GitHub tasks pages; e2e tested with mocked GitHub + local bare remote |
+| T-004b | Human approval for sensitive tools | Opt-in per agent (`AgentConfig.approval.require_for`/`timeout_seconds`); runtime pauses (`RunStatus.AWAITING_APPROVAL`) before a tool call needing one of the listed permissions and blocks on an in-process `ApprovalGate` until decided, cancelled or timed out (then denied); denial fails only that call, not the run. `GET/POST /runs/{id}/approvals[/{call_id}]`; dashboard run page shows a Pending approval card with Approve/Deny; `agentforge run` prompts on a TTY and auto-denies without one. Migration 0002 widens `runs.status` (`String(16)` → `String(24)`, "awaiting_approval" didn't fit — caught by testing against real PostgreSQL, not just SQLite). Unit + e2e (API, real Postgres) + a regression test for a synchronous-decide race found during manual dashboard verification (screenshots: paused run + Approve card, and the resumed/succeeded run) |

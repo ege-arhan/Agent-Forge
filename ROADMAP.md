@@ -36,3 +36,6 @@ latest session report and `TASKS.md` for task-level detail).
    unconstrained failure (needs budget; T-009b).
 4. Public beta checklist and the `v0.2.0` decision (T-015b); limited real
    results now exist.
+
+Human approval for sensitive tools (T-004b) is done: see `TASKS.md` and the
+"Human approval for sensitive tools" section of `README.md`.

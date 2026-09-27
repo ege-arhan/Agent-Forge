@@ -426,3 +426,35 @@ def test_token_budget_is_its_own_category() -> None:
         run(status=RunStatus.FAILED, error=ErrorInfo(type="token_budget", message="x"))
     )
     assert failure is not None and failure.category == FailureCategory.TOKEN_BUDGET
+
+
+# ------------------------------------------------ improvement x approval gate
+def test_improvements_cannot_change_the_approval_policy() -> None:
+    """The loop may tune an agent, never loosen its human-approval requirement."""
+    config = AgentConfig.model_validate(
+        {
+            "name": "gated",
+            "model": {"provider": "scripted"},
+            "tools": ["filesystem", "terminal"],
+            "approval": {"require_for": ["process:exec"], "timeout_seconds": 60},
+        }
+    )
+    for path, value in [
+        ("approval.require_for", []),
+        ("approval.timeout_seconds", 1),
+        ("approval", {"require_for": []}),
+    ]:
+        with pytest.raises(ImprovementError, match="cannot be changed by an improvement"):
+            prepare_manual(config, [ProposedChange(path=path, value=value)])
+
+    # An allowed change keeps the approval policy exactly as it was.
+    proposal = prepare_manual(
+        config,
+        [
+            ProposedChange(path="limits.max_steps", value=30),
+            ProposedChange(path="tools", value=["filesystem"]),
+        ],
+    )
+    improved = apply_changes(config, proposal.changes)
+    assert improved.limits.max_steps == 30
+    assert improved.approval == config.approval

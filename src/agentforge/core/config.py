@@ -142,6 +142,49 @@ class SandboxConfig(_Strict):
         return value
 
 
+_KNOWN_PERMISSIONS = frozenset(
+    {
+        "fs:read",
+        "fs:write",
+        "process:exec",
+        "network",
+        "git:read",
+        "git:write",
+        "github:read",
+        "github:write",
+        "memory",
+    }
+)  # mirrors agentforge.tools.base.Permission values; duplicated here so core does not
+# depend on tools (tools already depends on core). A test asserts the two stay in sync.
+
+
+class ApprovalPolicy(_Strict):
+    """Pause a run and wait for a human decision before tools that need it."""
+
+    require_for: frozenset[str] = Field(
+        default_factory=frozenset,
+        description="Tool permissions that require approval before use, e.g. 'fs:write', "
+        "'network', 'process:exec', 'git:write', 'github:write'.",
+    )
+    timeout_seconds: float = Field(
+        default=3600.0,
+        gt=0,
+        le=86_400,
+        description="How long to wait for a decision before denying the call and continuing.",
+    )
+
+    @field_validator("require_for")
+    @classmethod
+    def _validate_permissions(cls, value: frozenset[str]) -> frozenset[str]:
+        unknown = value - _KNOWN_PERMISSIONS
+        if unknown:
+            raise ValueError(
+                f"unknown permission(s) for approval.require_for: {sorted(unknown)}; "
+                f"valid values are {sorted(_KNOWN_PERMISSIONS)}"
+            )
+        return value
+
+
 class AgentConfig(_Strict):
     """Complete, serialisable description of an agent."""
 
@@ -164,6 +207,7 @@ class AgentConfig(_Strict):
     planner: PlannerConfig = Field(default_factory=PlannerConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
+    approval: ApprovalPolicy = Field(default_factory=ApprovalPolicy)
     labels: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("name")

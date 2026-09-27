@@ -121,6 +121,14 @@ All notable changes are documented here. The format follows
   inconclusive; not evidence of model learning).
 - `AGENTFORGE_BENCHMARKS_DIR` accepts several directories (default
   `examples/benchmarks:dogfood/benchmarks`).
+- Human approval gate for sensitive tools: `AgentConfig.approval.require_for`
+  lists permissions (e.g. `process:exec`, `network`, `git:write`) that pause a
+  run (`awaiting_approval`) before the matching tool call executes, until an
+  operator approves or denies it via `GET/POST /runs/{id}/approvals[/{call_id}]`
+  (or, for `agentforge run`, an interactive terminal prompt), the run is
+  cancelled, or `approval.timeout_seconds` elapses (denied by default). A
+  denial fails only that tool call. Dashboard run page shows a Pending
+  approval card.
 
 ### Changed
 - Development workflow: `main` is the stable, always-releasable branch; all

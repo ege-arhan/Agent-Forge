@@ -300,12 +300,18 @@ class RunRepository:
         return RunPage(items=[_run(r) for r in rows], total=total)
 
     async def mark_interrupted(self) -> int:
-        """Fail runs left pending/running by a previous process (crash/restart)."""
+        """Fail runs left pending, running or awaiting approval by a previous process crash."""
         async with self.db.transaction() as session:
             rows = (
                 await session.scalars(
                     select(RunRow).where(
-                        RunRow.status.in_([RunStatus.PENDING.value, RunStatus.RUNNING.value])
+                        RunRow.status.in_(
+                            [
+                                RunStatus.PENDING.value,
+                                RunStatus.RUNNING.value,
+                                RunStatus.AWAITING_APPROVAL.value,
+                            ]
+                        )
                     )
                 )
             ).all()
@@ -375,7 +381,11 @@ class RunRepository:
         return {
             "runs_by_status": by_status,
             "total_runs": sum(by_status.values()),
-            "active_runs": by_status.get("running", 0) + by_status.get("pending", 0),
+            "active_runs": (
+                by_status.get("running", 0)
+                + by_status.get("pending", 0)
+                + by_status.get("awaiting_approval", 0)
+            ),
             "completion_rate": (
                 round(by_status.get("succeeded", 0) / finished, 4) if finished else None
             ),

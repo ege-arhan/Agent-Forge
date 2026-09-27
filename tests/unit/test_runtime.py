@@ -5,7 +5,13 @@ from typing import Any
 
 import pytest
 
-from agentforge.core.config import PlannerConfig, PlannerStrategy, RetryPolicy, RunLimits
+from agentforge.core.config import (
+    ApprovalPolicy,
+    PlannerConfig,
+    PlannerStrategy,
+    RetryPolicy,
+    RunLimits,
+)
 from agentforge.core.errors import LLMError
 from agentforge.core.models import RunStatus, StepKind, ToolCallStatus
 from agentforge.evaluation.base import EvaluatorSpec
@@ -210,6 +216,117 @@ async def test_tool_call_budget(settings: Settings) -> None:
     )
     statuses = [c.status for c in run.steps[0].tool_calls]
     assert statuses == [ToolCallStatus.SUCCESS, ToolCallStatus.SUCCESS, ToolCallStatus.DENIED]
+
+
+async def _wait_for_status(prepared: Any, status: RunStatus, timeout: float = 5.0) -> None:
+    deadline = asyncio.get_event_loop().time() + timeout
+    while prepared.run.status != status:
+        if asyncio.get_event_loop().time() > deadline:
+            raise AssertionError(f"run never reached {status}; still {prepared.run.status}")
+        await asyncio.sleep(0.01)
+
+
+async def test_approval_pauses_and_approve_resumes(settings: Settings) -> None:
+    config = scripted_config(
+        write_turns(), approval=ApprovalPolicy(require_for={"fs:write"}, timeout_seconds=5.0)
+    )
+    recorder = Recorder()
+    prepared = prepare_run(config, "write a file", settings=settings, observers=[recorder])
+    task = asyncio.create_task(prepared.execute())
+    await _wait_for_status(prepared, RunStatus.AWAITING_APPROVAL)
+    pending = prepared.runtime.approval.pending
+    assert len(pending) == 1
+    assert pending[0].tool == "write_file"
+    assert pending[0].permissions == {"fs:write"}
+    assert prepared.runtime.approval.decide(pending[0].call_id, True)
+    run = await task
+    assert run.status == RunStatus.SUCCEEDED
+    assert run.steps[0].tool_calls[0].status == ToolCallStatus.SUCCESS
+    assert "tool.awaiting_approval" in recorder.types
+    assert "tool.approved" in recorder.types
+    assert not prepared.runtime.approval.pending
+
+
+class _SyncDecider:
+    """Decides synchronously while handling the awaiting-approval event itself.
+
+    Mirrors the CLI's non-interactive auto-deny, which reacts to the same event
+    the runtime emits before it starts waiting.
+    """
+
+    def __init__(self, runtime: Any) -> None:
+        self.runtime = runtime
+
+    async def on_event(self, event: Any, run: Any) -> None:
+        if event.type == "tool.awaiting_approval":
+            self.runtime.approval.decide(event.data["call_id"], True)
+
+
+async def test_approval_decided_synchronously_in_the_awaiting_event_is_not_lost(
+    settings: Settings,
+) -> None:
+    # Regression: begin() must register the pending call before the event is
+    # emitted, or a decision made while handling that same event is lost and
+    # the run blocks for the full timeout instead of resuming immediately.
+    config = scripted_config(
+        write_turns(), approval=ApprovalPolicy(require_for={"fs:write"}, timeout_seconds=30.0)
+    )
+    prepared = prepare_run(config, "write a file", settings=settings)
+    prepared.runtime.deps.observers.append(_SyncDecider(prepared.runtime))
+    loop = asyncio.get_event_loop()
+    started = loop.time()
+    run = await prepared.execute()
+    assert loop.time() - started < 5.0
+    assert run.status == RunStatus.SUCCEEDED
+    assert run.steps[0].tool_calls[0].status == ToolCallStatus.SUCCESS
+
+
+async def test_approval_deny_fails_the_tool_call_but_run_continues(settings: Settings) -> None:
+    config = scripted_config(write_turns(), approval=ApprovalPolicy(require_for={"fs:write"}))
+    recorder = Recorder()
+    prepared = prepare_run(config, "write a file", settings=settings, observers=[recorder])
+    task = asyncio.create_task(prepared.execute())
+    await _wait_for_status(prepared, RunStatus.AWAITING_APPROVAL)
+    call_id = prepared.runtime.approval.pending[0].call_id
+    assert prepared.runtime.approval.decide(call_id, False, "not now")
+    run = await task
+    call = run.steps[0].tool_calls[0]
+    assert call.status == ToolCallStatus.DENIED
+    assert call.error is not None and "not now" in call.error
+    assert "tool.denied" in recorder.types
+    # A second decision for the same (already-resolved) call is a no-op.
+    assert not prepared.runtime.approval.decide(call_id, True)
+
+
+async def test_approval_timeout_denies_and_run_continues(settings: Settings) -> None:
+    config = scripted_config(
+        write_turns(), approval=ApprovalPolicy(require_for={"fs:write"}, timeout_seconds=0.05)
+    )
+    run = await run_agent(config, "write a file", settings=settings)
+    assert run.status == RunStatus.SUCCEEDED
+    call = run.steps[0].tool_calls[0]
+    assert call.status == ToolCallStatus.DENIED
+    assert call.error is not None and "no approval decision" in call.error
+
+
+async def test_cancel_while_awaiting_approval(settings: Settings) -> None:
+    config = scripted_config(
+        write_turns(), approval=ApprovalPolicy(require_for={"fs:write"}, timeout_seconds=30.0)
+    )
+    prepared = prepare_run(config, "write a file", settings=settings)
+    task = asyncio.create_task(prepared.execute())
+    await _wait_for_status(prepared, RunStatus.AWAITING_APPROVAL)
+    prepared.runtime.cancel()
+    run = await task
+    assert run.status == RunStatus.CANCELLED
+
+
+async def test_tools_without_required_permissions_never_pause(settings: Settings) -> None:
+    turns = [{"tool_calls": [{"name": "list_directory", "arguments": {}}]}, {"text": "done"}]
+    config = scripted_config(turns, approval=ApprovalPolicy(require_for={"fs:write"}))
+    run = await run_agent(config, "g", settings=settings)
+    assert run.status == RunStatus.SUCCEEDED
+    assert run.steps[0].tool_calls[0].status == ToolCallStatus.SUCCESS
 
 
 async def test_plan_execute_strategy_records_plan(settings: Settings) -> None:

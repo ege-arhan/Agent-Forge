@@ -6,6 +6,7 @@ import {
   Clock,
   LoaderCircle,
   ShieldAlert,
+  ShieldQuestion,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
@@ -25,6 +26,7 @@ interface StatusSpec {
 const RUN_STATUS: Record<RunStatus, StatusSpec> = {
   pending: { label: "Pending", icon: CircleDashed, iconClass: "text-muted" },
   running: { label: "Running", icon: LoaderCircle, iconClass: "text-series-1", spin: true },
+  awaiting_approval: { label: "Awaiting approval", icon: ShieldQuestion, iconClass: "text-warning" },
   succeeded: { label: "Succeeded", icon: CircleCheck, iconClass: "text-good" },
   failed: { label: "Failed", icon: CircleX, iconClass: "text-critical" },
   cancelled: { label: "Cancelled", icon: Ban, iconClass: "text-muted" },
