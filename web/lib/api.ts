@@ -10,6 +10,7 @@ import type {
   EvaluatorInfo,
   Experiment,
   FailureAnalysis,
+  GateResult,
   Health,
   ImprovementCycle,
   Issue,
@@ -164,6 +165,8 @@ export const api = {
   benchmarkAnalysis: (id: string) => request<FailureAnalysis>(`/benchmarks/runs/${id}/analysis`),
   compareBenchmarks: (baseline: string, candidate: string) =>
     request<BenchmarkComparison>("/benchmarks/compare", { query: { baseline, candidate } }),
+  benchmarkGate: (baseline: string, candidate: string) =>
+    request<GateResult>("/benchmarks/gate", { query: { baseline, candidate } }),
   benchmarkRun: (id: string) => request<BenchmarkRun>(`/benchmarks/runs/${id}`),
   startBenchmark: (body: { suite_id: string; agent_id: string; repeats?: number; task_ids?: string[] }) =>
     request<BenchmarkRun>("/benchmarks/runs", { method: "POST", body }),

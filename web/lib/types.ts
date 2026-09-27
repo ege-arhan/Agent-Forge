@@ -440,6 +440,34 @@ export interface ImprovementProposal {
 
 export type Verdict = "improved" | "regressed" | "unchanged" | "inconclusive" | "not_comparable";
 
+/** CI regression gate (`agentforge bench gate`, `GET /benchmarks/gate`). */
+export type GateVerdict = "pass" | "regression" | "error";
+
+export interface GateResult {
+  verdict: GateVerdict;
+  exit_code: number;
+  suite_id: string | null;
+  suite_version: string | null;
+  result_class: string | null;
+  thresholds: {
+    max_pass_rate_drop: number;
+    max_task_pass_rate_drop: number;
+    max_mean_score_drop: number;
+    min_pass_rate: number | null;
+  };
+  tasks: {
+    task_id: string;
+    baseline_passed: number;
+    baseline_runs: number;
+    candidate_passed: number;
+    candidate_runs: number;
+    delta: number;
+  }[];
+  errors: string[];
+  regressions: string[];
+  notes: string[];
+}
+
 export interface ComparisonSide {
   benchmark_run_id: string;
   agent_name: string;

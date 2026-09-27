@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 
 from agentforge.api.deps import ServiceDep, audit, resolve_config
 from agentforge.api.schemas import BenchmarkRunCreate, ExperimentCreate, SuiteInfo
+from agentforge.benchmarks.gate import GateResult, GateThresholds, evaluate_gate
 from agentforge.benchmarks.report import BenchmarkReport, build_report
 from agentforge.benchmarks.runner import BenchmarkRun, ResultClass
 from agentforge.benchmarks.spec import BenchmarkSuite, discover_suites
@@ -122,6 +123,32 @@ async def benchmark_report(bench_id: str, service: ServiceDep) -> BenchmarkRepor
     bench = await service.recorder.benchmarks.get(bench_id)
     page = await service.runs.list(benchmark_run_id=bench.id, limit=len(bench.results) + 50)
     return build_report(bench, {run.id: run for run in page.items})
+
+
+@router.get("/benchmarks/gate", response_model=GateResult)
+async def benchmark_gate(
+    *,
+    baseline: str,
+    candidate: str,
+    service: ServiceDep,
+    max_pass_rate_drop: Annotated[float, Query(ge=0.0, le=1.0)] = 0.0,
+    max_task_pass_rate_drop: Annotated[float, Query(ge=0.0, le=1.0)] = 0.0,
+    max_mean_score_drop: Annotated[float, Query(ge=0.0, le=1.0)] = 0.0,
+    min_pass_rate: Annotated[float | None, Query(ge=0.0, le=1.0)] = None,
+) -> GateResult:
+    """CI regression gate between two stored runs (same rules as `agentforge bench gate`)."""
+    reports = []
+    for bench_id in (baseline, candidate):
+        bench = await service.recorder.benchmarks.get(bench_id)
+        page = await service.runs.list(benchmark_run_id=bench.id, limit=len(bench.results) + 50)
+        reports.append(build_report(bench, {run.id: run for run in page.items}))
+    thresholds = GateThresholds(
+        max_pass_rate_drop=max_pass_rate_drop,
+        max_task_pass_rate_drop=max_task_pass_rate_drop,
+        max_mean_score_drop=max_mean_score_drop,
+        min_pass_rate=min_pass_rate,
+    )
+    return evaluate_gate(reports[0], reports[1], thresholds)
 
 
 @router.get("/benchmarks/compare", response_model=BenchmarkComparison)

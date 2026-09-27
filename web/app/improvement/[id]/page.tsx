@@ -23,6 +23,7 @@ import {
   cycleActions,
   describeChange,
   formatValue,
+  gateDisplay,
   resultClassOf,
   splitByResultClass,
 } from "@/lib/improvement";
@@ -185,6 +186,36 @@ function AnalysisPanel({
   );
 }
 
+function GatePanel({ baseline, candidate }: { baseline: string; candidate: string }) {
+  const gate = useApi(() => api.benchmarkGate(baseline, candidate), [baseline, candidate]);
+  if (gate.error) return <p className="text-xs text-critical">Regression gate: {gate.error}</p>;
+  if (!gate.data) return <Loading />;
+  const shown = gateDisplay(gate.data.verdict);
+  const toneClass = { good: "text-good", critical: "text-critical", warning: "text-warning" }[shown.tone];
+  const items = [...gate.data.errors, ...gate.data.regressions];
+  return (
+    <div>
+      <h3 className="mb-1 text-xs font-medium text-ink-2">
+        Regression gate (default thresholds: no drop allowed) —{" "}
+        <span className={toneClass}>{shown.label}</span>
+        <span className="text-muted"> · exit {gate.data.exit_code}</span>
+      </h3>
+      {items.length === 0 ? (
+        <p className="text-xs text-muted">No threshold violated.</p>
+      ) : (
+        <ul className="list-disc space-y-0.5 pl-4 text-xs text-ink-2">
+          {items.map((item, i) => (
+            <li key={i}>{item}</li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-1 text-xs text-muted">
+        Same rules as <span className="font-mono">agentforge bench gate</span> in CI.
+      </p>
+    </div>
+  );
+}
+
 function CycleDetails({ cycle, reload }: { cycle: ImprovementCycle; reload: () => void }) {
   const action = useAction(reload);
   const allowed = cycleActions(cycle);
@@ -227,6 +258,10 @@ function CycleDetails({ cycle, reload }: { cycle: ImprovementCycle; reload: () =
         ))}
         {cycle.notes ? <p className="mt-1 text-xs text-ink-2">{cycle.notes}</p> : null}
       </div>
+
+      {cycle.status === "evaluated" && cycle.candidate_benchmark_run_id ? (
+        <GatePanel baseline={cycle.baseline_benchmark_run_id} candidate={cycle.candidate_benchmark_run_id} />
+      ) : null}
 
       {c ? (
         <div>
