@@ -1,10 +1,11 @@
 # Real-model benchmarks: LIMITED REAL-MODEL VALIDATION and improvement experiment
 
 > **Status (2026-09-27).** Section 1: RUN — 10 task executions (5 models × 2
-> tasks), all passed. Sections 3–9: the hard suite is built and validated
-> OFFLINE; the real-model improvement experiment (sections 4–9) is **not run
-> yet**. All REAL MODEL results use Provider: OpenCode Go. Small samples, one
-> run per task: no rankings, no statistics.
+> tasks), all passed. Section 3: the hard suite, validated OFFLINE. Sections
+> 4–9: the real-model improvement experiment ran v1 only — `deepseek-v4.1-flash`
+> passed both hard tasks, so **no improvement was attempted or claimed** and
+> v2 was not run (2 task executions). All REAL MODEL results use Provider:
+> OpenCode Go. Small samples, one run per task: no rankings, no statistics.
 
 OFFLINE RESULTS (scripted reference agents; they validate tasks and pipeline,
 not any model) and REAL-MODEL RESULTS are stored and reported separately:
@@ -179,9 +180,68 @@ the purpose is to exercise the improvement loop, not to compare providers).
 - Authentication: `--auth proxy` — the environment's API Credential is
   injected by the egress proxy; the key is not in the process, not in files.
 
-## 5.–9. v1 results, failure analysis, proposal, v2 results, comparison
+## 5. v1 results — REAL MODEL · Provider: OpenCode Go · Model: DeepSeek V4.1 Flash (`deepseek-v4.1-flash`)
 
-**Not run yet.**
+| Item | Value |
+|---|---|
+| Date | 2026-09-27, 02:03:38 – 02:06:03 UTC |
+| AgentForge | 0.1.0, commit `f8ae4e4` (branch `claude/clever-bohr-woxzdb`) |
+| Command | `scripts/real_improvement_experiment.py --auth proxy --sandbox docker` |
+| Agent | `dogfood-engineer-deepseek` v1 (engineer.yaml with the model swapped in; `llm_max_attempts: 1`, no evaluation retries, token budget 150 000) |
+| Authentication | proxy — credential injected by the environment's egress proxy; no key in the process; worked on the first call |
+| Task executions | **2** (limit 4); sequential; no retries |
+| Model calls | 28 (one per agent step) |
+| Sandbox | Docker `python:3.12`, network none |
+| Secret scan | clean (stored results, database, log) |
+| Stored | `dogfood/results/real/improvement-20260927T020338Z/summary.{json,md}`; report `dogfood/results/real/dogfood-hard-v1/`; agent v1, benchmark `bench_01a0e09a87a27e1384bad227` (result class `real`) and both runs in the experiment database |
+
+| Task | Success | Tests | Score | Tool calls (errors) | Tool success | Steps | Retries | Duration (s) | Avg latency per model call (ms) | Tokens in / out / total | Cost |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `coupons-feature` | yes | yes | 1.0 | 23 (0) | 1.0 | 15 | 0 | 70.556 | 4424 | 90715 / 7908 / 98623 | NOT AVAILABLE |
+| `ledger-root-causes` | yes | yes | 1.0 | 19 (0) | 1.0 | 13 | 0 | 73.994 | 5340 | 56239 / 7622 / 63861 | NOT AVAILABLE |
+
+Every check passed, the hidden ones included: `coupons-feature` — finished,
+unit_tests, existing_tests_untouched, coupon_tests_added, hidden_api,
+hidden_cli, ran_commands; `ledger-root-causes` — finished, unit_tests,
+report_correct, existing_tests_kept, data_and_main_untouched,
+hidden_edge_cases, regression_test_per_root_cause (its regression tests failed
+on all three mutant parsers), names_both_causes. No timeout, no step-limit or
+token-budget hit, no provider error.
+
+## 6. Failure analysis
+
+AgentForge's failure analysis of the v1 benchmark: 2 runs, 2 passed, **no
+failure categories, no tool issues**. There is nothing to classify.
+
+## 7. Improvement proposal
+
+**None.** The loop derives proposals from failed runs; with no failure there
+is no evidence for a change. Following the experiment's rule, no failure was
+invented and no improvement cycle was created.
+
+## 8. v2 results
+
+**Not run.** v2 would have been derived from v1's failures; there were none.
+The two remaining executions of the budget were not used.
+
+## 9. v1 vs v2 comparison
+
+**No comparison and no improvement claim.** What the data does show:
+
+- The hard tasks demanded more than the first benchmark: 15 and 13 steps
+  (first benchmark, same model: 9 and 6), 98 623 and 63 861 tokens (20 049 and
+  12 771), 23 and 19 tool calls — but `deepseek-v4.1-flash` still solved both,
+  including the hidden checks designed to catch plausible wrong solutions.
+- So `dogfood-hard` v1 is still **not difficult enough for this model** to
+  demonstrate the improvement loop with real failures. The loop mechanics
+  (v1 → analysis → proposal → v2 → comparison) are exercised end to end only
+  against the fake endpoint in `tests/e2e/test_real_improvement_experiment.py`
+  and by the OFFLINE demo; they have **not** been demonstrated with a real
+  model.
+- Possible next steps (not done): tasks that require longer plans than the
+  20-step limit comfortably allows, larger codebases where the relevant code
+  must be found, or ambiguous specifications; or a weaker/cheaper
+  configuration as the baseline. Any such run needs a new budget approval.
 
 ## 10. Limitations
 
@@ -201,9 +261,11 @@ Initial validation (section 1):
 
 Improvement experiment (sections 4–9):
 
-- One model, two tasks, one run per version: a before/after observation for
-  this configuration, not evidence of a general improvement; the comparison's
-  intervals cannot establish significance with one run per task.
+- One model, two tasks, one run: it shows that this configuration solved these
+  two tasks once; not how often it would, and nothing about other models or
+  the two hard tasks that were not run with a real model.
+- No v2 was run, so nothing can be said about the effect of the improvement
+  loop on a real model.
 - The rule-based proposer only changes configuration and prompt guidance.
 
 ## Appendix A — Validation design (section 1)

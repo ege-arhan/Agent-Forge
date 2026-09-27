@@ -1,0 +1,277 @@
+{
+  "experiment": "Limited Real-Model Improvement Experiment",
+  "result_class": "real",
+  "provider": "OpenCode Go",
+  "provider_id": "opencode-go",
+  "model": "DeepSeek V4.1 Flash",
+  "model_id": "deepseek-v4.1-flash",
+  "base_url": "https://opencode.ai/zen/go/v1",
+  "auth_mode": "proxy (credential injected by the egress proxy; no key in this process)",
+  "agentforge_version": "0.1.0",
+  "commit": "f8ae4e4",
+  "started_at": "2026-09-27T02:03:38+00:00",
+  "finished_at": "2026-09-27T02:06:03+00:00",
+  "suite": "dogfood/benchmarks/hard.yaml",
+  "tasks": [
+    "coupons-feature",
+    "ledger-root-causes"
+  ],
+  "max_executions": 4,
+  "executions": 2,
+  "token_budget": 150000,
+  "sandbox": "docker (python:3.12, network none)",
+  "secret_scan": "clean",
+  "agent_id": "agt_01a0e09a879bede7b2cffc46",
+  "v1_version": 1,
+  "v1_benchmark_run_id": "bench_01a0e09a87a27e1384bad227",
+  "analysis": {
+    "benchmark_run_id": "bench_01a0e09a87a27e1384bad227",
+    "suite_id": "dogfood-hard",
+    "suite_version": "1",
+    "result_class": "real",
+    "agent_name": "dogfood-engineer-deepseek",
+    "agent_id": "agt_01a0e09a879bede7b2cffc46",
+    "agent_version": 1,
+    "runs": 2,
+    "passed": 2,
+    "failed": 0,
+    "categories": {},
+    "tool_issues": {},
+    "tasks": [
+      {
+        "task_id": "coupons-feature",
+        "runs": 1,
+        "passed": 1,
+        "categories": {}
+      },
+      {
+        "task_id": "ledger-root-causes",
+        "runs": 1,
+        "passed": 1,
+        "categories": {}
+      }
+    ],
+    "failures": []
+  },
+  "stopped": "v1 passed every task: the tasks were not difficult enough for this model to show an improvement, so no improvement was attempted",
+  "v1_rows": [
+    {
+      "model": "DeepSeek V4.1 Flash \u00b7 agent v1",
+      "model_id": "deepseek-v4.1-flash",
+      "phase": "v1",
+      "suite": "dogfood/benchmarks/hard.yaml",
+      "task": "coupons-feature",
+      "api_model": "deepseek-v4.1-flash",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e09a87a27e1384bad227",
+      "run_id": "run_01a0e09a87bcac580d64cb42",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 23,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 15,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 70.556,
+      "input_tokens": 90715,
+      "output_tokens": 7908,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 98623,
+      "llm_calls": 15,
+      "avg_llm_latency_ms": 4424.066666666667,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "unit_tests",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "existing_tests_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "coupon_tests_added",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_api",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_cli",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "ran_commands",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": "run_command called 5 time(s)"
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "read_file": {
+          "success": 10
+        },
+        "run_command": {
+          "success": 5
+        },
+        "write_file": {
+          "success": 4
+        },
+        "edit_file": {
+          "success": 3
+        }
+      }
+    },
+    {
+      "model": "DeepSeek V4.1 Flash \u00b7 agent v1",
+      "model_id": "deepseek-v4.1-flash",
+      "phase": "v1",
+      "suite": "dogfood/benchmarks/hard.yaml",
+      "task": "ledger-root-causes",
+      "api_model": "deepseek-v4.1-flash",
+      "executed": true,
+      "benchmark_run_id": "bench_01a0e09a87a27e1384bad227",
+      "run_id": "run_01a0e09b9cd74dabdee8667f",
+      "status": "succeeded",
+      "task_success": true,
+      "test_success": true,
+      "score": 1.0,
+      "tool_calls": 19,
+      "tool_errors": 0,
+      "tool_success_rate": 1.0,
+      "steps": 13,
+      "llm_retries": 0,
+      "evaluation_retries": 0,
+      "duration_seconds": 73.994,
+      "input_tokens": 56239,
+      "output_tokens": 7622,
+      "estimated_cost_usd": null,
+      "actual_cost_usd": null,
+      "timeout": false,
+      "step_limit_hit": false,
+      "failure_category": null,
+      "agentforge_category": null,
+      "failure_reason": null,
+      "auth_failed": false,
+      "total_tokens": 63861,
+      "llm_calls": 13,
+      "avg_llm_latency_ms": 5339.923076923077,
+      "token_limit_hit": false,
+      "provider_error": null,
+      "checks": [
+        {
+          "name": "finished",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "unit_tests",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "report_correct",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "existing_tests_kept",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": ""
+        },
+        {
+          "name": "data_and_main_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "hidden_edge_cases",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "regression_test_per_root_cause",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
+          "name": "names_both_causes",
+          "passed": true,
+          "score": 1.0,
+          "required": false,
+          "details": ""
+        }
+      ],
+      "tool_usage": {
+        "list_directory": {
+          "success": 1
+        },
+        "read_file": {
+          "success": 7
+        },
+        "run_command": {
+          "success": 8
+        },
+        "write_file": {
+          "success": 2
+        },
+        "edit_file": {
+          "success": 1
+        }
+      }
+    }
+  ],
+  "v2_rows": []
+}

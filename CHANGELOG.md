@@ -109,7 +109,9 @@ All notable changes are documented here. The format follows
   plausible wrong solutions fail the intended checks.
 - `scripts/real_improvement_experiment.py`: one model, two hard tasks, v1 →
   analysis → proposal → v2 → comparison through the improvement loop, capped
-  at 4 task executions, no retries.
+  at 4 task executions, no retries. Run with `deepseek-v4.1-flash`: v1 passed
+  both tasks, so no improvement was attempted (REAL results in
+  `dogfood/results/real/`).
 - `AGENTFORGE_BENCHMARKS_DIR` accepts several directories (default
   `examples/benchmarks:dogfood/benchmarks`).
 

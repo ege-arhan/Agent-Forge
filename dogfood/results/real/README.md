@@ -10,4 +10,12 @@ report per task in `dogfood-coding-v1/` and `dogfood-debugging-v1/`.
 Method, results and limitations:
 [docs/REAL_MODEL_BENCHMARK.md](../../../docs/REAL_MODEL_BENCHMARK.md).
 
+## LIMITED REAL-MODEL IMPROVEMENT EXPERIMENT (2026-09-27)
+
+Provider: OpenCode Go, model `deepseek-v4.1-flash`, agent
+`dogfood-engineer-deepseek` v1 on two `dogfood-hard` tasks: both passed, so no
+improvement was attempted and there is no v2.
+`improvement-20260927T020338Z/summary.{json,md}` and
+`dogfood-hard-v1/`.
+
 Reports are named `<suite>-v<version>/<timestamp>-<suite>-<benchmark-id>.{json,md}`.

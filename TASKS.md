@@ -47,7 +47,10 @@ _None open. Continue with P1 in roadmap order._
 - **2026-09-27:** first run too easy to differentiate (all 10 passed). Added
   the hard suite `dogfood-hard` v1 (4 tasks, OFFLINE-validated) and the
   limited real improvement experiment (`scripts/real_improvement_experiment.py`,
-  `deepseek-v4.1-flash`, 2 tasks, ≤ 4 executions).
+  `deepseek-v4.1-flash`, 2 tasks, ≤ 4 executions). Run: v1 passed both tasks
+  (2 executions), so no improvement was attempted. Remaining: harder tasks (or
+  a weaker baseline) before the loop can be shown on a real model; needs a new
+  budget approval.
 
 ### T-018 Scheduled routine can access the repository
 - **Status:** blocked (owner action; see DEVELOPMENT.md "Scheduled autonomous

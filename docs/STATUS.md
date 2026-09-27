@@ -48,7 +48,12 @@ executions, 59 model calls, no retries, Docker sandbox. All 10 passed (score
 sample, no ranking). Because every run passed, the hard suite
 `dogfood-hard` v1 was added (4 tasks, OFFLINE: reference 4/4, idle 0/4, wrong
 solutions rejected by the intended checks) together with a limited real
-improvement experiment (one model, two tasks, ≤ 4 executions). Earlier the same day:
+improvement experiment (one model, two tasks, ≤ 4 executions). **Run
+2026-09-27** (commit `f8ae4e4`, proxy-injected credential): `deepseek-v4.1-flash`
+v1 passed both `coupons-feature` and `ledger-root-causes` with every hidden
+check, so no improvement was proposed, v2 was not run and no improvement is
+claimed (2 task executions, 28 model calls). The hard suite is still too easy
+for this model; the loop has not been demonstrated on a real model. Earlier the same day:
 `opencode.ai` is reachable and `GET /zen/go/v1/models` lists all five models.
 One manual smoke request returned `HTTP 400 MissingSessionID` (no tokens, no
 result). Fixed on `claude/clever-bohr-woxzdb` (stacked on
