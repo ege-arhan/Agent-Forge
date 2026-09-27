@@ -1,0 +1,427 @@
+{
+  "agent": {
+    "id": "agt_01a0e2074835466a7b2a9cd0",
+    "name": "dogfood-engineer-deepseek-constrained",
+    "version": 2
+  },
+  "versions": [
+    {
+      "agent_id": "agt_01a0e2074835466a7b2a9cd0",
+      "version": 2,
+      "config": {
+        "name": "dogfood-engineer-deepseek-constrained",
+        "description": "General software engineering on multi-file code, bugs and git histories.",
+        "model": {
+          "provider": "opencode-go",
+          "model": "deepseek-v4.1-flash",
+          "temperature": null,
+          "max_tokens": 8000,
+          "base_url": "https://opencode.ai/zen/go/v1",
+          "api_key_env": null,
+          "options": {
+            "auth": "proxy"
+          }
+        },
+        "system_prompt": "You are a software engineer working in a sandboxed workspace.\nRead the relevant code and tests before changing anything. Make the smallest\ncorrect change that satisfies the specification, run the tests to verify it,\nand finish with a short summary of what you changed and how you verified it.\n",
+        "tools": [
+          "filesystem",
+          "terminal",
+          "git"
+        ],
+        "tool_settings": {},
+        "limits": {
+          "max_steps": 25,
+          "timeout_seconds": 600.0,
+          "max_tool_calls": 100,
+          "max_consecutive_tool_errors": 5,
+          "max_total_tokens": 150000,
+          "max_output_chars": 20000
+        },
+        "retry": {
+          "llm_max_attempts": 1,
+          "backoff_initial_seconds": 1.0,
+          "backoff_max_seconds": 30.0,
+          "backoff_multiplier": 2.0,
+          "evaluation_retries": 0
+        },
+        "planner": {
+          "strategy": "react",
+          "max_plan_steps": 10
+        },
+        "memory": {
+          "enabled": true,
+          "persist": false,
+          "recall_limit": 5,
+          "keep_recent_messages": 40
+        },
+        "sandbox": {
+          "kind": "docker",
+          "image": "python:3.12",
+          "network": "none",
+          "runtime": null,
+          "proxy": null,
+          "memory": "512m",
+          "cpus": 1.0,
+          "pids_limit": 256,
+          "command_timeout_seconds": 120.0
+        },
+        "labels": {
+          "program": "dogfood",
+          "role": "engineer",
+          "experiment": "limited-real-improvement"
+        }
+      },
+      "source": "improvement",
+      "change_summary": "limits.max_steps: 8 -> 25",
+      "improvement_id": "imp_01a0e2081cd461d9a7b0655f",
+      "parent_version": 1,
+      "created_at": "2026-09-27T08:42:57.638725Z"
+    },
+    {
+      "agent_id": "agt_01a0e2074835466a7b2a9cd0",
+      "version": 1,
+      "config": {
+        "name": "dogfood-engineer-deepseek-constrained",
+        "description": "General software engineering on multi-file code, bugs and git histories.",
+        "model": {
+          "provider": "opencode-go",
+          "model": "deepseek-v4.1-flash",
+          "temperature": null,
+          "max_tokens": 8000,
+          "base_url": "https://opencode.ai/zen/go/v1",
+          "api_key_env": null,
+          "options": {
+            "auth": "proxy"
+          }
+        },
+        "system_prompt": "You are a software engineer working in a sandboxed workspace.\nRead the relevant code and tests before changing anything. Make the smallest\ncorrect change that satisfies the specification, run the tests to verify it,\nand finish with a short summary of what you changed and how you verified it.\n",
+        "tools": [
+          "filesystem",
+          "terminal",
+          "git"
+        ],
+        "tool_settings": {},
+        "limits": {
+          "max_steps": 8,
+          "timeout_seconds": 600.0,
+          "max_tool_calls": 100,
+          "max_consecutive_tool_errors": 5,
+          "max_total_tokens": 150000,
+          "max_output_chars": 20000
+        },
+        "retry": {
+          "llm_max_attempts": 1,
+          "backoff_initial_seconds": 1.0,
+          "backoff_max_seconds": 30.0,
+          "backoff_multiplier": 2.0,
+          "evaluation_retries": 0
+        },
+        "planner": {
+          "strategy": "react",
+          "max_plan_steps": 10
+        },
+        "memory": {
+          "enabled": true,
+          "persist": false,
+          "recall_limit": 5,
+          "keep_recent_messages": 40
+        },
+        "sandbox": {
+          "kind": "docker",
+          "image": "python:3.12",
+          "network": "none",
+          "runtime": null,
+          "proxy": null,
+          "memory": "512m",
+          "cpus": 1.0,
+          "pids_limit": 256,
+          "command_timeout_seconds": 120.0
+        },
+        "labels": {
+          "program": "dogfood",
+          "role": "engineer",
+          "experiment": "limited-real-improvement"
+        }
+      },
+      "source": "created",
+      "change_summary": "baseline (v1)",
+      "improvement_id": null,
+      "parent_version": null,
+      "created_at": "2026-09-27T08:42:03.189108Z"
+    }
+  ],
+  "benchmarks": [
+    {
+      "id": "bench_01a0e2081cf45710e1ea0c56",
+      "suite_id": "dogfood-hard",
+      "suite_name": "Dogfood: hard engineering tasks",
+      "agent_name": "dogfood-engineer-deepseek-constrained",
+      "status": "succeeded",
+      "created_at": "2026-09-27T08:42:57.652561Z",
+      "finished_at": "2026-09-27T08:43:55.397336Z",
+      "repeats": 1,
+      "summary": {
+        "runs": 1,
+        "passed": 1,
+        "pass_rate": 1.0,
+        "pass_rate_ci95": [
+          0.2065,
+          1.0
+        ],
+        "mean_score": 1.0,
+        "score_stddev": null,
+        "mean_duration_seconds": 57.666,
+        "mean_steps": 10.0,
+        "mean_tool_success_rate": 1.0,
+        "total_input_tokens": 40733,
+        "total_output_tokens": 6128,
+        "total_cost_usd": null,
+        "errors": 0,
+        "tasks": [
+          {
+            "task_id": "ledger-root-causes",
+            "runs": 1,
+            "passed": 1,
+            "pass_rate": 1.0,
+            "mean_score": 1.0,
+            "score_stddev": null,
+            "mean_duration_seconds": 57.666,
+            "mean_steps": 10.0
+          }
+        ]
+      },
+      "experiment_id": null,
+      "variant": null,
+      "environment": {
+        "agentforge_version": "0.1.0",
+        "python": "3.12.3",
+        "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+        "provider": "opencode-go",
+        "model": "deepseek-v4.1-flash",
+        "sandbox": "docker"
+      },
+      "agent_id": "agt_01a0e2074835466a7b2a9cd0",
+      "agent_version": 2,
+      "result_class": "real"
+    },
+    {
+      "id": "bench_01a0e207483dbe7bbe7f8ef9",
+      "suite_id": "dogfood-hard",
+      "suite_name": "Dogfood: hard engineering tasks",
+      "agent_name": "dogfood-engineer-deepseek-constrained",
+      "status": "succeeded",
+      "created_at": "2026-09-27T08:42:03.197778Z",
+      "finished_at": "2026-09-27T08:42:57.593698Z",
+      "repeats": 1,
+      "summary": {
+        "runs": 1,
+        "passed": 0,
+        "pass_rate": 0.0,
+        "pass_rate_ci95": [
+          0.0,
+          0.7935
+        ],
+        "mean_score": 0.6667,
+        "score_stddev": null,
+        "mean_duration_seconds": 53.943,
+        "mean_steps": 8.0,
+        "mean_tool_success_rate": 1.0,
+        "total_input_tokens": 24639,
+        "total_output_tokens": 5071,
+        "total_cost_usd": null,
+        "errors": 1,
+        "tasks": [
+          {
+            "task_id": "ledger-root-causes",
+            "runs": 1,
+            "passed": 0,
+            "pass_rate": 0.0,
+            "mean_score": 0.6667,
+            "score_stddev": null,
+            "mean_duration_seconds": 53.943,
+            "mean_steps": 8.0
+          }
+        ]
+      },
+      "experiment_id": null,
+      "variant": null,
+      "environment": {
+        "agentforge_version": "0.1.0",
+        "python": "3.12.3",
+        "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+        "provider": "opencode-go",
+        "model": "deepseek-v4.1-flash",
+        "sandbox": "docker"
+      },
+      "agent_id": "agt_01a0e2074835466a7b2a9cd0",
+      "agent_version": 1,
+      "result_class": "real"
+    }
+  ],
+  "improvements": [
+    {
+      "id": "imp_01a0e2081cd461d9a7b0655f",
+      "agent_id": "agt_01a0e2074835466a7b2a9cd0",
+      "agent_name": "dogfood-engineer-deepseek-constrained",
+      "status": "evaluated",
+      "suite_id": "dogfood-hard",
+      "suite_version": "1",
+      "result_class": "real",
+      "task_ids": [
+        "ledger-root-causes"
+      ],
+      "repeats": 1,
+      "from_version": 1,
+      "to_version": 2,
+      "reverted_to_version": null,
+      "baseline_benchmark_run_id": "bench_01a0e207483dbe7bbe7f8ef9",
+      "candidate_benchmark_run_id": "bench_01a0e2081cf45710e1ea0c56",
+      "analysis": {
+        "benchmark_run_id": "bench_01a0e207483dbe7bbe7f8ef9",
+        "suite_id": "dogfood-hard",
+        "suite_version": "1",
+        "result_class": "real",
+        "agent_name": "dogfood-engineer-deepseek-constrained",
+        "agent_id": "agt_01a0e2074835466a7b2a9cd0",
+        "agent_version": 1,
+        "runs": 1,
+        "passed": 0,
+        "failed": 1,
+        "categories": {
+          "step_limit": 1
+        },
+        "tool_issues": {},
+        "tasks": [
+          {
+            "task_id": "ledger-root-causes",
+            "runs": 1,
+            "passed": 0,
+            "categories": {
+              "step_limit": 1
+            }
+          }
+        ],
+        "failures": [
+          {
+            "task_id": "ledger-root-causes",
+            "repeat": 1,
+            "run_id": "run_01a0e207485b9e79a8f63e2f",
+            "category": "step_limit",
+            "secondary": [
+              "no_final_answer",
+              "tests_failed"
+            ],
+            "summary": "The run reached its step limit before finishing. (8 steps used)",
+            "evidence": [
+              "max_steps: reached the limit of 8 steps",
+              "finished (no_final_answer): run status failed",
+              "regression_test_per_root_cause (tests_failed): exit code 1\ntests pass on a buggy parser"
+            ]
+          }
+        ]
+      },
+      "proposal": {
+        "proposer": "rules",
+        "changes": [
+          {
+            "id": "c1",
+            "path": "limits.max_steps",
+            "operation": "set",
+            "value": 25,
+            "current": 8,
+            "rationale": "1 failed run(s) stopped at the agent's step limit (8) while the suite allows up to 25 steps for these tasks.",
+            "addresses": [
+              "step_limit"
+            ],
+            "evidence": [
+              "run_01a0e207485b9e79a8f63e2f"
+            ]
+          }
+        ],
+        "notes": []
+      },
+      "applied_change_ids": [
+        "c1"
+      ],
+      "comparison": {
+        "baseline_id": "bench_01a0e207483dbe7bbe7f8ef9",
+        "candidate_id": "bench_01a0e2081cf45710e1ea0c56",
+        "suite_id": "dogfood-hard",
+        "suite_version": "1",
+        "result_class": "real",
+        "comparable": true,
+        "reasons": [],
+        "notes": [
+          "the 95% intervals overlap: run more repeats before concluding that the change helped or hurt"
+        ],
+        "baseline": {
+          "benchmark_run_id": "bench_01a0e207483dbe7bbe7f8ef9",
+          "agent_name": "dogfood-engineer-deepseek-constrained",
+          "agent_version": 1,
+          "provider": "opencode-go",
+          "model": "deepseek-v4.1-flash",
+          "runs": 1,
+          "passed": 0,
+          "pass_rate": 0.0,
+          "pass_rate_ci95": [
+            0.0,
+            0.7935
+          ],
+          "mean_score": 0.6667,
+          "mean_steps": 8.0,
+          "mean_duration_seconds": 53.943,
+          "total_input_tokens": 24639,
+          "total_output_tokens": 5071,
+          "total_cost_usd": null
+        },
+        "candidate": {
+          "benchmark_run_id": "bench_01a0e2081cf45710e1ea0c56",
+          "agent_name": "dogfood-engineer-deepseek-constrained",
+          "agent_version": 2,
+          "provider": "opencode-go",
+          "model": "deepseek-v4.1-flash",
+          "runs": 1,
+          "passed": 1,
+          "pass_rate": 1.0,
+          "pass_rate_ci95": [
+            0.2065,
+            1.0
+          ],
+          "mean_score": 1.0,
+          "mean_steps": 10.0,
+          "mean_duration_seconds": 57.666,
+          "total_input_tokens": 40733,
+          "total_output_tokens": 6128,
+          "total_cost_usd": null
+        },
+        "pass_rate_delta": 1.0,
+        "mean_score_delta": 0.3333,
+        "mean_steps_delta": 2.0,
+        "significant": false,
+        "verdict": "inconclusive",
+        "tasks": [
+          {
+            "task_id": "ledger-root-causes",
+            "baseline_passed": 0,
+            "baseline_runs": 1,
+            "candidate_passed": 1,
+            "candidate_runs": 1,
+            "pass_rate_delta": 1.0,
+            "change": "fixed"
+          }
+        ],
+        "categories": [
+          {
+            "category": "step_limit",
+            "baseline": 1,
+            "candidate": 0
+          }
+        ]
+      },
+      "notes": "limited real improvement experiment",
+      "error": null,
+      "created_at": "2026-09-27T08:42:57.620616Z",
+      "updated_at": "2026-09-27T08:43:55.405871Z"
+    }
+  ]
+}

@@ -1,20 +1,48 @@
 # AgentForge
 
-**An open-source platform for engineering, running and evaluating LLM agents.**
+**An open-source Agent CI/CD and evaluation platform.**
 
-AgentForge lets you define an agent declaratively (model, tools, memory,
-limits, sandbox), run it against a goal inside an isolated workspace, inspect
-every step and tool call, score the outcome with deterministic evaluators, and
-compare agent configurations on repeatable benchmarks. It works with
-Anthropic, OpenAI, Google Gemini, OpenRouter and local models, and can turn
-GitHub issues into draft pull requests for human review.
+AgentForge treats an LLM agent the way CI/CD treats code: every agent
+configuration (model, prompt, tools, memory, limits, sandbox) is a stored,
+versioned artifact; every run is recorded and reproducible; every change is
+evaluated against the same benchmark before it is trusted.
 
-It is an engineering tool, not a chatbot: runs are recorded, reproducible and
-measurable.
+```
+BUILD ─► RUN ─► EVALUATE ─► FAILURE ANALYSIS ─► IMPROVE ─► RE-RUN ─► REGRESSION CHECK
+  │                                                                        │
+  └──────────────────────── next agent version ◄───────────────────────────┘
+```
 
-> Status: alpha (pre-release). Core engine, API, CLI, dashboard, benchmarks and
-> GitHub workflow are implemented and tested. See [ROADMAP.md](ROADMAP.md) and
-> [docs/STATUS.md](docs/STATUS.md).
+| Stage | What exists |
+|---|---|
+| BUILD | Declarative agent configs (YAML), stored as immutable versions |
+| RUN | Instrumented runtime; sandboxed tools (per-run workspace, hardened Docker sandbox); every step, tool call, token count and error recorded |
+| EVALUATE | Deterministic evaluators (tests, file/output checks, tool usage, step budgets), optional LLM judge; benchmark suites with visible, hidden and process checks |
+| FAILURE ANALYSIS | Each failed run classified from its record (step limit, tests failed, tool errors, provider errors, ...) with evidence |
+| IMPROVE | Rule-based or manual proposals limited to an allowlist of config paths; applied as a new agent version |
+| RE-RUN | The new version benchmarked on the baseline's exact suite snapshot |
+| REGRESSION CHECK | Baseline-vs-candidate comparison with Wilson intervals and a verdict (`improved`, `regressed`, `inconclusive`, ...); `improve run` reverts a regression as a new version |
+
+It is not primarily another LLM wrapper: it works with Anthropic, OpenAI,
+Gemini, OpenRouter, OpenCode Go and local models, but its focus is what
+happens around the model — versioned agents, reproducible execution, sandboxed
+tool use, benchmark evaluation, failure analysis, agent improvement and
+regression detection.
+
+Many projects cover parts of this space (tracing and observability platforms,
+evaluation harnesses, agent frameworks). AgentForge's approach is to keep the
+whole loop — versioned configuration, sandboxed execution, evaluation, failure
+analysis, proposal, re-run and comparison — in one self-hosted tool with one
+data model, so that an agent change can be traced from the failure that
+motivated it to the benchmark that confirmed or rejected it.
+
+> Status: alpha (pre-release, 0.1.0). Core engine, API, CLI, dashboard,
+> benchmarks, improvement loop and GitHub workflow are implemented and tested.
+> Validated with real models on a small scale (see
+> [Real-model validation](#real-model-validation)). Not yet implemented: a CI
+> gate that fails a pipeline on a regression (today `bench compare` reports
+> the verdict; wiring it into a pipeline is up to you). See
+> [ROADMAP.md](ROADMAP.md) and [docs/STATUS.md](docs/STATUS.md).
 
 ![Dashboard overview](docs/screenshots/dashboard-light.png)
 
@@ -48,9 +76,10 @@ measurable.
 - **Honest results**: offline (scripted) and real-model results are separate
   result classes that are never mixed; unmeasured values (tokens, cost) are
   `null`, never guessed.
-- **Dogfooding**: five realistic agents (coding, debugging, data analysis,
-  security analysis, GitHub issue solving) with reproducible tasks and
-  hidden checks — see [dogfood/README.md](dogfood/README.md).
+- **Dogfooding**: six agents (coding, debugging, data analysis, security
+  analysis, GitHub issue solving, and an engineering agent for the harder
+  `dogfood-hard` suite) with reproducible tasks, hidden checks and offline
+  reference solutions — see [dogfood/README.md](dogfood/README.md).
 - **GitHub**: issue → repository analysis → implementation → tests →
   evaluation → branch → commit → **draft** PR. AgentForge never merges.
 - **Observability**: structured JSON logs with secret redaction, live
@@ -231,6 +260,32 @@ agentforge improve history my-agent
 base config (model, prompt, tools, planner, limits) against the first variant.
 Results describe those configurations on that suite — they are not general
 model rankings. See [docs/benchmarks.md](docs/benchmarks.md).
+
+## Real-model validation
+
+Small-scale, and documented in full in
+[docs/REAL_MODEL_BENCHMARK.md](docs/REAL_MODEL_BENCHMARK.md). All runs through
+OpenCode Go, one run per task, no retries.
+
+- **Multi-model execution** — 5 models (`deepseek-v4.1-flash`,
+  `mimo-v2.6-flash`, `muse-spark-1.3-contributor`, `glm-5.3-flash`,
+  `kimi-k2.7-code`) × 2 existing dogfood tasks: 10 task executions, all passed.
+  The tasks turned out too easy to differentiate the models.
+- **Hard benchmark** — `dogfood-hard` v1 (4 tasks with hidden and
+  mutation-based checks), validated offline; `deepseek-v4.1-flash` passed the
+  two tasks it was run on.
+- **Improvement loop on a real model (controlled)** — the same model with a
+  deliberately tight, documented step limit (8) failed `ledger-root-causes` at
+  the step limit; AgentForge classified the failure, proposed
+  `limits.max_steps: 8 → 25`, stored v2, re-ran the identical task, and v2
+  passed; comparison verdict `inconclusive` (one run each).
+
+What this is not: the demonstrated improvement is a **configuration** change
+that removes a constraint chosen for the demonstration — **not evidence of the
+model learning** or becoming more capable. The sample is far too small for
+model rankings or significance. Cost was not available from OpenCode Go and
+is reported as NOT AVAILABLE. OFFLINE (scripted) and REAL results are stored
+and reported separately and never combined.
 
 ## Dashboard
 

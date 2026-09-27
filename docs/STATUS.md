@@ -7,14 +7,22 @@ Current milestone: 15 — Public beta (Milestones 0–14 complete; M15 in progre
 Stable branch: `main` (created at `7eb61d8`). All work arrives through pull
 requests against `main`; see CLAUDE.md "Git workflow".
 
-Latest work branch: `feature/real-model-validation` (stacked on
-`feature/dogfooding-improvement-loop`, which is stacked on
-`claude/focused-newton-j0z9l1`; merge in that order).
+Latest work branch: `claude/clever-bohr-woxzdb` (PR #11), stacked on
+`feature/real-model-validation` (#10) → `feature/dogfooding-improvement-loop`
+(#9) → `claude/focused-newton-j0z9l1` (#8); merge #8, #9, #10, #11 in that
+order.
 
 Open pull requests awaiting the owner:
-- Workflow documentation (`claude/focused-newton-j0z9l1` → `main`).
-- Dogfooding program + agent improvement loop
-  (`feature/dogfooding-improvement-loop` → `main`, depends on the above).
+- #8 Workflow documentation (`claude/focused-newton-j0z9l1` → `main`).
+- #9 Dogfooding program + agent improvement loop (depends on #8).
+- #10 Limited Real-Model Validation preparation (depends on #9).
+- #11 OpenCode Go session fix, REAL results, hard suite, improvement
+  experiment and controlled demonstration (depends on #10).
+- #12 Human approval gate for sensitive tools (T-004b), from another session,
+  based on `main` and independent of the stack. A trial merge with #11
+  conflicts in CHANGELOG.md, ROADMAP.md, docs/STATUS.md,
+  `api/schemas.py` and `web/lib/api.ts`: whichever lands second must merge
+  `main` and resolve them.
 - Dependabot PRs #1–#7 target the old session branch; the owner should close
   or retarget them to `main`.
 

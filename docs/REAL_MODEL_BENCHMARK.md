@@ -196,7 +196,7 @@ the purpose is to exercise the improvement loop, not to compare providers).
 | Model calls | 28 (one per agent step) |
 | Sandbox | Docker `python:3.12`, network none |
 | Secret scan | clean (stored results, database, log) |
-| Stored | `dogfood/results/real/improvement-20260927T020338Z/summary.{json,md}`; report `dogfood/results/real/dogfood-hard-v1/`; agent v1, benchmark `bench_01a0e09a87a27e1384bad227` (result class `real`) and both runs in the experiment database |
+| Stored | `dogfood/results/real/improvement-20260927T020338Z/summary.{json,md}` and `history.json` (agent v1 config, benchmark); report `dogfood/results/real/dogfood-hard-v1/`; agent v1, benchmark `bench_01a0e09a87a27e1384bad227` (result class `real`) and both runs in the experiment database |
 
 | Task | Success | Tests | Score | Tool calls (errors) | Tool success | Steps | Retries | Duration (s) | Avg latency per model call (ms) | Tokens in / out / total | Cost |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -239,8 +239,8 @@ The two remaining executions of the budget were not used.
   demonstrate the improvement loop with real failures. The loop mechanics
   (v1 → analysis → proposal → v2 → comparison) are exercised end to end only
   against the fake endpoint in `tests/e2e/test_real_improvement_experiment.py`
-  and by the OFFLINE demo; they have **not** been demonstrated with a real
-  model.
+  and by the OFFLINE demo; at this point they had **not** been demonstrated
+  with a real model (see section 11 for the later controlled demonstration).
 - Possible next steps (not done): tasks that require longer plans than the
   20-step limit comfortably allows, larger codebases where the relevant code
   must be found, or ambiguous specifications; or a weaker/cheaper
@@ -267,9 +267,17 @@ Improvement experiment (sections 4–9):
 - One model, two tasks, one run: it shows that this configuration solved these
   two tasks once; not how often it would, and nothing about other models or
   the two hard tasks that were not run with a real model.
-- No v2 was run, so nothing can be said about the effect of the improvement
-  loop on a real model.
+- No v2 was run in that experiment; the loop on a real model is shown only by
+  the controlled demonstration (section 11).
 - The rule-based proposer only changes configuration and prompt guidance.
+
+Controlled demonstration (section 11):
+
+- The v1 failure was produced by a constraint chosen for the demonstration
+  (`limits.max_steps: 8`); the proposed change removes that constraint. It
+  demonstrates the loop's mechanics on real data — record, classify, propose,
+  version, re-run, compare — not a capability gain, and not model learning.
+- One run per version: AgentForge's own verdict is `inconclusive`.
 
 ## 11. Controlled Improvement-Loop Demonstration — REAL MODEL · Provider: OpenCode Go · Model: DeepSeek V4.1 Flash (`deepseek-v4.1-flash`)
 
@@ -294,7 +302,7 @@ separate dataset and says nothing about any model.
 | Authentication | proxy (environment API Credential; no key in the process) |
 | Sandbox | Docker `python:3.12`, network none |
 | Secret scan | clean (stored results, database, log) |
-| Stored | `dogfood/results/real/improvement-demo-20260927T084203Z/summary.{json,md}`; reports in `dogfood/results/real/dogfood-hard-v1/`; agent `dogfood-engineer-deepseek-constrained` v1 (created) and v2 (improvement), benchmarks `bench_01a0e207483dbe7bbe7f8ef9` / `bench_01a0e2081cf45710e1ea0c56` (result class `real`), cycle `imp_01a0e2081cd461d9a7b0655f` (evaluated) in the experiment database |
+| Stored | `dogfood/results/real/improvement-demo-20260927T084203Z/summary.{json,md}` and `history.json` (export of `agentforge improve history --json`: both agent versions with their full configs, both benchmarks, the cycle with analysis, proposal and comparison); reports in `dogfood/results/real/dogfood-hard-v1/`; agent `dogfood-engineer-deepseek-constrained` v1 (created) and v2 (improvement), benchmarks `bench_01a0e207483dbe7bbe7f8ef9` / `bench_01a0e2081cf45710e1ea0c56` (result class `real`), cycle `imp_01a0e2081cd461d9a7b0655f` (evaluated) in the experiment database |
 
 ### v1 (constrained baseline): failed
 
@@ -351,6 +359,22 @@ overwriting v1, re-ran the identical task and compared. What it does not
 show: that the model improved (it did not change), that 8 → 25 is the best
 limit, or anything about other tasks — the observed failure was produced by a
 constraint chosen for the demonstration, and the fix removes that constraint.
+
+## 12. Resource usage — all REAL-MODEL activity (Provider: OpenCode Go)
+
+Tokens as reported by the endpoint; cost NOT AVAILABLE (OpenCode Go reports
+none and AgentForge does not read billing). No retries anywhere.
+
+| Activity | Task executions | Model calls | Tokens in | Tokens out | Tokens total |
+|---|---|---|---|---|---|
+| Manual smoke calls (`deepseek-v4.1-flash`; one `400 MissingSessionID` before the fix, one success) | — | 2 | 37 | 16 | 53 |
+| Section 1: initial validation, 5 models × 2 tasks | 10 | 59 | 106 253 | 10 030 | 116 283 |
+| Sections 5–9: hard tasks, `deepseek-v4.1-flash` v1 | 2 | 28 | 146 954 | 15 530 | 162 484 |
+| Section 11: controlled demonstration, v1 + v2 | 2 | 18 | 65 372 | 11 199 | 76 571 |
+| **Total** | **14** | **107** | **318 616** | **36 775** | **355 391** |
+
+Latency per model call (mean per task run) ranged from 1 422 ms to 5 858 ms;
+per-task values are in the tables above and in the stored summaries.
 
 ## Appendix A — Validation design (section 1)
 
@@ -444,6 +468,10 @@ require reading the trace and are marked as such.
 docker pull python:3.12-slim
 uv run python scripts/real_model_validation.py               # --auth env
 uv run python scripts/real_model_validation.py --auth proxy  # Claude Cloud API Credentials
+# Hard-task improvement experiment (sections 4-9) and controlled demonstration (section 11):
+uv run python scripts/real_improvement_experiment.py --auth proxy
+uv run python scripts/real_improvement_experiment.py --auth proxy \
+    --task ledger-root-causes --baseline-max-steps 8 --data-dir .agentforge/real-improvement-demo
 ```
 
 The script stops after the plan above ("Stopped: the limited validation is
