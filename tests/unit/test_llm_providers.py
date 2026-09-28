@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 import anthropic
+import httpx
 import httpx2
 import openai
 import pytest
@@ -15,6 +16,7 @@ from agentforge.core.config import ModelConfig
 from agentforge.core.errors import ConfigurationError, LLMError
 from agentforge.core.models import TokenUsage
 from agentforge.llm.anthropic import AnthropicProvider, to_anthropic_messages
+from agentforge.llm.gemini import GeminiProvider, from_gemini_parts, to_gemini_contents
 from agentforge.llm.openai_compat import PRESETS, OpenAICompatibleProvider, to_openai_messages
 from agentforge.llm.pricing import ModelPrice, PriceTable
 from agentforge.llm.registry import available_providers, create_provider
@@ -32,6 +34,7 @@ from agentforge.llm.types import (
 )
 
 Handler = Callable[[httpx2.Request], httpx2.Response]
+GeminiHandler = Callable[[httpx.Request], httpx.Response]
 
 CONVERSATION = [
     Message.user("Read a.txt"),
@@ -288,6 +291,227 @@ async def test_openai_rate_limit_is_retryable() -> None:
         await provider.complete(CompletionRequest(model="m", messages=[Message.user("hi")]))
     assert info.value.retryable
     assert info.value.code == "rate_limit"
+
+
+# ------------------------------------------------------------------------ gemini
+def gemini_client(handler: GeminiHandler, api_key: str = "test-key") -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        base_url="http://gemini.test/v1beta",
+        headers={"x-goog-api-key": api_key},
+        transport=httpx.MockTransport(handler),
+    )
+
+
+def test_to_gemini_contents_translates_all_parts() -> None:
+    out = to_gemini_contents(CONVERSATION)
+    assert out[0] == {"role": "user", "parts": [{"text": "Read a.txt"}]}
+    # The conversation's opaque part is provider="anthropic" (foreign to Gemini) and is dropped.
+    assistant = out[1]["parts"]
+    assert assistant[0] == {"text": "Reading."}
+    assert assistant[1] == {"functionCall": {"name": "read_file", "args": {"path": "a.txt"}}}
+    # The function result is matched back to its call by name, not by id.
+    assert out[2]["parts"][0] == {
+        "functionResponse": {"name": "read_file", "response": {"output": "hello"}}
+    }
+
+
+def test_gemini_opaque_part_is_echoed_but_foreign_ones_are_dropped() -> None:
+    msg = Message(
+        role=Role.ASSISTANT,
+        content=[
+            ProviderPart(provider="gemini", data={"thought": True, "text": "hmm"}),
+            ProviderPart(provider="anthropic", data={"type": "thinking"}),
+            TextPart(text="hi"),
+        ],
+    )
+    assert to_gemini_contents([msg])[0]["parts"] == [
+        {"thought": True, "text": "hmm"},
+        {"text": "hi"},
+    ]
+
+
+def test_gemini_function_result_error_shape() -> None:
+    messages = [
+        Message(role=Role.ASSISTANT, content=[ToolUsePart(id="c1", name="run", arguments={})]),
+        Message(
+            role=Role.USER,
+            content=[ToolResultPart(tool_use_id="c1", content="boom", is_error=True)],
+        ),
+    ]
+    out = to_gemini_contents(messages)
+    assert out[1]["parts"][0] == {
+        "functionResponse": {"name": "run", "response": {"error": "boom"}}
+    }
+
+
+def test_from_gemini_parts_synthesises_call_ids() -> None:
+    parts = from_gemini_parts(
+        [
+            {"text": "Reading."},
+            {"functionCall": {"name": "read_file", "args": {"path": "b"}}},
+            {"thought": True, "text": "hmm", "thoughtSignature": "sig"},
+        ]
+    )
+    assert isinstance(parts[0], TextPart) and parts[0].text == "Reading."
+    assert isinstance(parts[1], ToolUsePart)
+    assert parts[1].name == "read_file" and parts[1].arguments == {"path": "b"}
+    assert parts[1].id  # a call id was synthesised (Gemini gives none)
+    assert isinstance(parts[2], ProviderPart) and parts[2].provider == "gemini"
+
+
+async def test_gemini_complete_parses_tool_call_and_usage() -> None:
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        seen["key"] = request.headers.get("x-goog-api-key")
+        seen["path"] = request.url.path
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "content": {
+                            "role": "model",
+                            "parts": [
+                                {"text": "Let me check."},
+                                {"functionCall": {"name": "read_file", "args": {"path": "b"}}},
+                            ],
+                        },
+                        "finishReason": "STOP",
+                    }
+                ],
+                "usageMetadata": {
+                    "promptTokenCount": 100,
+                    "candidatesTokenCount": 20,
+                    "cachedContentTokenCount": 7,
+                },
+                "modelVersion": "gemini-test-001",
+                "responseId": "resp_1",
+            },
+        )
+
+    provider = GeminiProvider(client=gemini_client(handler))
+    response = await provider.complete(
+        CompletionRequest(model="gemini-test", system="sys", messages=CONVERSATION, tools=TOOLS)
+    )
+    assert seen["key"] == "test-key"
+    assert "test-key" not in seen["path"]  # the key is a header, never a query string
+    assert seen["path"].endswith("/models/gemini-test:generateContent")
+    assert seen["body"]["systemInstruction"] == {"parts": [{"text": "sys"}]}
+    assert seen["body"]["tools"] == [
+        {
+            "functionDeclarations": [
+                {"name": "read_file", "description": "Read", "parameters": {"type": "object"}}
+            ]
+        }
+    ]
+    assert response.stop_reason == StopReason.TOOL_USE  # overridden despite finishReason STOP
+    assert response.message.tool_uses[0].arguments == {"path": "b"}
+    assert response.usage == TokenUsage(input_tokens=100, output_tokens=20, cache_read_tokens=7)
+    assert response.response_id == "resp_1"
+    assert response.model == "gemini-test-001"
+
+
+async def test_gemini_end_turn_without_tool_calls() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "content": {"role": "model", "parts": [{"text": "done"}]},
+                        "finishReason": "STOP",
+                    }
+                ]
+            },
+        )
+
+    provider = GeminiProvider(client=gemini_client(handler))
+    response = await provider.complete(
+        CompletionRequest(model="gemini-test", messages=[Message.user("hi")])
+    )
+    assert response.message.text == "done"
+    assert response.stop_reason == StopReason.END_TURN
+
+
+async def test_gemini_max_tokens_and_safety_stop_reasons() -> None:
+    def make_handler(finish_reason: str) -> GeminiHandler:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "candidates": [
+                        {
+                            "content": {"role": "model", "parts": [{"text": "x"}]},
+                            "finishReason": finish_reason,
+                        }
+                    ]
+                },
+            )
+
+        return handler
+
+    for finish_reason, expected in (
+        ("MAX_TOKENS", StopReason.MAX_TOKENS),
+        ("SAFETY", StopReason.REFUSAL),
+    ):
+        provider = GeminiProvider(client=gemini_client(make_handler(finish_reason)))
+        response = await provider.complete(
+            CompletionRequest(model="gemini-test", messages=[Message.user("hi")])
+        )
+        assert response.stop_reason == expected
+
+
+@pytest.mark.parametrize(
+    ("status", "retryable", "code"),
+    [
+        (429, True, "rate_limit"),
+        (500, True, "api_status"),
+        (400, False, "api_status"),
+        (401, False, "authentication"),
+    ],
+)
+async def test_gemini_errors_are_classified(status: int, retryable: bool, code: str) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status, json={"error": {"message": "boom", "status": "X"}})
+
+    provider = GeminiProvider(client=gemini_client(handler, api_key="secret-key"))
+    with pytest.raises(LLMError) as info:
+        await provider.complete(CompletionRequest(model="m", messages=[Message.user("hi")]))
+    assert info.value.retryable is retryable
+    assert info.value.code == code
+    assert "secret-key" not in info.value.message
+
+
+async def test_gemini_connection_error_is_retryable() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused")
+
+    provider = GeminiProvider(client=gemini_client(handler))
+    with pytest.raises(LLMError) as info:
+        await provider.complete(CompletionRequest(model="m", messages=[Message.user("hi")]))
+    assert info.value.retryable
+
+
+def test_gemini_requires_key() -> None:
+    with pytest.raises(ConfigurationError):
+        GeminiProvider(api_key=None)
+
+
+async def test_gemini_requires_model() -> None:
+    provider = GeminiProvider(client=gemini_client(lambda r: httpx.Response(200, json={})))
+    with pytest.raises(ConfigurationError):
+        await provider.complete(CompletionRequest(model="", messages=[Message.user("hi")]))
+
+
+def test_gemini_provider_via_registry() -> None:
+    provider = create_provider(
+        ModelConfig(provider="gemini", model="gemini-test"), {"GEMINI_API_KEY": "k-123456789"}
+    )
+    assert isinstance(provider, GeminiProvider)
+    with pytest.raises(ConfigurationError):
+        create_provider(ModelConfig(provider="gemini", model="gemini-test"), {})
 
 
 # ---------------------------------------------------------------------- registry

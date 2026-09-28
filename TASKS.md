@@ -10,15 +10,17 @@ _None open. Continue with P1 in roadmap order._
 ## P1 — Important
 
 ### T-015b Public beta readiness / v0.2.0
-- **Status:** in-progress — everything but the owner's GitHub actions is done.
+- **Status:** done — verified 2026-09-28: PRs #8–#12 are merged into `main`
+  (`918f3bf`), `main` is the repository's default branch, and `v0.2.0` is
+  tagged on that commit and published as a GitHub release (not a draft).
 - **Done:** CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates,
   clean-clone walkthrough of the README quick start, stable `main` and the
   PR-based workflow, versions bumped to 0.2.0 everywhere
   (`scripts/release_notes.py check 0.2.0` passes), CHANGELOG `[0.2.0]` section,
   release readiness checklist (`docs/RELEASE_CHECKLIST.md`).
-- **Remaining (owner, GitHub UI):** merge PRs #8 → #9 → #10 → #11; set `main`
-  as default branch and protect it; push the `v0.2.0` tag on `main` (this
-  builds artifacts, publishes GHCR images and drafts the release).
+- **Not verified from a coding session:** branch protection rules on `main`
+  (the GitHub API denies reading them to this session's token), Dependabot
+  PRs against `main` (none open as of 2026-09-28), OpenCode Go key rotation.
 
 ### T-018 Scheduled routine can access the repository
 - **Status:** blocked (owner action in the routines UI)
@@ -53,9 +55,6 @@ _None open. Continue with P1 in roadmap order._
 - **Status:** todo — trace-level diagnosis (e.g. distinguishing planning from
   reasoning failures, which today needs a human reading the trace).
 
-
-### T-002b Native Gemini adapter
-- **Status:** todo — currently served by the OpenAI-compatible endpoint.
 
 ### T-011b Dashboard enhancements
 - **Status:** todo
@@ -96,7 +95,8 @@ _None open. Continue with P1 in roadmap order._
 |---|---|---|
 | T-000 | Repository foundation | pyproject (uv, ruff, mypy strict, pytest), layout, .gitignore |
 | T-001 | Core domain models | `core/config.py`, `core/models.py`, errors, IDs |
-| T-002 | Provider abstraction | Anthropic + OpenAI-compatible (OpenAI/OpenRouter/Gemini/local) + scripted; pricing; plugin registry; tested with SDKs over mock transports |
+| T-002 | Provider abstraction | Anthropic + OpenAI-compatible (OpenAI/OpenRouter/local) + scripted; pricing; plugin registry; tested with SDKs over mock transports |
+| T-002b | Native Gemini adapter | `llm/gemini.py` speaks `generateContent` directly over `httpx` (no SDK, no optional extra); id-less function calls resolved by name; opaque "thought" parts echoed back; unit-tested with a mocked transport. Replaces the OpenAI-compatible `gemini` preset. |
 | T-003 | Agent runtime | retries/backoff, timeouts, cancellation, max steps/tool calls, consecutive-error cap, refusal/max_tokens handling, plan_execute, evaluation retries, events |
 | T-004 | Tool system | registry/toolsets/entry points, executor, filesystem/terminal/git/http/github/memory tools |
 | T-005 | Sandbox | workspace confinement, local sandbox (scrubbed env, process-group kill, output caps), Docker sandbox (hardened, tested against a real daemon) |
