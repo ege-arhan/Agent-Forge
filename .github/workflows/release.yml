@@ -82,7 +82,7 @@ jobs:
           path: dist/
       - name: Release notes from CHANGELOG.md
         run: python scripts/release_notes.py notes "${GITHUB_REF_NAME}" > release-notes.md
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           draft: true
           body_path: release-notes.md
