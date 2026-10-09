@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start --port 3000",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npx tsc --noEmit",
     "test": "node --test --experimental-strip-types lib/*.test.ts"
   },
   "dependencies": {
