@@ -49,6 +49,18 @@ class GateThresholds(BaseModel):
     min_pass_rate: float | None = Field(
         default=None, ge=0.0, le=1.0, description="Absolute floor for the candidate's pass rate."
     )
+    max_token_increase: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Opt-in budget: allowed relative increase of total tokens (0.25 = +25%). "
+        "If set and either report lacks token usage for any run, the gate cannot decide.",
+    )
+    max_duration_increase: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Opt-in budget: allowed relative increase of mean run duration. Wall-clock "
+        "time is noisy; use a generous value. Missing durations make the gate unable to decide.",
+    )
 
 
 class GateSide(BaseModel):
@@ -121,6 +133,39 @@ def _rate(report: BenchmarkReport) -> float:
 
 def _mean_score(report: BenchmarkReport) -> float:
     return sum(r.score for r in report.runs) / len(report.runs)
+
+
+def _total_tokens(report: BenchmarkReport) -> int | None:
+    """Total tokens over all runs; ``None`` unless every run reported both counts."""
+    total = 0
+    for r in report.runs:
+        if r.input_tokens is None or r.output_tokens is None:
+            return None
+        total += r.input_tokens + r.output_tokens
+    return total
+
+
+def _mean_duration(report: BenchmarkReport) -> float | None:
+    if not report.runs or any(r.duration_seconds is None for r in report.runs):
+        return None
+    return sum(r.duration_seconds or 0.0 for r in report.runs) / len(report.runs)
+
+
+def _budget_check(
+    name: str, unit: str, values: tuple[float | None, float | None], allowed: float
+) -> tuple[str | None, str | None]:
+    """Return ``(error, regression)`` for a relative budget; at most one is set."""
+    base, cand = values
+    if base is None or cand is None:
+        return f"{name} budget is set but {name} is not recorded for every run", None
+    if base <= 0:
+        return f"{name} budget cannot be applied: the baseline {name} is zero", None
+    if cand > base * (1 + allowed) + _EPSILON:
+        return None, (
+            f"{name} increased by {(cand - base) / base:.1%} ({base:.4g} -> {cand:.4g} {unit}; "
+            f"allowed {allowed:.1%})"
+        )
+    return None, None
 
 
 def _by_task(runs: list[TaskRunRecord]) -> dict[str, list[TaskRunRecord]]:
@@ -201,6 +246,20 @@ def evaluate_gate(
             "they count as agent failures"
         )
 
+    budgets = (
+        ("total tokens", "tokens", thresholds.max_token_increase, _total_tokens),
+        ("mean duration", "s", thresholds.max_duration_increase, _mean_duration),
+    )
+    for name, unit, allowed, measure in budgets:
+        if allowed is not None:
+            error, regression = _budget_check(
+                name, unit, (measure(baseline), measure(candidate)), allowed
+            )
+            if error:
+                errors.append(error)
+            if regression:
+                regressions.append(regression)
+
     base_side, cand_side = _side(baseline), _side(candidate)
     tasks: list[TaskGate] = []
     for task_id in sorted(set(base_tasks) & set(cand_tasks)):
@@ -276,6 +335,10 @@ def evaluate_gate(
     )
 
 
+def _opt(value: float | None) -> str:
+    return "none" if value is None else f"{value:.1%}"
+
+
 def render_gate(result: GateResult) -> str:
     """Human-readable, deterministic summary (no timestamps, stable ordering)."""
     lines = [f"REGRESSION GATE: {result.verdict.value.upper()} (exit {result.exit_code})"]
@@ -295,7 +358,9 @@ def render_gate(result: GateResult) -> str:
     lines.append(
         f"thresholds: max pass-rate drop {t.max_pass_rate_drop:.4f}, max task pass-rate drop "
         f"{t.max_task_pass_rate_drop:.4f}, max mean-score drop {t.max_mean_score_drop:.4f}, "
-        f"min pass rate {'none' if t.min_pass_rate is None else f'{t.min_pass_rate:.4f}'}"
+        f"min pass rate {'none' if t.min_pass_rate is None else f'{t.min_pass_rate:.4f}'}, "
+        f"max token increase {_opt(t.max_token_increase)}, "
+        f"max duration increase {_opt(t.max_duration_increase)}"
     )
     if result.tasks:
         lines.append("tasks:")

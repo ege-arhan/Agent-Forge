@@ -6,6 +6,18 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Regression gate budgets (part of T-019b): opt-in `--max-token-increase` and
+  `--max-duration-increase` (and matching API query parameters). Missing usage
+  data makes the gate exit 2 rather than pass.
+- Native Gemini adapter (T-002b): `llm/gemini.py` speaks the Gemini
+  `generateContent` API directly over `httpx` (already a core dependency, so
+  no optional extra is needed). Replaces the `gemini` provider's previous
+  routing through the OpenAI-compatible Chat Completions shim. The API key
+  is sent as the `x-goog-api-key` header, never the `?key=` query string.
+  Unit-tested with a mocked transport (message/tool translation, usage,
+  stop-reason mapping, error classification).
+
 ## [0.2.0] - 2026-09-27
 
 First tagged release (0.1.0 was the untagged development version). AgentForge
