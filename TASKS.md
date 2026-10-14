@@ -47,9 +47,10 @@ _None open. Continue with P1 in roadmap order._
   validation (T-009b) is the baseline for this.
 
 ### T-019b More regression policies
-- **Status:** todo — e.g. per-check or per-category thresholds, token/latency
-  budgets as gate criteria, trend baselines over several accepted runs,
-  required repeats before a gate may pass.
+- **Status:** in-progress — token and latency budgets done (opt-in, relative
+  increase; unit-tested). Remaining: per-check or per-category thresholds,
+  trend baselines over several accepted runs, required repeats before a gate
+  may pass.
 
 ### T-020 Richer failure analysis
 - **Status:** todo — trace-level diagnosis (e.g. distinguishing planning from

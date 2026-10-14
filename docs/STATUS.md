@@ -1,6 +1,6 @@
 # AgentForge Development Status
 
-Date: 2026-09-28
+Date: 2026-10-14
 
 Version: **0.2.0** (released). Milestones 0–15 complete and merged into
 `main`; milestone 16 (portfolio-quality release) is planned but not started.
@@ -62,7 +62,8 @@ qualifier on milestone 2:
   owner budget approval in this session).
 - The approval gate runs in-process (single-node execution model).
 - The regression gate compares against one baseline; trend baselines and
-  richer policies are future work (T-019b).
+  richer policies are future work (T-019b; opt-in token/latency budgets exist
+  on branch `claude/stoic-gates-zrjqdp`, which depends on PR #13).
 - The rule-based improvement proposer changes configuration and prompt
   guidance only.
 - The `agentforge-sandbox` image cannot be built in this development

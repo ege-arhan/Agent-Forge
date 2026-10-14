@@ -44,6 +44,6 @@ follows this roadmap's milestone order and the P1/P2 items in `TASKS.md`.
 - Broader model evaluations: more tasks, repeats and models, and a real
   improvement cycle on an unconstrained failure; needs a budget (T-009c).
 - More regression policies: per-check/per-category thresholds, token and
-  latency budgets, trend baselines, required repeats (T-019b).
+  trend baselines, required repeats (T-019b; token/latency budgets done).
 - Also planned: vector memory (T-006b), streaming output (T-003b), distributed
   execution (T-015), dashboard enhancements (T-011b).
