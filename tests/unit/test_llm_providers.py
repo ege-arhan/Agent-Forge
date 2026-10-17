@@ -344,6 +344,27 @@ def test_gemini_function_result_error_shape() -> None:
     }
 
 
+def test_gemini_call_id_and_thought_signature_round_trip() -> None:
+    parts = from_gemini_parts(
+        [{"functionCall": {"id": "gid1", "name": "f", "args": {"a": 1}}, "thoughtSignature": "sig"}]
+    )
+    call = parts[0]
+    assert isinstance(call, ToolUsePart) and call.id == "gid1"
+    messages = [
+        Message(role=Role.ASSISTANT, content=[call]),
+        Message(role=Role.USER, content=[ToolResultPart(tool_use_id="gid1", content="ok")]),
+    ]
+    out = to_gemini_contents(messages)
+    assert out[0]["parts"] == [
+        {
+            "functionCall": {"id": "gid1", "name": "f", "args": {"a": 1}},
+            "thoughtSignature": "sig",
+        }
+    ]
+    assert out[1]["parts"][0]["functionResponse"]["id"] == "gid1"
+    assert out[1]["parts"][0]["functionResponse"]["name"] == "f"
+
+
 def test_from_gemini_parts_synthesises_call_ids() -> None:
     parts = from_gemini_parts(
         [

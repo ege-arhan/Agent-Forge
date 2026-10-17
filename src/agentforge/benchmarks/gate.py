@@ -246,6 +246,7 @@ def evaluate_gate(
             "they count as agent failures"
         )
 
+    budget_regressions: list[str] = []
     budgets = (
         ("total tokens", "tokens", thresholds.max_token_increase, _total_tokens),
         ("mean duration", "s", thresholds.max_duration_increase, _mean_duration),
@@ -258,7 +259,7 @@ def evaluate_gate(
             if error:
                 errors.append(error)
             if regression:
-                regressions.append(regression)
+                budget_regressions.append(regression)
 
     base_side, cand_side = _side(baseline), _side(candidate)
     tasks: list[TaskGate] = []
@@ -280,6 +281,7 @@ def evaluate_gate(
         )
 
     if not errors:
+        regressions.extend(budget_regressions)
         # --- thresholds (only meaningful for a comparable pair). Compared on exact
         # rates; the rounded values are for display only.
         drop = _rate(baseline) - _rate(candidate)

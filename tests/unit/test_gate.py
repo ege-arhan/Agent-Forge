@@ -238,3 +238,11 @@ def test_budget_zero_baseline_cannot_decide() -> None:
     base = _usage_report([(0, 0)])
     result = evaluate_gate(base, base, GateThresholds(max_token_increase=0.5))
     assert result.verdict == GateVerdict.ERROR
+
+
+def test_budgets_not_applied_to_incomparable_reports() -> None:
+    base = _usage_report([(100, 100)])
+    cand = _usage_report([(1000, 1000)], bench_id="c", suite_id="other")
+    result = evaluate_gate(base, cand, GateThresholds(max_token_increase=0.1))
+    assert result.verdict == GateVerdict.ERROR
+    assert result.regressions == []

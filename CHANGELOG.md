@@ -6,6 +6,13 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Gemini adapter echoes the provider's function-call `id` and `thoughtSignature`
+  (new optional `ToolUsePart.provider_data`) instead of synthesising ids only
+  (review finding on #13).
+- Gate budgets are no longer evaluated for incomparable reports, so an `error`
+  verdict carries no regressions (review finding on #32).
+
 ### Added
 - Regression gate budgets (part of T-019b): opt-in `--max-token-increase` and
   `--max-duration-increase` (and matching API query parameters). Missing usage

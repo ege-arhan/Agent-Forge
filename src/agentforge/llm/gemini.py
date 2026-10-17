@@ -9,10 +9,11 @@ Two differences from Anthropic/OpenAI drive the translation below:
 
 * Roles are ``user``/``model`` (not ``assistant``), and the system prompt is
   a separate ``systemInstruction`` field, not a message.
-* A function call carries no id: ``functionResponse`` matches it by ``name``
-  alone. An id is synthesised for :class:`ToolUsePart` on the way out of the
-  API and resolved back to a name (via a running map built while walking the
-  conversation) for ``functionResponse`` on the way in.
+* Older models return function calls without an id, matched by ``name``
+  alone: an id is synthesised for :class:`ToolUsePart` and resolved back to a
+  name for ``functionResponse``. Gemini 3 returns an id (and a
+  ``thoughtSignature``) that must be echoed back; both are kept in
+  ``ToolUsePart.provider_data`` and re-emitted unchanged.
 """
 
 from __future__ import annotations
@@ -59,6 +60,7 @@ _FINISH_REASONS = {
 def to_gemini_contents(messages: list[Message]) -> list[dict[str, Any]]:
     """Translate neutral messages to Gemini ``contents``."""
     call_names: dict[str, str] = {}
+    call_ids: dict[str, str] = {}
     out: list[dict[str, Any]] = []
     for message in messages:
         parts: list[dict[str, Any]] = []
@@ -68,11 +70,23 @@ def to_gemini_contents(messages: list[Message]) -> list[dict[str, Any]]:
                     parts.append({"text": part.text})
             elif isinstance(part, ToolUsePart):
                 call_names[part.id] = part.name
-                parts.append({"functionCall": {"name": part.name, "args": part.arguments}})
+                data = part.provider_data or {}
+                if data.get("id"):
+                    call_ids[part.id] = data["id"]
+                call: dict[str, Any] = {"name": part.name, "args": part.arguments}
+                if data.get("id"):
+                    call["id"] = data["id"]
+                out_part: dict[str, Any] = {"functionCall": call}
+                if data.get("thoughtSignature"):
+                    out_part["thoughtSignature"] = data["thoughtSignature"]
+                parts.append(out_part)
             elif isinstance(part, ToolResultPart):
                 name = call_names.get(part.tool_use_id, part.tool_use_id)
                 response = {"error": part.content} if part.is_error else {"output": part.content}
-                parts.append({"functionResponse": {"name": name, "response": response}})
+                reply: dict[str, Any] = {"name": name, "response": response}
+                if call_ids.get(part.tool_use_id):
+                    reply["id"] = call_ids[part.tool_use_id]
+                parts.append({"functionResponse": reply})
             elif isinstance(part, ProviderPart) and part.provider == GeminiProvider.name:
                 parts.append(part.data)
         if not parts:
@@ -97,8 +111,21 @@ def from_gemini_parts(parts: list[dict[str, Any]]) -> list[ContentPart]:
             args = call.get("args")
             if not isinstance(args, dict):
                 args = {} if args is None else {"value": args}
+            # Gemini 3 returns an id that functionResponse must echo, and a
+            # thoughtSignature that must come back unchanged; older models
+            # return neither, so an id is synthesised for the neutral model.
+            data = {}
+            if call.get("id"):
+                data["id"] = call["id"]
+            if part.get("thoughtSignature"):
+                data["thoughtSignature"] = part["thoughtSignature"]
             result.append(
-                ToolUsePart(id=f"call_{uuid.uuid4().hex[:12]}", name=call["name"], arguments=args)
+                ToolUsePart(
+                    id=call.get("id") or f"call_{uuid.uuid4().hex[:12]}",
+                    name=call["name"],
+                    arguments=args,
+                    provider_data=data or None,
+                )
             )
         elif "text" in part:
             result.append(TextPart(text=part.get("text") or ""))

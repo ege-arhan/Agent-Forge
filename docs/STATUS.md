@@ -1,6 +1,10 @@
 # AgentForge Development Status
 
-Date: 2026-10-14
+Date: 2026-10-17
+
+2026-10-17: follow-up branch `claude/stoic-gates-mjhnhb` (stacked on #32, which
+contains #13) fixes the two open Codex review findings; 369 tests, ruff and
+mypy clean locally. Merge #13, #32, then this PR.
 
 Version: **0.2.0** (released). Milestones 0–15 complete and merged into
 `main`; milestone 16 (portfolio-quality release) is planned but not started.
