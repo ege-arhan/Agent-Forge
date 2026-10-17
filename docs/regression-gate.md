@@ -38,6 +38,13 @@ Options:
 | `--max-task-pass-rate-drop F` | `0` | allowed drop of any single task's pass rate |
 | `--max-mean-score-drop F` | `0` | allowed drop of the mean evaluation score |
 | `--min-pass-rate F` | none | absolute floor for the candidate's pass rate |
+| `--max-token-increase F` | off | opt-in token budget: allowed relative increase of total tokens (`0.25` = +25%) |
+| `--max-duration-increase F` | off | opt-in latency budget: allowed relative increase of mean run duration (wall-clock is noisy; use a generous value) |
+
+The budgets only apply when set. If a budget is set but any run of either report
+has no recorded usage (e.g. the scripted provider reports no tokens), or the
+baseline value is zero, the gate cannot decide and exits 2 — it never treats
+missing data as a pass. The API accepts the same options as query parameters.
 | `--json` | off | print the result as JSON instead of text |
 | `--output FILE` | none | also write the JSON result to `FILE` (e.g. a CI artifact) |
 

@@ -24,6 +24,9 @@ class ToolUsePart(BaseModel):
     id: str
     name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
+    # Opaque provider-specific data that must be echoed back with this call
+    # (e.g. Gemini's ``thoughtSignature``); ignored by other adapters.
+    provider_data: dict[str, Any] | None = None
 
 
 class ToolResultPart(BaseModel):
