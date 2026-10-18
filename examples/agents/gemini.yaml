@@ -1,5 +1,5 @@
-# Google Gemini through its OpenAI-compatible endpoint.
-# Requires: pip install 'agentforge[openai]' and GEMINI_API_KEY.
+# Google Gemini through its native generateContent API.
+# Requires: GEMINI_API_KEY (no optional extra: the adapter uses httpx directly).
 name: gemini-agent
 model:
   provider: gemini
