@@ -1,6 +1,10 @@
 # AgentForge Development Status
 
-Date: 2026-10-17
+Date: 2026-10-18
+
+2026-10-18: stacked PRs #13 → #32 → #33 are green and await the owner;
+this branch addresses #33's three open review findings (372 tests, ruff and
+mypy clean). Dependabot PRs #14–#19, #27–#31 await the owner.
 
 2026-10-17: follow-up branch `claude/stoic-gates-mjhnhb` (stacked on #32, which
 contains #13) fixes the two open Codex review findings; 369 tests, ruff and

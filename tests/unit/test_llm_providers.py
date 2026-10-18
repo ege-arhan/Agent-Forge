@@ -943,3 +943,53 @@ async def test_opencode_go_refuses_messages_api_models_without_a_request() -> No
             CompletionRequest(model="qwen3.8-max", messages=[Message.user("x")], session_id="r")
         )
     assert info.value.code == "unsupported_api" and not info.value.retryable
+
+
+def test_gemini_text_thought_signature_round_trip() -> None:
+    parts = from_gemini_parts([{"text": "answer", "thoughtSignature": "sig-t"}])
+    assert isinstance(parts[0], TextPart)
+    assert parts[0].provider_data == {"thoughtSignature": "sig-t"}
+    out = to_gemini_contents([Message(role=Role.ASSISTANT, content=parts)])
+    assert out[0]["parts"] == [{"text": "answer", "thoughtSignature": "sig-t"}]
+
+
+async def test_gemini_prompt_block_is_a_non_retryable_refusal() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "promptFeedback": {"blockReason": "SAFETY"},
+                "usageMetadata": {"promptTokenCount": 4},
+            },
+        )
+
+    provider = GeminiProvider(client=gemini_client(handler))
+    response = await provider.complete(
+        CompletionRequest(model="gemini-test", messages=[Message.user("hi")])
+    )
+    assert response.stop_reason == StopReason.REFUSAL
+    assert response.raw_stop_reason == "prompt_blocked:SAFETY"
+    assert response.usage.input_tokens == 4
+
+
+async def test_gemini_usage_includes_thinking_tokens() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {"content": {"role": "model", "parts": [{"text": "x"}]}, "finishReason": "STOP"}
+                ],
+                "usageMetadata": {
+                    "promptTokenCount": 10,
+                    "candidatesTokenCount": 5,
+                    "thoughtsTokenCount": 7,
+                },
+            },
+        )
+
+    provider = GeminiProvider(client=gemini_client(handler))
+    response = await provider.complete(
+        CompletionRequest(model="gemini-test", messages=[Message.user("hi")])
+    )
+    assert response.usage.output_tokens == 12

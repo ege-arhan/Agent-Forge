@@ -7,6 +7,10 @@ All notable changes are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- Gemini adapter: `thoughtSignature` on text parts is preserved (new optional
+  `TextPart.provider_data`); a blocked prompt (no candidates, `blockReason`)
+  is a non-retryable refusal; thinking tokens count toward output usage
+  (review findings on #33).
 - Gemini adapter echoes the provider's function-call `id` and `thoughtSignature`
   (new optional `ToolUsePart.provider_data`) instead of synthesising ids only
   (review finding on #13).

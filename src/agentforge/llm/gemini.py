@@ -67,7 +67,11 @@ def to_gemini_contents(messages: list[Message]) -> list[dict[str, Any]]:
         for part in message.content:
             if isinstance(part, TextPart):
                 if part.text:
-                    parts.append({"text": part.text})
+                    text_part: dict[str, Any] = {"text": part.text}
+                    signature = (part.provider_data or {}).get("thoughtSignature")
+                    if signature:
+                        text_part["thoughtSignature"] = signature
+                    parts.append(text_part)
             elif isinstance(part, ToolUsePart):
                 call_names[part.id] = part.name
                 data = part.provider_data or {}
@@ -128,7 +132,13 @@ def from_gemini_parts(parts: list[dict[str, Any]]) -> list[ContentPart]:
                 )
             )
         elif "text" in part:
-            result.append(TextPart(text=part.get("text") or ""))
+            signature = part.get("thoughtSignature")
+            result.append(
+                TextPart(
+                    text=part.get("text") or "",
+                    provider_data={"thoughtSignature": signature} if signature else None,
+                )
+            )
         else:
             result.append(ProviderPart(provider=GeminiProvider.name, data=part))
     return result
@@ -193,6 +203,18 @@ class GeminiProvider(LLMProvider):
         data = response.json()
         candidates = data.get("candidates") or []
         if not candidates:
+            # A blocked prompt is HTTP 200 with no candidates and a block
+            # reason; retrying the same prompt cannot succeed.
+            block_reason = (data.get("promptFeedback") or {}).get("blockReason")
+            if block_reason:
+                return CompletionResponse(
+                    message=Message(role=Role.ASSISTANT, content=[TextPart(text="")]),
+                    stop_reason=StopReason.REFUSAL,
+                    raw_stop_reason=f"prompt_blocked:{block_reason}",
+                    usage=_usage(data.get("usageMetadata") or {}),
+                    model=data.get("modelVersion") or request.model,
+                    response_id=data.get("responseId"),
+                )
             raise LLMError("gemini: response contained no candidates", retryable=True)
         candidate = candidates[0]
         parts = from_gemini_parts((candidate.get("content") or {}).get("parts") or [])
@@ -200,22 +222,28 @@ class GeminiProvider(LLMProvider):
         stop = _FINISH_REASONS.get(raw_finish or "", StopReason.OTHER)
         if any(isinstance(p, ToolUsePart) for p in parts):
             stop = StopReason.TOOL_USE
-        usage = data.get("usageMetadata") or {}
         return CompletionResponse(
             message=Message(role=Role.ASSISTANT, content=parts or [TextPart(text="")]),
             stop_reason=stop,
             raw_stop_reason=raw_finish,
-            usage=TokenUsage(
-                input_tokens=usage.get("promptTokenCount", 0) or 0,
-                output_tokens=usage.get("candidatesTokenCount", 0) or 0,
-                cache_read_tokens=usage.get("cachedContentTokenCount", 0) or 0,
-            ),
+            usage=_usage(data.get("usageMetadata") or {}),
             model=data.get("modelVersion") or request.model,
             response_id=data.get("responseId"),
         )
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+
+def _usage(meta: dict[str, Any]) -> TokenUsage:
+    # Thinking tokens are billed generation but reported separately from
+    # candidatesTokenCount.
+    return TokenUsage(
+        input_tokens=meta.get("promptTokenCount", 0) or 0,
+        output_tokens=(meta.get("candidatesTokenCount", 0) or 0)
+        + (meta.get("thoughtsTokenCount", 0) or 0),
+        cache_read_tokens=meta.get("cachedContentTokenCount", 0) or 0,
+    )
 
 
 def _declaration(tool: ToolSpec) -> dict[str, Any]:

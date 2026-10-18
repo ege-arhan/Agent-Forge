@@ -17,6 +17,10 @@ from agentforge.core.models import TokenUsage
 class TextPart(BaseModel):
     type: Literal["text"] = "text"
     text: str
+    # Opaque provider-specific data that must be echoed back with this text
+    # (e.g. Gemini's ``thoughtSignature`` on a text part); ignored by other
+    # adapters.
+    provider_data: dict[str, Any] | None = None
 
 
 class ToolUsePart(BaseModel):
