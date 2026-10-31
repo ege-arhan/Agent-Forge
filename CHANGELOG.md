@@ -6,6 +6,12 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- Lockfile: `certifi` 2026.7.22 → 2026.10.23 (PYSEC-2026-4320) and
+  `opentelemetry-api`/`-sdk` 1.45.0 → 1.45.2 (CVE-2026-114603) to fix the
+  failing scheduled `pip-audit` job on `main`.
+
 ## [0.2.0] - 2026-09-27
 
 First tagged release (0.1.0 was the untagged development version). AgentForge

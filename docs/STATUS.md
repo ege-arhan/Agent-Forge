@@ -1,10 +1,24 @@
 # AgentForge Development Status
 
-Date: 2026-09-27
+Date: 2026-10-31
 
 Version: **0.2.0** (release prepared; not tagged). Milestones 0–15 complete in
 the release branch; the project is in **feature freeze** until the owner
 starts milestone 16 or a future-work item (see ROADMAP.md).
+
+## Update 2026-10-31
+
+- v0.2.0 is merged and tagged on `main` (`244f660`, tag `v0.2.0`); the
+  "release prepared; not tagged" and merge-order text below is historical.
+- CI on `main` was green except the scheduled **Security** run of 2026-10-26:
+  `pip-audit` flagged `certifi` 2026.7.22 (PYSEC-2026-4320) and
+  `opentelemetry-api` 1.45.0 (CVE-2026-114603). Fixed on branch
+  `claude/stoic-gates-yxaatl` by a lockfile update only; local `pip-audit`
+  now reports no known vulnerabilities, ruff/mypy clean, 347 non-docker tests
+  pass (docker tests and web not run this session; web untouched).
+- Awaiting owner review: agent PRs #13 (native Gemini adapter), #32 (gate
+  token/latency budgets), #33, #34 (review fixes); Dependabot PRs #14–#19,
+  #27–#31 (owner's to merge; not checked for failures this session).
 
 ## Branches and pull requests
 
