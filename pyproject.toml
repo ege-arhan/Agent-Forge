@@ -30,7 +30,7 @@ dependencies = [
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=1.0,<2"]
-openai = ["openai>=2.0,<4"]
+openai = ["openai>=3.26.0,<4"]
 postgres = ["asyncpg>=0.29"]
 otel = ["opentelemetry-sdk>=1.30", "opentelemetry-exporter-otlp-proto-http>=1.30"]
 all = ["agentforge[anthropic,openai,postgres,otel]"]
@@ -50,7 +50,7 @@ dev = [
     "mypy>=1.11",
     "types-PyYAML>=6.0",
     "anthropic>=1.0,<2",
-    "openai>=2.0,<4",
+    "openai>=3.26.0,<4",
 ]
 
 [build-system]
