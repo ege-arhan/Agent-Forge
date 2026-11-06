@@ -20,6 +20,17 @@ starts milestone 16 or a future-work item (see ROADMAP.md).
   token/latency budgets), #33, #34 (review fixes); Dependabot PRs #14–#19,
   #27–#31 (owner's to merge; not checked for failures this session).
 
+## Update 2026-11-06
+
+- Checked `main` (`9a0f8fb`): latest CI and Security runs green. No code
+  changes this session; the project remains in feature freeze.
+- Awaiting owner review, all with green CI: agent PRs #13, #32, #33, #34.
+  Dependabot PRs: #27–#31 and #15–#19 green or unchecked individually;
+  **#36 (python 3.12-slim → 3.15-slim) fails CI and Security** — not merged;
+  the Docker sandbox image and CI assume 3.12, so it needs an owner decision.
+- Not started: further feature work, to avoid stacking more unreviewed PRs
+  on top of #13/#32–#34.
+
 ## Branches and pull requests
 
 Stable branch: `main` (at `7eb61d8`). All work reaches it through pull
