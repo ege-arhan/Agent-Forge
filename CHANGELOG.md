@@ -6,6 +6,16 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Offline five-minute tour (milestone 16, T-021): `scripts/tour.py` runs the
+  documented loop — benchmark a versioned agent, failure analysis, rule-based
+  proposal applied as v2, re-benchmark, comparison, and the regression gate in
+  both directions plus against the committed CI baseline — and checks every
+  exit code; `--keep DIR` keeps the database for the dashboard.
+  `docs/tour.md` is the annotated transcript (linked from the README);
+  `tests/e2e/test_tour.py` runs the tour and checks the page against it.
+
 ### Security
 
 - Lockfile: `certifi` 2026.7.22 → 2026.10.23 (PYSEC-2026-4320) and

@@ -15,6 +15,7 @@ htmlcov/
 
 # AgentForge runtime data (databases, workspaces, artifacts)
 .agentforge/
+.tour/
 *.db
 *.db-journal
 

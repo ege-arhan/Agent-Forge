@@ -36,6 +36,20 @@ _None open. Continue with P1 in roadmap order._
   of "AgentForge daily development"
   (https://claude.ai/code/routines/trig_01PkiuJ7LQqCzv7ZiFigY2DS).
 
+### T-021 Portfolio-quality release (milestone 16)
+- **Status:** in-progress
+- **Done (2026-11-11, PR from `claude/stoic-gates-773dp5`):** offline
+  five-minute tour — `scripts/tour.py` (runs the documented CLI commands and
+  checks each exit code; `--keep DIR` for the dashboard), `docs/tour.md`
+  (annotated real transcript, OFFLINE label), README link,
+  `tests/e2e/test_tour.py` (tour passes, an unexpected exit fails it, docs
+  name the commands and files the tour uses).
+- **Remaining:** refresh `docs/screenshots/` from the current dashboard (the
+  approval card, gate verdict on an improvement cycle, the tour's data);
+  a short screen recording/GIF of the tour; README pass for a first-time
+  reader (shorter top section, "what's tested" summary); a docs index
+  (`docs/README.md`).
+
 ## P2 — Enhancements (future work, not started)
 
 ### T-009c Broader real-model evaluations

@@ -1,10 +1,30 @@
 # AgentForge Development Status
 
-Date: 2026-10-31
+Date: 2026-11-11
 
 Version: **0.2.0** (release prepared; not tagged). Milestones 0–15 complete in
 the release branch; the project is in **feature freeze** until the owner
 starts milestone 16 or a future-work item (see ROADMAP.md).
+
+## Update 2026-11-11
+
+- `main` (`9a0f8fb`, includes #35) is green: CI and the scheduled Security
+  runs of 2026-11-02 and 2026-11-09 succeeded.
+- Agent PRs awaiting owner review, all with green CI and no unaddressed
+  review comments: #13 (native Gemini adapter), #32 (gate token/latency
+  budgets), #33 (review fixes for #13/#32), #34 (review fixes for #33).
+  Dependabot PRs #15–#19, #27–#31, #36 are the owner's (not checked this
+  session).
+- Started milestone 16 (documentation/demo work, allowed in the freeze):
+  offline five-minute tour — `scripts/tour.py`, `docs/tour.md` (a real
+  transcript of the script; ids differ per run), README link,
+  `tests/e2e/test_tour.py` (T-021, PR from `claude/stoic-gates-773dp5`).
+  OFFLINE (scripted) results only; no model calls.
+- Verified this session: ruff, ruff format, mypy --strict clean;
+  `pytest -m "not docker"` 351 passed. Docker tests, PostgreSQL tests and the
+  web checks were not run (no Python package or web code changed).
+- Remaining for milestone 16: refreshed screenshots, a recording of the tour,
+  a README pass and a docs index (see T-021).
 
 ## Update 2026-10-31
 
