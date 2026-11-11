@@ -137,6 +137,11 @@ docker compose up --build       # dashboard http://localhost:3000, API http://lo
 The scripted demo agent replays fixed solutions, so you can see the whole
 pipeline without a model. Its scores say nothing about real models.
 
+**Five-minute tour:** `uv run python scripts/tour.py` walks the whole loop —
+benchmark → failure analysis → proposal → v2 → re-benchmark → comparison →
+regression gate — offline, checking every exit code. The annotated transcript
+is in [docs/tour.md](docs/tour.md).
+
 ```bash
 agentforge bench run examples/benchmarks/starter.yaml -a examples/agents/scripted-demo.yaml
 agentforge runs list
