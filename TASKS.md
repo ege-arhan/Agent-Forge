@@ -36,6 +36,30 @@ _None open. Continue with P1 in roadmap order._
   of "AgentForge daily development"
   (https://claude.ai/code/routines/trig_01PkiuJ7LQqCzv7ZiFigY2DS).
 
+### T-021 Portfolio-quality release (milestone 16)
+- **Status:** in-progress
+- **Done (2026-11-11, PR from `claude/stoic-gates-773dp5`):** offline
+  five-minute tour — `scripts/tour.py` (runs the documented CLI commands and
+  checks each exit code; `--keep DIR` for the dashboard), `docs/tour.md`
+  (annotated real transcript, OFFLINE label), README link,
+  `tests/e2e/test_tour.py` (tour passes, an unexpected exit fails it, docs
+  name the commands and files the tour uses).
+- **Done (2026-11-12, PR from `claude/stoic-gates-za4zoq`; depends on the
+  tour PR #37):** reproducible screenshots — `scripts/screenshots.py` +
+  `scripts/screenshots.cjs` seed OFFLINE demo data, run the API and the
+  dashboard and capture 8 pages (new: a run paused at the approval gate; the
+  agent improvement page now shows the tour's cycle with its gate verdict);
+  `docs/screenshots/` regenerated from the current dashboard; docs index
+  `docs/README.md`; README pass (link bar, shorter positioning text, "What is
+  tested", current roadmap note, approval and benchmark pictures);
+  `tests/e2e/test_screenshots.py` and a Markdown link/anchor checker
+  `tests/unit/test_docs_links.py`.
+- **Remaining:** a short screen recording/GIF of the tour (no recording tool
+  in the agent environment so far); small dashboard polish seen while
+  capturing — the *Improvement history* table on `/improvement` clips its
+  last column at 1440 px, and the sidebar is one viewport tall on long pages;
+  owner review of the README wording.
+
 ## P2 — Enhancements (future work, not started)
 
 ### T-009c Broader real-model evaluations

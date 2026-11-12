@@ -6,6 +6,33 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Offline five-minute tour (milestone 16, T-021): `scripts/tour.py` runs the
+  documented loop — benchmark a versioned agent, failure analysis, rule-based
+  proposal applied as v2, re-benchmark, comparison, and the regression gate in
+  both directions plus against the committed CI baseline — and checks every
+  exit code; `--keep DIR` keeps the database for the dashboard.
+  `docs/tour.md` is the annotated transcript (linked from the README);
+  `tests/e2e/test_tour.py` runs the tour and checks the page against it.
+- Reproducible dashboard screenshots (T-021): `scripts/screenshots.py` seeds
+  OFFLINE demo data (tour, starter benchmark, step-budget experiment, one run
+  paused at the approval gate), starts the API and the dashboard and captures
+  eight pages with `scripts/screenshots.cjs` (needs Playwright; not a project
+  dependency). New picture: a run waiting for approval.
+- Documentation index `docs/README.md`; README "What is tested" section and
+  link bar.
+- Tests: `tests/e2e/test_screenshots.py` (demo data, approval demo run,
+  committed pictures match the script and are shown in the docs) and
+  `tests/unit/test_docs_links.py` (relative links and heading anchors in the
+  Markdown docs resolve).
+
+### Changed
+
+- `docs/screenshots/` regenerated from the current dashboard; the README's
+  positioning text is shorter and its roadmap note is current.
+- `.gitignore`: `web/AGENTS.md` and `web/CLAUDE.md`, which `next dev` writes.
+
 ### Security
 
 - Lockfile: `certifi` 2026.7.22 → 2026.10.23 (PYSEC-2026-4320) and
