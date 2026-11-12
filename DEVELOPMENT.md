@@ -53,6 +53,8 @@ pass, and disallow force pushes and deletions.
 | Dogfooding (offline) | `uv run python scripts/dogfood.py offline` (writes `dogfood/results/offline/`) |
 | Dogfooding (real model) | `uv run python scripts/dogfood.py real --provider anthropic --model <id>` (needs the key; writes `dogfood/results/real/`) |
 | Improvement loop | `uv run agentforge improve run BENCH_ID` — see [docs/improvement.md](docs/improvement.md) |
+| Offline tour | `uv run python scripts/tour.py` — see [docs/tour.md](docs/tour.md) |
+| Dashboard screenshots | `uv run python scripts/screenshots.py` — see [below](#dashboard-screenshots) |
 
 ## Test layout
 
@@ -64,6 +66,35 @@ pass, and disallow force pushes and deletions.
 - `tests/e2e` — through the HTTP API (FastAPI TestClient) and the CLI.
 
 All tests are offline. The scripted provider stands in for models.
+
+## Dashboard screenshots
+
+`docs/screenshots/` is generated, not hand-made:
+
+```bash
+cd web && npm ci && cd ..
+uv run python scripts/screenshots.py            # writes docs/screenshots/*.png
+uv run python scripts/screenshots.py --seed-only .demo   # only the demo data
+```
+
+The script seeds a temporary data directory with OFFLINE demo data (the tour,
+the starter benchmark with the scripted demo agent, the step-budget demo
+experiment), starts the API on :8000 and the dashboard dev server on :3000,
+starts one scripted run that pauses at the approval gate, and then runs
+`scripts/screenshots.cjs`, which opens each page in headless Chromium at
+1440 px wide. Both ports must be free.
+
+Capturing needs Node.js with [Playwright](https://playwright.dev) and a
+Chromium it can launch (`npm i -g playwright && npx playwright install
+chromium`); Playwright is not a project dependency and CI does not capture.
+`tests/e2e/test_screenshots.py` checks the offline parts: the demo data, the
+approval demo run, and that the committed pictures are exactly the ones the
+script captures and that each is shown in the docs. When a dashboard page
+changes visibly, rerun the script and commit the pictures; ids and relative
+times differ on every run.
+
+`next dev` writes `web/AGENTS.md` and `web/CLAUDE.md` (its own agent rules);
+both are ignored by git.
 
 ## Database migrations
 

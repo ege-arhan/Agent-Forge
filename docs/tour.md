@@ -176,6 +176,9 @@ evidence and the evaluated cycle with its gate verdict.
 
 ![Agent improvement page with offline demo data](screenshots/improvement-agent-light.png)
 
+The picture is this page with the tour's data; all dashboard screenshots are
+listed in the [documentation index](README.md#dashboard-screenshots).
+
 ## Where to go next
 
 - A real model: [README → Quick start](../README.md#quick-start-offline-no-api-key)

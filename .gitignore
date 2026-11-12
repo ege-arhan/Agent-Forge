@@ -29,6 +29,9 @@ node_modules/
 web/.next/
 web/out/
 web/next-env.d.ts
+# written by `next dev` (Next.js agent rules); not project instructions
+web/AGENTS.md
+web/CLAUDE.md
 *.tsbuildinfo
 
 # Editors / OS

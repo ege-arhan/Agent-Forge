@@ -1,10 +1,39 @@
 # AgentForge Development Status
 
-Date: 2026-11-11
+Date: 2026-11-12
 
-Version: **0.2.0** (release prepared; not tagged). Milestones 0–15 complete in
-the release branch; the project is in **feature freeze** until the owner
-starts milestone 16 or a future-work item (see ROADMAP.md).
+Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
+complete; the project is in **feature freeze** (fixes, tests, security and
+documentation only). Milestone 16 (documentation/demo work) is in progress.
+Sections below the dated updates are the historical v0.2.0 release record.
+
+## Update 2026-11-12
+
+- `main` (`9a0f8fb`) is green: CI on the last push and the scheduled Security
+  run of 2026-11-09 succeeded.
+- Agent PRs awaiting owner review: #37 (offline tour; CI green, no review
+  comments — the Codex review bot could not run, usage limit), #13, #32, #33,
+  #34 (unchanged since October; not re-checked beyond their unchanged state).
+  Dependabot PRs #15–#19, #27–#31, #36 are the owner's (not checked).
+- Milestone 16 continued on `claude/stoic-gates-za4zoq`, **stacked on #37**
+  (merge #37 first): reproducible screenshots (`scripts/screenshots.py`,
+  `scripts/screenshots.cjs`), all of `docs/screenshots/` regenerated from the
+  current dashboard with OFFLINE demo data plus a new approval-gate picture,
+  docs index `docs/README.md`, README pass ("What is tested", link bar,
+  shorter positioning text, current roadmap note), a Markdown link/anchor
+  checker test. No package, API, schema or dashboard code changed.
+- Verified this session: ruff, ruff format, mypy --strict clean;
+  `pytest -m "not docker"` 382 passed; the screenshot pipeline ran end to
+  end here (API + `next dev` + headless Chromium, 8 pictures). Not run:
+  Docker-sandbox tests, PostgreSQL tests, web lint/typecheck/tests/build (no
+  web code changed; `npm ci` and the dev server worked).
+- Noticed, not fixed (T-021 remaining): the *Improvement history* table on
+  `/improvement` clips its last column at 1440 px; the sidebar is one
+  viewport tall on long pages. `next dev` writes `web/AGENTS.md` and
+  `web/CLAUDE.md`; they are now git-ignored rather than committed — the
+  owner may prefer to commit them.
+- Remaining for milestone 16: a recording of the tour, the dashboard polish
+  above.
 
 ## Update 2026-11-11
 
