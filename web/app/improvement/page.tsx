@@ -127,7 +127,7 @@ export default function ImprovementPage() {
         )}
       </Card>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-5 2xl:grid-cols-2">
         <Card className="min-w-0">
           <CardHeader title="Improvement history" description="Most recent cycles across all agents." />
           {!cycles.data ? (
@@ -138,7 +138,6 @@ export default function ImprovementPage() {
             <Table>
               <THead>
                 <TR>
-                  <TH>When</TH>
                   <TH>Agent</TH>
                   <TH>Versions</TH>
                   <TH>Status</TH>
@@ -149,12 +148,13 @@ export default function ImprovementPage() {
               <TBody>
                 {cycles.data.slice(0, 20).map((c) => (
                   <TR key={c.id}>
-                    <TD className="text-xs whitespace-nowrap text-ink-2">{relativeTime(c.created_at)}</TD>
                     <TD>
                       <Link href={`/improvement/${c.agent_id}`} className="whitespace-nowrap hover:underline">
                         {c.agent_name}
                       </Link>
-                      <div className="text-xs text-muted">{c.result_class === "offline" ? "offline" : "real model"}</div>
+                      <div className="text-xs whitespace-nowrap text-muted">
+                        {c.result_class === "offline" ? "offline" : "real model"} · {relativeTime(c.created_at)}
+                      </div>
                     </TD>
                     <TD className="tabular whitespace-nowrap">
                       v{c.from_version} → {c.to_version ? `v${c.to_version}` : "—"}

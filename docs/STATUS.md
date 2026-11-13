@@ -1,10 +1,95 @@
 # AgentForge Development Status
 
-Date: 2026-10-31
+Date: 2026-11-13
 
-Version: **0.2.0** (release prepared; not tagged). Milestones 0–15 complete in
-the release branch; the project is in **feature freeze** until the owner
-starts milestone 16 or a future-work item (see ROADMAP.md).
+Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
+complete; the project is in **feature freeze** (fixes, tests, security and
+documentation only). Milestone 16 (documentation/demo work) is implemented
+in three stacked PRs that await the owner's review.
+Sections below the dated updates are the historical v0.2.0 release record.
+
+## Update 2026-11-13
+
+- `main` (`9a0f8fb`) is green (last push CI; scheduled Security run of
+  2026-11-09). Nothing was merged since 2026-11-01.
+- Agent PRs awaiting owner review: #37 (offline tour) and #38 (screenshots,
+  docs index, README; stacked on #37) — both with green CI and no review
+  comments (the Codex review bot could not run: usage limit); #13, #32, #33,
+  #34 (unchanged since October, not re-checked). Dependabot PRs #15–#19,
+  #27–#31, #36 are the owner's (not checked).
+- This session, on `claude/stoic-gates-a37k0l`, **stacked on #38** (merge
+  #37, then #38, first), finished the remaining T-021 items:
+  - walk-through recording `docs/screenshots/tour.gif` (139 frames, 23 s,
+    960×540, 2.2 MB; OFFLINE demo data) from `scripts/screenshots.py
+    --record` + `scripts/recording.cjs`; needs Playwright and `ffmpeg`,
+    neither a project dependency; CI does not record;
+  - dashboard fix: the *Improvement history* table no longer clips its last
+    column (five columns instead of six; two-column layout from 1536 px);
+  - the "sidebar is one viewport tall" note of 2026-11-12 was a capture
+    artefact, not a dashboard bug: the sidebar is sticky. The capture now
+    grows the viewport to the page; all eight pictures were regenerated.
+- Review finding on this PR (Codex bot, confirmed and fixed): the tour and
+  the screenshot tooling did not isolate themselves from an
+  `AGENTFORGE_DATABASE_URL` in the repository's `.env`, so their demo data
+  could land in the caller's database. Both now set the URL explicitly; two
+  regression tests reproduce the leak with a `.env` file.
+- Verified this session: ruff, ruff format, mypy --strict clean;
+  `pytest -m "not docker"` 390 passed; web lint, typecheck, 17 unit tests and
+  production build pass; the screenshot and recording pipelines ran end to
+  end here and the resulting pictures and GIF frames were inspected. Not run:
+  Docker-sandbox tests and PostgreSQL tests (no code they cover changed).
+- Milestone 16 has no agent work left; it is complete once the owner merges
+  #37, #38 and this PR. Next agent work needs an owner decision: the project
+  is in feature freeze and the remaining tasks are future-work items (P2) or
+  need a budget (T-009c).
+
+## Update 2026-11-12
+
+- `main` (`9a0f8fb`) is green: CI on the last push and the scheduled Security
+  run of 2026-11-09 succeeded.
+- Agent PRs awaiting owner review: #37 (offline tour; CI green, no review
+  comments — the Codex review bot could not run, usage limit), #13, #32, #33,
+  #34 (unchanged since October; not re-checked beyond their unchanged state).
+  Dependabot PRs #15–#19, #27–#31, #36 are the owner's (not checked).
+- Milestone 16 continued on `claude/stoic-gates-za4zoq`, **stacked on #37**
+  (merge #37 first): reproducible screenshots (`scripts/screenshots.py`,
+  `scripts/screenshots.cjs`), all of `docs/screenshots/` regenerated from the
+  current dashboard with OFFLINE demo data plus a new approval-gate picture,
+  docs index `docs/README.md`, README pass ("What is tested", link bar,
+  shorter positioning text, current roadmap note), a Markdown link/anchor
+  checker test. No package, API, schema or dashboard code changed.
+- Verified this session: ruff, ruff format, mypy --strict clean;
+  `pytest -m "not docker"` 382 passed; the screenshot pipeline ran end to
+  end here (API + `next dev` + headless Chromium, 8 pictures). Not run:
+  Docker-sandbox tests, PostgreSQL tests, web lint/typecheck/tests/build (no
+  web code changed; `npm ci` and the dev server worked).
+- Noticed, not fixed (T-021 remaining): the *Improvement history* table on
+  `/improvement` clips its last column at 1440 px; the sidebar is one
+  viewport tall on long pages. `next dev` writes `web/AGENTS.md` and
+  `web/CLAUDE.md`; they are now git-ignored rather than committed — the
+  owner may prefer to commit them.
+- Remaining for milestone 16: a recording of the tour, the dashboard polish
+  above.
+
+## Update 2026-11-11
+
+- `main` (`9a0f8fb`, includes #35) is green: CI and the scheduled Security
+  runs of 2026-11-02 and 2026-11-09 succeeded.
+- Agent PRs awaiting owner review, all with green CI and no unaddressed
+  review comments: #13 (native Gemini adapter), #32 (gate token/latency
+  budgets), #33 (review fixes for #13/#32), #34 (review fixes for #33).
+  Dependabot PRs #15–#19, #27–#31, #36 are the owner's (not checked this
+  session).
+- Started milestone 16 (documentation/demo work, allowed in the freeze):
+  offline five-minute tour — `scripts/tour.py`, `docs/tour.md` (a real
+  transcript of the script; ids differ per run), README link,
+  `tests/e2e/test_tour.py` (T-021, PR from `claude/stoic-gates-773dp5`).
+  OFFLINE (scripted) results only; no model calls.
+- Verified this session: ruff, ruff format, mypy --strict clean;
+  `pytest -m "not docker"` 351 passed. Docker tests, PostgreSQL tests and the
+  web checks were not run (no Python package or web code changed).
+- Remaining for milestone 16: refreshed screenshots, a recording of the tour,
+  a README pass and a docs index (see T-021).
 
 ## Update 2026-10-31
 

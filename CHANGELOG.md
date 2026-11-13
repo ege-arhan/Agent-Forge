@@ -6,6 +6,54 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Offline five-minute tour (milestone 16, T-021): `scripts/tour.py` runs the
+  documented loop — benchmark a versioned agent, failure analysis, rule-based
+  proposal applied as v2, re-benchmark, comparison, and the regression gate in
+  both directions plus against the committed CI baseline — and checks every
+  exit code; `--keep DIR` keeps the database for the dashboard.
+  `docs/tour.md` is the annotated transcript (linked from the README);
+  `tests/e2e/test_tour.py` runs the tour and checks the page against it.
+- Reproducible dashboard screenshots (T-021): `scripts/screenshots.py` seeds
+  OFFLINE demo data (tour, starter benchmark, step-budget experiment, one run
+  paused at the approval gate), starts the API and the dashboard and captures
+  eight pages with `scripts/screenshots.cjs` (needs Playwright; not a project
+  dependency). New picture: a run waiting for approval.
+- Dashboard walk-through recording (T-021): `scripts/screenshots.py --record`
+  runs `scripts/recording.cjs` on the same OFFLINE demo data (overview → the
+  tour agent's improvement cycle → a run paused at the approval gate is
+  approved and finishes) and converts the video to
+  `docs/screenshots/tour.gif` with `ffmpeg`. Shown in the README and
+  `docs/tour.md`.
+- Documentation index `docs/README.md`; README "What is tested" section and
+  link bar.
+- Tests: `tests/e2e/test_screenshots.py` (demo data, approval demo run,
+  committed pictures match the script and are shown in the docs) and
+  `tests/unit/test_docs_links.py` (relative links and heading anchors in the
+  Markdown docs resolve).
+
+### Fixed
+
+- Dashboard: the *Improvement history* table on `/improvement` clipped its
+  last column ("Δ pass rate") at common laptop widths. The cycle's age now
+  sits under the agent name instead of in its own column, and the two history
+  cards are side by side only from 1536 px.
+- `scripts/tour.py` and `scripts/screenshots.py` wrote their demo data to the
+  database configured in the repository's `.env` (`AGENTFORGE_DATABASE_URL`)
+  instead of their own: they only removed the variable from the environment,
+  and Settings also reads `.env`. Both now set the demo database URL
+  explicitly (and the screenshot tooling an empty API key).
+- Screenshots: pages taller than the viewport were stitched with a sidebar
+  that ended after one viewport; the capture now grows the viewport to the
+  page.
+
+### Changed
+
+- `docs/screenshots/` regenerated from the current dashboard; the README's
+  positioning text is shorter and its roadmap note is current.
+- `.gitignore`: `web/AGENTS.md` and `web/CLAUDE.md`, which `next dev` writes.
+
 ### Security
 
 - Lockfile: `certifi` 2026.7.22 → 2026.10.23 (PYSEC-2026-4320) and

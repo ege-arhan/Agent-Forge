@@ -36,6 +36,42 @@ _None open. Continue with P1 in roadmap order._
   of "AgentForge daily development"
   (https://claude.ai/code/routines/trig_01PkiuJ7LQqCzv7ZiFigY2DS).
 
+### T-021 Portfolio-quality release (milestone 16)
+- **Status:** in-progress — the agent work is finished; what remains is the
+  owner's review and merges (#37 → #38 → the PR from
+  `claude/stoic-gates-a37k0l`).
+- **Done (2026-11-11, PR from `claude/stoic-gates-773dp5`):** offline
+  five-minute tour — `scripts/tour.py` (runs the documented CLI commands and
+  checks each exit code; `--keep DIR` for the dashboard), `docs/tour.md`
+  (annotated real transcript, OFFLINE label), README link,
+  `tests/e2e/test_tour.py` (tour passes, an unexpected exit fails it, docs
+  name the commands and files the tour uses).
+- **Done (2026-11-12, PR from `claude/stoic-gates-za4zoq`; depends on the
+  tour PR #37):** reproducible screenshots — `scripts/screenshots.py` +
+  `scripts/screenshots.cjs` seed OFFLINE demo data, run the API and the
+  dashboard and capture 8 pages (new: a run paused at the approval gate; the
+  agent improvement page now shows the tour's cycle with its gate verdict);
+  `docs/screenshots/` regenerated from the current dashboard; docs index
+  `docs/README.md`; README pass (link bar, shorter positioning text, "What is
+  tested", current roadmap note, approval and benchmark pictures);
+  `tests/e2e/test_screenshots.py` and a Markdown link/anchor checker
+  `tests/unit/test_docs_links.py`.
+- **Done (2026-11-13, PR from `claude/stoic-gates-a37k0l`; depends on #38):**
+  walk-through recording `docs/screenshots/tour.gif` (23 s, 2.2 MB, OFFLINE
+  demo data) produced by `scripts/screenshots.py --record` +
+  `scripts/recording.cjs` (Playwright video → `ffmpeg` GIF), shown in the
+  README and `docs/tour.md`; dashboard fix — the *Improvement history* table
+  no longer clips "Δ pass rate" (the cycle's age moved under the agent name,
+  the two history cards sit side by side only from 1536 px); screenshots are
+  captured with the viewport grown to the page, so the sidebar spans the
+  picture (it is sticky, which is correct in a browser; only the stitched
+  full-page capture cut it short); all pictures regenerated; 6 new tests. Also fixed after a review
+  finding: the tour and the screenshot tooling now set their demo database
+  URL explicitly, so an `AGENTFORGE_DATABASE_URL` in `.env` no longer
+  redirects their data (2 regression tests).
+- **Remaining (owner):** review the README wording and the recording; merge
+  the three PRs in order. Milestone 16 is complete once they are merged.
+
 ## P2 — Enhancements (future work, not started)
 
 ### T-009c Broader real-model evaluations
