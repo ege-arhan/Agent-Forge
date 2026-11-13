@@ -28,8 +28,13 @@ Sections below the dated updates are the historical v0.2.0 release record.
   - the "sidebar is one viewport tall" note of 2026-11-12 was a capture
     artefact, not a dashboard bug: the sidebar is sticky. The capture now
     grows the viewport to the page; all eight pictures were regenerated.
+- Review finding on this PR (Codex bot, confirmed and fixed): the tour and
+  the screenshot tooling did not isolate themselves from an
+  `AGENTFORGE_DATABASE_URL` in the repository's `.env`, so their demo data
+  could land in the caller's database. Both now set the URL explicitly; two
+  regression tests reproduce the leak with a `.env` file.
 - Verified this session: ruff, ruff format, mypy --strict clean;
-  `pytest -m "not docker"` 388 passed; web lint, typecheck, 17 unit tests and
+  `pytest -m "not docker"` 390 passed; web lint, typecheck, 17 unit tests and
   production build pass; the screenshot and recording pipelines ran end to
   end here and the resulting pictures and GIF frames were inspected. Not run:
   Docker-sandbox tests and PostgreSQL tests (no code they cover changed).

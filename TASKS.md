@@ -65,7 +65,10 @@ _None open. Continue with P1 in roadmap order._
   the two history cards sit side by side only from 1536 px); screenshots are
   captured with the viewport grown to the page, so the sidebar spans the
   picture (it is sticky, which is correct in a browser; only the stitched
-  full-page capture cut it short); all pictures regenerated; 6 new tests.
+  full-page capture cut it short); all pictures regenerated; 6 new tests. Also fixed after a review
+  finding: the tour and the screenshot tooling now set their demo database
+  URL explicitly, so an `AGENTFORGE_DATABASE_URL` in `.env` no longer
+  redirects their data (2 regression tests).
 - **Remaining (owner):** review the README wording and the recording; merge
   the three PRs in order. Milestone 16 is complete once they are merged.
 

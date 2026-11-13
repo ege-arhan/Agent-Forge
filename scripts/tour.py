@@ -174,6 +174,17 @@ class Tour:
         return all(o.ok for o in self.outcomes)
 
 
+def isolate(data_dir: Path) -> None:
+    """Point this process (and the CLI it runs) at the tour's own database.
+
+    The URL is set explicitly: Settings also reads ``.env``, so only removing
+    AGENTFORGE_DATABASE_URL would leave a URL configured there in effect.
+    """
+    os.environ["AGENTFORGE_DATA_DIR"] = str(data_dir)
+    database = (data_dir / "agentforge.db").resolve()
+    os.environ["AGENTFORGE_DATABASE_URL"] = f"sqlite+aiosqlite:///{database}"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument(
@@ -183,14 +194,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     keep = Path(args.keep).resolve() if args.keep else None  # relative to the caller's cwd
 
     os.chdir(ROOT)  # the documented commands use repository-relative paths
-    os.environ.pop("AGENTFORGE_DATABASE_URL", None)
     with contextlib.ExitStack() as stack:
         if keep is not None:
             data_dir = keep
             data_dir.mkdir(parents=True, exist_ok=True)
         else:
             data_dir = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="af-tour-")))
-        os.environ["AGENTFORGE_DATA_DIR"] = str(data_dir)
+        isolate(data_dir)
         print("# AgentForge tour (OFFLINE: scripted provider, no model calls)")
         print(f"data directory: {data_dir if args.keep else '(temporary)'}")
         tour = Tour()

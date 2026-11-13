@@ -37,7 +37,8 @@ def tour() -> ModuleType:
 def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(ROOT)
     monkeypatch.setenv("AGENTFORGE_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.delenv("AGENTFORGE_DATABASE_URL", raising=False)
+    # Set (not deleted) so that monkeypatch restores it after tour.main() overrides it.
+    monkeypatch.setenv("AGENTFORGE_DATABASE_URL", "")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

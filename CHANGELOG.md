@@ -39,6 +39,11 @@ All notable changes are documented here. The format follows
   last column ("Δ pass rate") at common laptop widths. The cycle's age now
   sits under the agent name instead of in its own column, and the two history
   cards are side by side only from 1536 px.
+- `scripts/tour.py` and `scripts/screenshots.py` wrote their demo data to the
+  database configured in the repository's `.env` (`AGENTFORGE_DATABASE_URL`)
+  instead of their own: they only removed the variable from the environment,
+  and Settings also reads `.env`. Both now set the demo database URL
+  explicitly (and the screenshot tooling an empty API key).
 - Screenshots: pages taller than the viewport were stitched with a sidebar
   that ended after one viewport; the capture now grows the viewport to the
   page.

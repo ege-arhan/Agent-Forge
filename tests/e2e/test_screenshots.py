@@ -94,8 +94,8 @@ def test_child_env_isolates_the_demo_from_the_callers_database(
     monkeypatch.setenv("AGENTFORGE_DATABASE_URL", "postgresql+asyncpg://u:p@db/prod")
     monkeypatch.setenv("AGENTFORGE_API_KEY", "k")
     env = shots.child_env(tmp_path)
-    assert "AGENTFORGE_DATABASE_URL" not in env
-    assert "AGENTFORGE_API_KEY" not in env
+    assert env["AGENTFORGE_DATABASE_URL"].endswith(f"{tmp_path.resolve()}/agentforge.db")
+    assert env["AGENTFORGE_API_KEY"] == ""
     assert env["AGENTFORGE_DATA_DIR"] == str(tmp_path)
     assert os.environ["AGENTFORGE_DATABASE_URL"].endswith("/prod")  # caller untouched
 
@@ -205,3 +205,54 @@ def test_improvement_history_fits_its_card() -> None:
     ]
     assert "relativeTime(c.created_at)" in history, "the cycle's age moved under the agent name"
     assert "2xl:grid-cols-2" in page and "xl:grid-cols-2" not in page.replace("2xl:", "")
+
+
+# -- isolation from a repository .env (review finding on PR #39) ---------------------
+
+RESOLVE_URL = "from agentforge.settings import Settings; s = Settings(); print(s.resolved_database_url); print(repr(s.api_key or None))"
+DOTENV = "AGENTFORGE_DATABASE_URL=sqlite+aiosqlite:///caller.db\nAGENTFORGE_API_KEY=caller-key\n"
+
+
+def test_child_env_wins_over_a_dotenv_database_and_api_key(
+    shots: ModuleType, tmp_path: Path
+) -> None:
+    """Settings also reads ``.env``; dropping the variables alone left the demo on that database."""
+    cwd, data = tmp_path / "repo", tmp_path / "demo"
+    cwd.mkdir()
+    (cwd / ".env").write_text(DOTENV)
+    done = subprocess.run(
+        [sys.executable, "-c", RESOLVE_URL],
+        cwd=cwd,
+        env=shots.child_env(data),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    url, api_key = done.stdout.split()
+    assert url == f"sqlite+aiosqlite:///{(data / 'agentforge.db').resolve()}"
+    assert api_key == "None", "the capture talks to the API without a key"
+
+
+def test_tour_isolates_itself_from_a_dotenv_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = importlib.util.spec_from_file_location("af_tour_env", ROOT / "scripts" / "tour.py")
+    assert spec is not None and spec.loader is not None
+    tour = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "af_tour_env", tour)
+    spec.loader.exec_module(tour)
+    cwd, data = tmp_path / "repo", tmp_path / "data"
+    cwd.mkdir()
+    (cwd / ".env").write_text(DOTENV)
+    monkeypatch.setenv("AGENTFORGE_DATA_DIR", "elsewhere")  # restored after the test
+    monkeypatch.setenv("AGENTFORGE_DATABASE_URL", "")  # restored after the test
+    tour.isolate(data)
+    done = subprocess.run(
+        [sys.executable, "-c", RESOLVE_URL],
+        cwd=cwd,
+        env=dict(os.environ),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert done.stdout.split()[0] == f"sqlite+aiosqlite:///{(data / 'agentforge.db').resolve()}"

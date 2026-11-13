@@ -106,10 +106,15 @@ def approval_run_request() -> dict[str, Any]:
 
 
 def child_env(data_dir: Path) -> dict[str, str]:
+    """The caller's environment, pointed at the demo database in ``data_dir``.
+
+    The database URL and the API key are set, not just removed: Settings also
+    reads the repository's ``.env``, and only an explicit variable overrides it.
+    """
     env = dict(os.environ)
-    env.pop("AGENTFORGE_DATABASE_URL", None)
-    env.pop("AGENTFORGE_API_KEY", None)
     env["AGENTFORGE_DATA_DIR"] = str(data_dir)
+    env["AGENTFORGE_DATABASE_URL"] = f"sqlite+aiosqlite:///{(data_dir / 'agentforge.db').resolve()}"
+    env["AGENTFORGE_API_KEY"] = ""  # the capture calls the API without a key
     return env
 
 
