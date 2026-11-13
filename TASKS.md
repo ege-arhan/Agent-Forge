@@ -37,7 +37,9 @@ _None open. Continue with P1 in roadmap order._
   (https://claude.ai/code/routines/trig_01PkiuJ7LQqCzv7ZiFigY2DS).
 
 ### T-021 Portfolio-quality release (milestone 16)
-- **Status:** in-progress
+- **Status:** in-progress — the agent work is finished; what remains is the
+  owner's review and merges (#37 → #38 → the PR from
+  `claude/stoic-gates-a37k0l`).
 - **Done (2026-11-11, PR from `claude/stoic-gates-773dp5`):** offline
   five-minute tour — `scripts/tour.py` (runs the documented CLI commands and
   checks each exit code; `--keep DIR` for the dashboard), `docs/tour.md`
@@ -54,11 +56,18 @@ _None open. Continue with P1 in roadmap order._
   tested", current roadmap note, approval and benchmark pictures);
   `tests/e2e/test_screenshots.py` and a Markdown link/anchor checker
   `tests/unit/test_docs_links.py`.
-- **Remaining:** a short screen recording/GIF of the tour (no recording tool
-  in the agent environment so far); small dashboard polish seen while
-  capturing — the *Improvement history* table on `/improvement` clips its
-  last column at 1440 px, and the sidebar is one viewport tall on long pages;
-  owner review of the README wording.
+- **Done (2026-11-13, PR from `claude/stoic-gates-a37k0l`; depends on #38):**
+  walk-through recording `docs/screenshots/tour.gif` (23 s, 2.2 MB, OFFLINE
+  demo data) produced by `scripts/screenshots.py --record` +
+  `scripts/recording.cjs` (Playwright video → `ffmpeg` GIF), shown in the
+  README and `docs/tour.md`; dashboard fix — the *Improvement history* table
+  no longer clips "Δ pass rate" (the cycle's age moved under the agent name,
+  the two history cards sit side by side only from 1536 px); screenshots are
+  captured with the viewport grown to the page, so the sidebar spans the
+  picture (it is sticky, which is correct in a browser; only the stitched
+  full-page capture cut it short); all pictures regenerated; 6 new tests.
+- **Remaining (owner):** review the README wording and the recording; merge
+  the three PRs in order. Milestone 16 is complete once they are merged.
 
 ## P2 — Enhancements (future work, not started)
 

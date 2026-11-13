@@ -56,6 +56,13 @@ rejected it.
 
 *The dashboard with OFFLINE demo data (scripted provider, no model calls).*
 
+![Walk-through: an improvement cycle, then a run approved at the gate](docs/screenshots/tour.gif)
+
+*A 23-second walk-through of the [offline tour](docs/tour.md)'s data: the
+agent's improvement cycle with its gate verdict, then a run that waits at the
+approval gate is approved and finishes. OFFLINE demo data; it shows the
+dashboard, not model performance.*
+
 ## Features
 
 - **Multi-provider**: Anthropic (Claude), OpenAI, OpenRouter, Gemini
@@ -365,8 +372,8 @@ cd web && npm ci && npm run dev        # dashboard on :3000
 ```
 
 All screenshots show OFFLINE demo data (scripted provider) and are regenerated
-with `uv run python scripts/screenshots.py`; they illustrate the dashboard,
-not model performance.
+with `uv run python scripts/screenshots.py` (the walk-through recording above
+with `--record`); they illustrate the dashboard, not model performance.
 
 | Run list | Benchmark detail |
 |---|---|

@@ -22,7 +22,7 @@ latest session report and `TASKS.md` for task-level detail).
 | 13 | Security hardening (API policy, limits, audit, sandbox egress control, gVisor option) | ✅ Done — see SECURITY.md limitations |
 | 14 | CI/CD and developer experience (CI, security scans, migrations, release workflow) | ✅ Done |
 | 15 | Public beta / v0.2.0: stable `main` + PR workflow, dogfooding program, agent improvement loop, human approval gate, CI regression gate, limited real-model validation | ✅ Done in the release branch (PR #11, which also carries #12) — awaiting the owner's merges and the `v0.2.0` tag; see `docs/RELEASE_CHECKLIST.md` |
-| 16 | Portfolio-quality release (screenshots, demo, polished docs) | 🚧 In progress — offline tour (`docs/tour.md`, `scripts/tour.py`), reproducible refreshed screenshots, docs index and README pass done in PRs #37 and its follow-up; a tour recording and small dashboard polish remain (T-021) |
+| 16 | Portfolio-quality release (screenshots, demo, polished docs) | 🚧 Implemented, awaiting the owner's review and merges — offline tour (PR #37), reproducible screenshots, docs index and README pass (PR #38), walk-through recording and dashboard polish (the PR from `claude/stoic-gates-a37k0l`); stacked in that order (T-021) |
 
 The project is in **feature freeze** after v0.2.0: fixes, tests, security and
 documentation only. Milestone 16 is documentation and demo work, so it was

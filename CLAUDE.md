@@ -41,6 +41,7 @@ uv run agentforge bench run examples/benchmarks/starter.yaml -a examples/agents/
 uv run python scripts/dogfood.py offline   # dogfooding suites + improvement-loop demo (OFFLINE results)
 uv run python scripts/tour.py              # offline five-minute tour of the loop (docs/tour.md)
 uv run python scripts/screenshots.py       # regenerate docs/screenshots (needs web deps + Playwright; DEVELOPMENT.md)
+uv run python scripts/screenshots.py --record   # regenerate docs/screenshots/tour.gif (also needs ffmpeg)
 uv run agentforge improve --help     # agent improvement loop (docs/improvement.md)
 uv run agentforge bench gate --baseline REPORT.json --candidate BENCH_ID   # CI regression gate (docs/regression-gate.md)
 uv run agentforge serve              # API on :8000, docs at /docs

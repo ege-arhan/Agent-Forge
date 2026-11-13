@@ -1,11 +1,42 @@
 # AgentForge Development Status
 
-Date: 2026-11-12
+Date: 2026-11-13
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
 complete; the project is in **feature freeze** (fixes, tests, security and
-documentation only). Milestone 16 (documentation/demo work) is in progress.
+documentation only). Milestone 16 (documentation/demo work) is implemented
+in three stacked PRs that await the owner's review.
 Sections below the dated updates are the historical v0.2.0 release record.
+
+## Update 2026-11-13
+
+- `main` (`9a0f8fb`) is green (last push CI; scheduled Security run of
+  2026-11-09). Nothing was merged since 2026-11-01.
+- Agent PRs awaiting owner review: #37 (offline tour) and #38 (screenshots,
+  docs index, README; stacked on #37) — both with green CI and no review
+  comments (the Codex review bot could not run: usage limit); #13, #32, #33,
+  #34 (unchanged since October, not re-checked). Dependabot PRs #15–#19,
+  #27–#31, #36 are the owner's (not checked).
+- This session, on `claude/stoic-gates-a37k0l`, **stacked on #38** (merge
+  #37, then #38, first), finished the remaining T-021 items:
+  - walk-through recording `docs/screenshots/tour.gif` (139 frames, 23 s,
+    960×540, 2.2 MB; OFFLINE demo data) from `scripts/screenshots.py
+    --record` + `scripts/recording.cjs`; needs Playwright and `ffmpeg`,
+    neither a project dependency; CI does not record;
+  - dashboard fix: the *Improvement history* table no longer clips its last
+    column (five columns instead of six; two-column layout from 1536 px);
+  - the "sidebar is one viewport tall" note of 2026-11-12 was a capture
+    artefact, not a dashboard bug: the sidebar is sticky. The capture now
+    grows the viewport to the page; all eight pictures were regenerated.
+- Verified this session: ruff, ruff format, mypy --strict clean;
+  `pytest -m "not docker"` 388 passed; web lint, typecheck, 17 unit tests and
+  production build pass; the screenshot and recording pipelines ran end to
+  end here and the resulting pictures and GIF frames were inspected. Not run:
+  Docker-sandbox tests and PostgreSQL tests (no code they cover changed).
+- Milestone 16 has no agent work left; it is complete once the owner merges
+  #37, #38 and this PR. Next agent work needs an owner decision: the project
+  is in feature freeze and the remaining tasks are future-work items (P2) or
+  need a budget (T-009c).
 
 ## Update 2026-11-12
 

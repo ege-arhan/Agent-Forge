@@ -179,6 +179,14 @@ evidence and the evaluated cycle with its gate verdict.
 The picture is this page with the tour's data; all dashboard screenshots are
 listed in the [documentation index](README.md#dashboard-screenshots).
 
+![Dashboard walk-through of the tour's data](screenshots/tour.gif)
+
+The recording walks through the same pages (OFFLINE demo data, scripted
+provider): the overview, the agent's cycle and gate verdict, and then one
+extra scripted run that pauses at the
+[approval gate](../README.md#human-approval-for-sensitive-tools) until *Approve* is clicked. It is
+produced by `uv run python scripts/screenshots.py --record`.
+
 ## Where to go next
 
 - A real model: [README → Quick start](../README.md#quick-start-offline-no-api-key)

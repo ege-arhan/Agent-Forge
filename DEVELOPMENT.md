@@ -75,6 +75,7 @@ All tests are offline. The scripted provider stands in for models.
 cd web && npm ci && cd ..
 uv run python scripts/screenshots.py            # writes docs/screenshots/*.png
 uv run python scripts/screenshots.py --seed-only .demo   # only the demo data
+uv run python scripts/screenshots.py --record   # writes docs/screenshots/tour.gif
 ```
 
 The script seeds a temporary data directory with OFFLINE demo data (the tour,
@@ -82,14 +83,24 @@ the starter benchmark with the scripted demo agent, the step-budget demo
 experiment), starts the API on :8000 and the dashboard dev server on :3000,
 starts one scripted run that pauses at the approval gate, and then runs
 `scripts/screenshots.cjs`, which opens each page in headless Chromium at
-1440 px wide. Both ports must be free.
+1440 px wide. Each page is captured whole: the viewport grows to the page
+height, so the sticky sidebar spans the picture. Both ports must be free.
+
+`--record` uses the same demo data and servers but runs
+`scripts/recording.cjs` instead: a scripted walk-through (overview → the tour
+agent's improvement cycle → the paused run is approved and finishes) recorded
+by Playwright at 1280×720 and converted with `ffmpeg` (must be on `PATH`) to
+a looping 960 px GIF at 6 frames/s. The pointer in the recording is drawn by
+the script, because headless Chromium shows none.
 
 Capturing needs Node.js with [Playwright](https://playwright.dev) and a
 Chromium it can launch (`npm i -g playwright && npx playwright install
 chromium`); Playwright is not a project dependency and CI does not capture.
 `tests/e2e/test_screenshots.py` checks the offline parts: the demo data, the
 approval demo run, and that the committed pictures are exactly the ones the
-script captures and that each is shown in the docs. When a dashboard page
+script captures and that each is shown in the docs; for the recording, that
+the committed GIF is small, looping and labelled OFFLINE where it is shown,
+and that every label the walk-through clicks exists in the dashboard source. When a dashboard page
 changes visibly, rerun the script and commit the pictures; ids and relative
 times differ on every run.
 

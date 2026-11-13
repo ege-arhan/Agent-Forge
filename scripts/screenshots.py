@@ -3,6 +3,7 @@
 
     uv run python scripts/screenshots.py                 # seed, serve, capture
     uv run python scripts/screenshots.py --seed-only DIR # only create the demo data
+    uv run python scripts/screenshots.py --record        # docs/screenshots/tour.gif
 
 Everything shown is produced by the scripted provider (no API key, no model
 calls): the tour (scripts/tour.py), the starter benchmark, the step-budget
@@ -14,7 +15,12 @@ Capturing needs Node.js with Playwright and a Chromium it can launch
 project dependency. The API (:8000) and the dashboard dev server (:3000) are
 started for the capture and stopped afterwards, so both ports must be free.
 
-Exit status: 0 when every screenshot was written, 1 otherwise.
+`--record` records a short dashboard walk-through of the same data instead
+(scripts/recording.cjs): the tour agent's improvement cycle, then a run that
+waits at the approval gate is approved and finishes. It also needs `ffmpeg`
+on PATH to turn the video into a GIF.
+
+Exit status: 0 when every screenshot (or the recording) was written, 1 otherwise.
 """
 
 from __future__ import annotations
@@ -39,6 +45,13 @@ OUT = ROOT / "docs" / "screenshots"
 API = "http://127.0.0.1:8000"
 WEB = "http://localhost:3000"  # the API's default CORS origin
 APPROVAL_AGENT = "approval-demo"
+RECORDING = "tour.gif"
+# Recording → GIF: 6 frames/s, 960 px wide, one 64-colour palette for the clip.
+GIF_FILTER = (
+    "fps=6,scale=960:-1:flags=lanczos,split[a][b];"
+    "[a]palettegen=max_colors=64:stats_mode=diff[p];"
+    "[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+)
 # `agentforge ...` with this interpreter (works without the console script on PATH).
 CLI = [sys.executable, "-c", "import sys; from agentforge.cli import main; sys.exit(main())"]
 
@@ -172,10 +185,16 @@ def start_approval_run() -> str:
     return run_id
 
 
-def capture(data_dir: Path, out_dir: Path) -> int:
-    node, npm = shutil.which("node"), shutil.which("npm")
-    if node is None or npm is None:
-        raise RuntimeError("node and npm are required to capture screenshots")
+@contextlib.contextmanager
+def serving(data_dir: Path) -> Iterator[tuple[str, dict[str, str]]]:
+    """Run the API and the dashboard on the demo data.
+
+    Yields the id of a run paused at the approval gate and the environment for
+    the browser script.
+    """
+    npm = shutil.which("npm")
+    if shutil.which("node") is None or npm is None:
+        raise RuntimeError("node and npm are required to capture the dashboard")
     if not (ROOT / "web" / "node_modules").is_dir():
         raise RuntimeError("install the dashboard first: cd web && npm ci")
     env = child_env(data_dir)
@@ -189,20 +208,84 @@ def capture(data_dir: Path, out_dir: Path) -> int:
             background([npm, "run", "dev"], ROOT / "web", web_env, data_dir / "web.log")
         )
         wait_until("the dashboard", dashboard_up)
+        try:
+            yield run_id, {**env, "AF_API": API, "AF_WEB": WEB, "AF_APPROVAL_RUN": run_id}
+        finally:
+            # Still paused after screenshots; already finished after a recording.
+            with contextlib.suppress(urllib.error.URLError):
+                http_json(f"{API}/api/v1/runs/{run_id}/cancel", {})
+
+
+def capture(data_dir: Path, out_dir: Path) -> int:
+    with serving(data_dir) as (_, env):
         shots = subprocess.run(  # noqa: S603
-            [node, str(ROOT / "scripts" / "screenshots.cjs"), str(out_dir)],
+            ["node", str(ROOT / "scripts" / "screenshots.cjs"), str(out_dir)],  # noqa: S607
             cwd=ROOT,
-            env={**env, "AF_API": API, "AF_WEB": WEB, "AF_APPROVAL_RUN": run_id},
+            env=env,
             check=False,
         )
-        with contextlib.suppress(urllib.error.URLError):
-            http_json(f"{API}/api/v1/runs/{run_id}/cancel", {})
         return shots.returncode
+
+
+def gif_command(ffmpeg: str, video: Path, trim_seconds: float, target: Path) -> list[str]:
+    """The ffmpeg call that turns the recorded video into the committed GIF."""
+    return [
+        ffmpeg,
+        "-y",
+        "-loglevel",
+        "error",
+        "-ss",
+        f"{max(trim_seconds, 0.0):.2f}",
+        "-i",
+        str(video),
+        "-filter_complex",
+        GIF_FILTER,
+        "-loop",
+        "0",
+        str(target),
+    ]
+
+
+def record(data_dir: Path, out_dir: Path) -> int:
+    """Record the dashboard walk-through and write ``out_dir/tour.gif``."""
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        raise RuntimeError("ffmpeg is required to convert the recording to a GIF")
+    work = data_dir / "recording"
+    with serving(data_dir) as (_, env):
+        done = subprocess.run(  # noqa: S603
+            ["node", str(ROOT / "scripts" / "recording.cjs"), str(work)],  # noqa: S607
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    if done.returncode != 0:
+        raise RuntimeError(f"{done.stdout}{done.stderr}".strip() or "recording failed")
+    info = json.loads(done.stdout.strip().splitlines()[-1])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / RECORDING
+    converted = subprocess.run(  # noqa: S603
+        gif_command(ffmpeg, Path(info["video"]), float(info["trim_seconds"]), target),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if converted.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed: {converted.stderr.strip()}")
+    print(f"wrote {target.name}  ({target.stat().st_size / 1e6:.1f} MB)")
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--seed-only", metavar="DIR", help="create the demo data in DIR and stop")
+    parser.add_argument(
+        "--record",
+        action="store_true",
+        help=f"record the dashboard walk-through ({RECORDING}) instead of the screenshots",
+    )
     parser.add_argument("--out", default=str(OUT), help="output directory (default: %(default)s)")
     args = parser.parse_args(argv)
     try:
@@ -210,9 +293,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed(Path(args.seed_only).resolve())
             print(f"demo data (OFFLINE) written to {args.seed_only}")
             return 0
+        if args.record and shutil.which("ffmpeg") is None:  # before the slow seeding
+            raise RuntimeError("ffmpeg is required to convert the recording to a GIF")
         with tempfile.TemporaryDirectory(prefix="af-shots-") as tmp:
             seed(Path(tmp))
-            return capture(Path(tmp), Path(args.out).resolve())
+            produce = record if args.record else capture
+            return produce(Path(tmp), Path(args.out).resolve())
     except RuntimeError as exc:
         print(f"screenshots failed: {exc}", file=sys.stderr)
         return 1

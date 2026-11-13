@@ -10,6 +10,7 @@ const API = process.env.AF_API || "http://127.0.0.1:8000";
 const WEB = process.env.AF_WEB || "http://localhost:3000";
 const APPROVAL_RUN = process.env.AF_APPROVAL_RUN || "";
 const OUT = path.resolve(process.argv[2] || "docs/screenshots");
+const VIEWPORT = { width: 1440, height: 900 };
 
 async function api(pathname) {
   const response = await fetch(`${API}/api/v1${pathname}`);
@@ -52,7 +53,7 @@ async function main() {
   try {
     for (const shot of shots) {
       const context = await browser.newContext({
-        viewport: { width: 1440, height: 900 },
+        viewport: VIEWPORT,
         deviceScaleFactor: 1,
         colorScheme: shot.theme,
       });
@@ -67,7 +68,14 @@ async function main() {
       // The Next.js dev-mode indicator is not part of the dashboard.
       await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
       await page.waitForTimeout(500);
-      await page.screenshot({ path: path.join(OUT, shot.file), fullPage: true });
+      // Grow the viewport to the page instead of stitching a full-page capture:
+      // the sidebar is sticky and one viewport tall, so it would end mid-picture.
+      const height = await page.evaluate(() => document.documentElement.scrollHeight);
+      if (height > VIEWPORT.height) {
+        await page.setViewportSize({ width: VIEWPORT.width, height });
+        await page.waitForTimeout(300);
+      }
+      await page.screenshot({ path: path.join(OUT, shot.file) });
       console.log(`wrote ${shot.file}  (${shot.url})`);
       await context.close();
     }

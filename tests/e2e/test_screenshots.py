@@ -130,3 +130,78 @@ def test_every_screenshot_is_shown_in_the_docs() -> None:
         assert f"screenshots/{name}" in docs, f"{name} is captured but never shown"
     for linked in set(re.findall(r"screenshots/([\w.-]+\.png)", docs)):
         assert (SHOTS / linked).is_file(), f"docs link a missing screenshot: {linked}"
+
+
+# -- the recorded walk-through (scripts/screenshots.py --record) ---------------------
+
+
+def test_recording_is_committed_as_a_small_animated_gif(shots: ModuleType) -> None:
+    data = (SHOTS / shots.RECORDING).read_bytes()
+    assert data[:6] == b"GIF89a"
+    width, height = int.from_bytes(data[6:8], "little"), int.from_bytes(data[8:10], "little")
+    assert (width, height) == (960, 540)
+    assert b"NETSCAPE2.0" in data[:2048], "the GIF should loop"
+    assert len(data) < 4_000_000, "keep the recording small enough for the README"
+
+
+def test_recording_is_shown_in_the_docs_as_offline_data(shots: ModuleType) -> None:
+    for page in (ROOT / "README.md", ROOT / "docs" / "tour.md"):
+        text = page.read_text()
+        position = text.index(f"screenshots/{shots.RECORDING}")
+        assert "OFFLINE" in text[position : position + 600], f"{page.name}: label the recording"
+
+
+def test_gif_command_trims_the_warm_up_and_writes_the_target(
+    shots: ModuleType, tmp_path: Path
+) -> None:
+    command = shots.gif_command("ffmpeg", tmp_path / "tour.webm", 3.456, tmp_path / "tour.gif")
+    assert command[0] == "ffmpeg"
+    assert command[command.index("-ss") + 1] == "3.46"
+    assert command.index("-ss") < command.index("-i"), "trim while seeking the input"
+    assert command[command.index("-i") + 1] == str(tmp_path / "tour.webm")
+    assert command[-1] == str(tmp_path / "tour.gif")
+    assert "scale=960" in command[command.index("-filter_complex") + 1]
+    negative = shots.gif_command("ffmpeg", tmp_path / "a", -1.0, tmp_path / "b")
+    assert negative[negative.index("-ss") + 1] == "0.00"
+
+
+def test_record_needs_ffmpeg(
+    shots: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(shots.shutil, "which", lambda name: None)
+    with pytest.raises(RuntimeError, match="ffmpeg is required"):
+        shots.record(tmp_path, tmp_path / "out")
+    assert shots.main(["--record", "--out", str(tmp_path / "out")]) == 1
+    assert not (tmp_path / "out").exists()
+
+
+def test_recording_script_follows_labels_the_dashboard_has() -> None:
+    """The walk-through clicks by visible text; a renamed label must fail here, not later."""
+    script = (ROOT / "scripts" / "recording.cjs").read_text()
+    web = "\n".join(
+        path.read_text()
+        for folder in ("app", "components")
+        for path in sorted((ROOT / "web" / folder).rglob("*.tsx"))
+    )
+    labels = set(re.findall(r'getBy(?:Text|Role)\((?:"\w+", \{ name: )?"([^"]+)"', script))
+    assert labels >= {"Improvement", "Runs", "Approve", "Pending approval", "Succeeded"}
+    for label in sorted(labels):
+        assert label in web, f"recording.cjs waits for {label!r}, which the dashboard lacks"
+    tour = (ROOT / "scripts" / "tour.py").read_text()
+    agent = re.search(r'TOUR_AGENT = "([\w-]+)"', script)
+    assert agent is not None and f'AGENT_NAME = "{agent.group(1)}"' in tour
+
+
+def test_improvement_history_fits_its_card() -> None:
+    """Regression: the table had six columns and clipped "Δ pass rate" at 1440 px."""
+    page = (ROOT / "web" / "app" / "improvement" / "page.tsx").read_text()
+    history = page[page.index('title="Improvement history"') : page.index('title="Experiment')]
+    assert re.findall(r"<TH[^>]*>([^<]+)</TH>", history) == [
+        "Agent",
+        "Versions",
+        "Status",
+        "Verdict",
+        "Δ pass rate",
+    ]
+    assert "relativeTime(c.created_at)" in history, "the cycle's age moved under the agent name"
+    assert "2xl:grid-cols-2" in page and "xl:grid-cols-2" not in page.replace("2xl:", "")
