@@ -200,7 +200,12 @@ class GeminiProvider(LLMProvider):
                 code="connection",
             ) from exc
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise LLMError("gemini: response body is not valid JSON", retryable=True) from exc
+        if not isinstance(data, dict):
+            raise LLMError("gemini: response body is not a JSON object", retryable=True)
         candidates = data.get("candidates") or []
         if not candidates:
             # A blocked prompt is HTTP 200 with no candidates and a block
@@ -247,14 +252,22 @@ def _usage(meta: dict[str, Any]) -> TokenUsage:
 
 
 def _declaration(tool: ToolSpec) -> dict[str, Any]:
-    return {"name": tool.name, "description": tool.description, "parameters": tool.input_schema}
+    # ``parametersJsonSchema`` takes standard JSON Schema. The older
+    # ``parameters`` field is a restricted OpenAPI subset that has no
+    # ``exclusiveMinimum`` (and historically no ``additionalProperties``),
+    # both of which the Pydantic-generated tool schemas contain.
+    return {
+        "name": tool.name,
+        "description": tool.description,
+        "parametersJsonSchema": tool.input_schema,
+    }
 
 
 def _translate_status_error(exc: httpx.HTTPStatusError) -> LLMError:
     status = exc.response.status_code
     try:
-        message = exc.response.json().get("error", {}).get("message") or exc.response.text
-    except ValueError:
+        message = exc.response.json()["error"]["message"] or exc.response.text
+    except (ValueError, KeyError, TypeError):
         message = exc.response.text
     retryable = status in (408, 409, 429) or status >= 500
     code = {401: "authentication", 403: "permission", 404: "not_found", 429: "rate_limit"}.get(

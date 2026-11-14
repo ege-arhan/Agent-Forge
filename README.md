@@ -66,7 +66,7 @@ dashboard, not model performance.*
 ## Features
 
 - **Multi-provider**: Anthropic (Claude), OpenAI, OpenRouter, Gemini
-  (OpenAI-compatible endpoint), OpenCode Go (OpenAI-compatible endpoint, set
+  (native `generateContent` API), OpenCode Go (OpenAI-compatible endpoint, set
   `model.base_url`), local OpenAI-compatible servers (Ollama, vLLM,
   LM Studio), plus a deterministic *scripted* provider for offline tests.
 - **Instrumented runtime**: ReAct or plan-and-execute loop with LLM retry
@@ -133,8 +133,8 @@ uv sync --all-extras            # or: pip install -e '.[all]'
 source .venv/bin/activate
 ```
 
-Extras: `anthropic`, `openai` (also used for OpenRouter, Gemini and local
-servers), `postgres`, `otel`, `all`.
+Extras: `anthropic`, `openai` (also used for OpenRouter and local servers),
+`postgres`, `otel`, `all`. Gemini needs no extra.
 
 With Docker Compose (API + PostgreSQL + dashboard):
 

@@ -423,7 +423,11 @@ async def test_gemini_complete_parses_tool_call_and_usage() -> None:
     assert seen["body"]["tools"] == [
         {
             "functionDeclarations": [
-                {"name": "read_file", "description": "Read", "parameters": {"type": "object"}}
+                {
+                    "name": "read_file",
+                    "description": "Read",
+                    "parametersJsonSchema": {"type": "object"},
+                }
             ]
         }
     ]
@@ -993,3 +997,56 @@ async def test_gemini_usage_includes_thinking_tokens() -> None:
         CompletionRequest(model="gemini-test", messages=[Message.user("hi")])
     )
     assert response.usage.output_tokens == 12
+
+
+async def test_gemini_sends_builtin_tool_schemas_as_json_schema() -> None:
+    """The built-in tool schemas use JSON Schema keywords (``additionalProperties``,
+    ``exclusiveMinimum``, ``anyOf``) that Gemini's OpenAPI-subset ``parameters``
+    field does not define, so they go in ``parametersJsonSchema``, unmodified."""
+    from agentforge.tools.registry import default_registry
+
+    specs = [tool.spec() for tool in default_registry().resolve(["run_command", "git_status"])]
+    assert "exclusiveMinimum" in json.dumps(specs[0].input_schema)
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={"candidates": [{"content": {"parts": [{"text": "ok"}]}, "finishReason": "STOP"}]},
+        )
+
+    provider = GeminiProvider(client=gemini_client(handler))
+    await provider.complete(
+        CompletionRequest(model="gemini-test", messages=CONVERSATION, tools=specs)
+    )
+    declarations = seen["body"]["tools"][0]["functionDeclarations"]
+    assert [d["name"] for d in declarations] == ["run_command", "git_status"]
+    for declaration, spec in zip(declarations, specs, strict=True):
+        assert "parameters" not in declaration
+        assert declaration["parametersJsonSchema"] == spec.input_schema
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(200, content=b"<html>upstream proxy page</html>"),
+        httpx.Response(200, json=["not", "an", "object"]),
+    ],
+)
+async def test_gemini_malformed_success_body_is_a_retryable_llm_error(
+    response: httpx.Response,
+) -> None:
+    provider = GeminiProvider(client=gemini_client(lambda request: response))
+    with pytest.raises(LLMError) as excinfo:
+        await provider.complete(CompletionRequest(model="gemini-test", messages=CONVERSATION))
+    assert excinfo.value.retryable
+
+
+async def test_gemini_error_body_that_is_not_an_object_is_still_classified() -> None:
+    provider = GeminiProvider(
+        client=gemini_client(lambda request: httpx.Response(503, json=["overloaded"]))
+    )
+    with pytest.raises(LLMError) as excinfo:
+        await provider.complete(CompletionRequest(model="gemini-test", messages=CONVERSATION))
+    assert excinfo.value.retryable and excinfo.value.status_code == 503

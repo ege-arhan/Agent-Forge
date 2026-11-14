@@ -40,8 +40,8 @@ _None open. Continue with P1 in roadmap order._
 
 ### T-021 Portfolio-quality release (milestone 16)
 - **Status:** in-progress — the agent work is finished; what remains is the
-  owner's review and merges (#37 → #38 → the PR from
-  `claude/stoic-gates-a37k0l`).
+  owner's review and merges (#37 → #38 → #39, or the combined PR from
+  `claude/stoic-gates-xe8k3q`; see `docs/STATUS.md`).
 - **Done (2026-11-11, PR from `claude/stoic-gates-773dp5`):** offline
   five-minute tour — `scripts/tour.py` (runs the documented CLI commands and
   checks each exit code; `--keep DIR` for the dashboard), `docs/tour.md`
@@ -58,7 +58,7 @@ _None open. Continue with P1 in roadmap order._
   tested", current roadmap note, approval and benchmark pictures);
   `tests/e2e/test_screenshots.py` and a Markdown link/anchor checker
   `tests/unit/test_docs_links.py`.
-- **Done (2026-11-13, PR from `claude/stoic-gates-a37k0l`; depends on #38):**
+- **Done (2026-11-13, PR #39; depends on #38):**
   walk-through recording `docs/screenshots/tour.gif` (23 s, 2.2 MB, OFFLINE
   demo data) produced by `scripts/screenshots.py --record` +
   `scripts/recording.cjs` (Playwright video → `ffmpeg` GIF), shown in the
@@ -73,6 +73,16 @@ _None open. Continue with P1 in roadmap order._
   redirects their data (2 regression tests).
 - **Remaining (owner):** review the README wording and the recording; merge
   the three PRs in order. Milestone 16 is complete once they are merged.
+
+### T-002c Live smoke test of the native Gemini adapter
+- **Status:** blocked — needs `GEMINI_API_KEY` and the owner's approval for a
+  real-model call. The adapter (T-002b) is unit-tested against a mocked
+  transport only; no session has had credentials, and `ai.google.dev` is not
+  reachable from the cloud sessions, so its wire format (in particular
+  `parametersJsonSchema` for tool schemas, thought signatures and the usage
+  fields) is unconfirmed.
+- **To do:** one run of `examples/agents/gemini.yaml` with a tool call and a
+  tool result; record the outcome as REAL, fix what the API rejects.
 
 ## P2 — Enhancements (future work, not started)
 
@@ -133,7 +143,7 @@ _None open. Continue with P1 in roadmap order._
 | T-000 | Repository foundation | pyproject (uv, ruff, mypy strict, pytest), layout, .gitignore |
 | T-001 | Core domain models | `core/config.py`, `core/models.py`, errors, IDs |
 | T-002 | Provider abstraction | Anthropic + OpenAI-compatible (OpenAI/OpenRouter/local) + scripted; pricing; plugin registry; tested with SDKs over mock transports |
-| T-002b | Native Gemini adapter | `llm/gemini.py` speaks `generateContent` directly over `httpx` (no SDK, no optional extra); id-less function calls resolved by name; opaque "thought" parts echoed back; unit-tested with a mocked transport. Replaces the OpenAI-compatible `gemini` preset. |
+| T-002b | Native Gemini adapter | `llm/gemini.py` speaks `generateContent` directly over `httpx` (no SDK, no optional extra); id-less function calls resolved by name; opaque "thought" parts echoed back; tool schemas sent as `parametersJsonSchema`; unit-tested with a mocked transport **only — not yet run against the live API (T-002c)**. Replaces the OpenAI-compatible `gemini` preset. |
 | T-003 | Agent runtime | retries/backoff, timeouts, cancellation, max steps/tool calls, consecutive-error cap, refusal/max_tokens handling, plan_execute, evaluation retries, events |
 | T-004 | Tool system | registry/toolsets/entry points, executor, filesystem/terminal/git/http/github/memory tools |
 | T-005 | Sandbox | workspace confinement, local sandbox (scrubbed env, process-group kill, output caps), Docker sandbox (hardened, tested against a real daemon) |
