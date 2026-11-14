@@ -1,43 +1,72 @@
 # AgentForge Development Status
 
-Date: 2026-10-31
+Date: 2026-11-14
 
-Version: **0.2.0** (release prepared; not tagged). Milestones 0–15 complete in
-the release branch; the project is in **feature freeze** until the owner
-starts milestone 16 or a future-work item (see ROADMAP.md).
+Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
+merged. Milestone 16 (documentation and demo) and two future-work items are
+implemented in pull requests that await the owner's review; nothing has been
+merged into `main` since 2026-11-01. Earlier dated session reports are in
+this file's git history.
 
-## Update 2026-10-31
+## State of `main` (2026-11-14)
 
-- v0.2.0 is merged and tagged on `main` (`244f660`, tag `v0.2.0`); the
-  "release prepared; not tagged" and merge-order text below is historical.
-- CI on `main` was green except the scheduled **Security** run of 2026-10-26:
-  `pip-audit` flagged `certifi` 2026.7.22 (PYSEC-2026-4320) and
-  `opentelemetry-api` 1.45.0 (CVE-2026-114603). Fixed on branch
-  `claude/stoic-gates-yxaatl` by a lockfile update only; local `pip-audit`
-  now reports no known vulnerabilities, ruff/mypy clean, 347 non-docker tests
-  pass (docker tests and web not run this session; web untouched).
-- Awaiting owner review: agent PRs #13 (native Gemini adapter), #32 (gate
-  token/latency budgets), #33, #34 (review fixes); Dependabot PRs #14–#19,
-  #27–#31 (owner's to merge; not checked for failures this session).
+- `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
+  of 2026-11-09 succeeded.
 
-## Branches and pull requests
+## Pull requests awaiting the owner
 
-Stable branch: `main` (at `7eb61d8`). All work reaches it through pull
-requests merged by the owner; see CLAUDE.md "Git workflow".
+Agent work is spread over seven pull requests in two stacks. Before this
+session the two stacks could not both be merged:
 
-Release branch: `claude/clever-bohr-woxzdb` (PR #11). Merge order:
+- **Milestone 16 stack** — #37 (offline tour) → #38 (screenshots, docs index,
+  README) → #39 (walk-through recording, dashboard table fix). Green CI, no
+  open review findings, merges cleanly into `main`.
+- **Gemini / gate-budget stack** — #13 (native Gemini adapter, T-002b) → #32
+  (gate token and latency budgets, T-019b part) → #33 → #34 (review fixes).
+  Their CI was green when pushed in October, but all four now **conflict
+  with `main`** (`CHANGELOG.md`, `docs/STATUS.md`) and with the milestone 16
+  stack (also `ROADMAP.md`), so GitHub cannot merge them.
 
-1. #8 `claude/focused-newton-j0z9l1` — PR-based workflow docs.
-2. #9 `feature/dogfooding-improvement-loop` — dogfooding program, improvement loop.
-3. #10 `feature/real-model-validation` — real-model validation tooling.
-4. #11 `claude/clever-bohr-woxzdb` — OpenCode Go fixes, REAL results, hard
-   suite, improvement experiments, **PR #12 merged in** (human approval gate;
-   conflicts resolved, its migration renumbered `0002` → `0003`), CI
-   regression gate, v0.2.0 release preparation.
+**PR #40 (branch `claude/stoic-gates-xe8k3q`) contains both stacks**
+with the conflicts resolved (the head of #39 plus a merge of the head of
+#34), and one fix on top (below). Two ways to merge:
 
-Each branch contains the previous one; #12 will show as merged once #11 is.
-Dependabot PRs #1–#7 were closed as obsolete (they targeted the pre-`main`
-default branch); Dependabot recreates needed updates once `main` is default.
+1. Merge only #40, then close
+   #13, #32, #33, #34, #37, #38 and #39 — their commits are all in it.
+2. Or merge #37 → #38 → #39 first, then #40, and close #13, #32, #33 and #34.
+
+Dependabot PRs #15–#19, #27–#31 and #36 are the owner's to merge; their CI
+was not checked this session. #36 (Python 3.12 → 3.15 base image) is a
+three-minor-version jump and deserves a deliberate look.
+
+## This session (2026-11-14)
+
+- Combined the two stacks as described above. Only documentation files
+  conflicted; no source file needed manual resolution.
+- Self-review of the Gemini adapter found and fixed:
+  - tool schemas were sent in `parameters`, Gemini's restricted OpenAPI
+    subset. Every built-in tool schema contains `additionalProperties`, and
+    several contain `exclusiveMinimum`, which that subset does not define.
+    They are now sent as `parametersJsonSchema` (standard JSON Schema);
+  - an HTTP 200 body that is not a JSON object, and an error body that is
+    not a JSON object, raised `ValueError`/`AttributeError` instead of a
+    classified `LLMError`.
+- **Not verified:** the Gemini adapter has never been run against the live
+  API — there are no credentials in these sessions, and
+  `ai.google.dev` is not reachable from them, so the field names above come
+  from the API as the author knows it, not from a check made here. The tests
+  use a mocked transport. Before relying on the adapter, run one real call
+  with a tool (T-002c).
+
+## Verification (2026-11-14, `claude/stoic-gates-xe8k3q`)
+
+- ruff, ruff format, mypy --strict, `ruff --select S`: clean.
+- `pytest`: 419 passed, 8 skipped — the skipped ones are the Docker-sandbox
+  tests (a daemon ran here, but the `python:3.12-slim` image could not be
+  pulled). Not run: PostgreSQL tests. CI runs both.
+- Dashboard: lint, typecheck, unit tests and production build pass.
+- The five new Gemini tests fail on the adapter as it was in #34 and pass
+  with the fix.
 
 ## What 0.2.0 contains
 
@@ -67,35 +96,21 @@ Documented in `docs/REAL_MODEL_BENCHMARK.md`; not rerun or altered.
 - Totals: 14 task executions + 2 smoke calls, 107 model calls, 355 391
   tokens; cost NOT AVAILABLE. Small samples: no rankings, no significance.
 
-## Verification (2026-09-27, release branch)
-
-- Python: 355 tests passing (SQLite; includes 8 Docker-sandbox tests
-  with a running daemon). Integration + e2e against PostgreSQL 16:
-  121 passing.
-- Dashboard: ESLint, `tsc --noEmit`, 17 unit tests, production build.
-- ruff, ruff format, mypy --strict: clean. `ruff --select S`: clean.
-- Security: gitleaks over all git history and the working tree, the stored
-  results and the local experiment data — no findings; pip-audit — no known
-  vulnerabilities; no OpenCode credential, Authorization header or bearer
-  token in any file, result, log or git object. CodeQL runs in CI.
-- Release dry run: `scripts/release_notes.py check v0.2.0` passes (all
-  version strings 0.2.0), release notes extract from CHANGELOG, `uv build`
-  produces `agentforge-0.2.0` sdist and wheel (migrations 0001–0003 included).
-
 ## Owner actions
 
-See `docs/RELEASE_CHECKLIST.md` for the complete list. In short: merge
-#8 → #9 → #10 → #11; set `main` as the default branch and protect it; push
-the `v0.2.0` tag on `main`; rotate the OpenCode Go key; disable the old
-"Agent Forge" routine and attach the repository to "AgentForge daily
-development" (T-018).
+1. Merge the open agent pull requests (see above for the order).
+2. Decide what comes after milestone 16 (ROADMAP "Future work").
+3. Gemini: one live smoke call with `GEMINI_API_KEY` (T-002c).
+4. Confirm branch protection on `main`; rotate the OpenCode Go key if not
+   done; disable the old "Agent Forge" routine (T-018).
 
 ## Known limitations
 
 - Real-model evidence is small (one run per task); see REAL_MODEL_BENCHMARK.md.
 - The approval gate runs in-process (single-node execution model).
-- The regression gate compares against one baseline; trend baselines and
-  richer policies are future work (T-019b).
+- The regression gate compares against one baseline; trend baselines,
+  per-check thresholds and required repeats are future work (T-019b).
+- The native Gemini adapter is tested with a mocked transport only (T-002c).
 - The rule-based proposer changes configuration and prompt guidance only.
 - The `agentforge-sandbox` image cannot be built in this development
   environment (Debian mirrors blocked); CI builds it.

@@ -188,3 +188,61 @@ def test_gate_error_helper() -> None:
     result = gate_error("baseline report file not found: x.json")
     assert (result.verdict, result.exit_code) == (GateVerdict.ERROR, 2)
     assert render_gate(result).splitlines()[0] == "REGRESSION GATE: ERROR (exit 2)"
+
+
+def _usage_report(tokens: list[tuple[int | None, int | None]], **extra: Any) -> BenchmarkReport:
+    runs = [
+        record(f"t{i}", True, input_tokens=i_tok, output_tokens=o_tok, duration_seconds=d)
+        for i, (i_tok, o_tok) in enumerate(tokens)
+        for d in [extra.pop("duration", 10.0) if i == 0 else 10.0]
+    ]
+    return report(runs, **extra)
+
+
+def test_budgets_are_opt_in() -> None:
+    base = _usage_report([(100, 100)])
+    cand = _usage_report([(1000, 1000)], bench_id="bench_c")
+    assert evaluate_gate(base, cand).verdict == GateVerdict.PASS
+
+
+def test_token_budget_regression_and_boundary() -> None:
+    base = _usage_report([(100, 100), (100, 100)])
+    over = _usage_report([(150, 100), (100, 100)], bench_id="c")  # +25% exactly... 450 vs 400
+    ok = evaluate_gate(base, over, GateThresholds(max_token_increase=0.125))
+    assert ok.verdict == GateVerdict.PASS  # exactly at the limit is allowed
+    bad = evaluate_gate(base, over, GateThresholds(max_token_increase=0.10))
+    assert bad.verdict == GateVerdict.REGRESSION
+    assert "total tokens increased by 12.5%" in bad.regressions[0]
+
+
+def test_token_budget_missing_usage_cannot_decide() -> None:
+    base = _usage_report([(100, 100)])
+    cand = _usage_report([(None, None)], bench_id="c")
+    result = evaluate_gate(base, cand, GateThresholds(max_token_increase=0.5))
+    assert result.verdict == GateVerdict.ERROR
+    assert "not recorded" in result.errors[0]
+
+
+def test_duration_budget() -> None:
+    base = _usage_report([(1, 1)])
+    slow = _usage_report([(1, 1)], bench_id="c", duration=30.0)
+    result = evaluate_gate(base, slow, GateThresholds(max_duration_increase=0.5))
+    assert result.verdict == GateVerdict.REGRESSION
+    assert "mean duration" in result.regressions[0]
+    assert evaluate_gate(base, slow, GateThresholds(max_duration_increase=2.0)).verdict == (
+        GateVerdict.PASS
+    )
+
+
+def test_budget_zero_baseline_cannot_decide() -> None:
+    base = _usage_report([(0, 0)])
+    result = evaluate_gate(base, base, GateThresholds(max_token_increase=0.5))
+    assert result.verdict == GateVerdict.ERROR
+
+
+def test_budgets_not_applied_to_incomparable_reports() -> None:
+    base = _usage_report([(100, 100)])
+    cand = _usage_report([(1000, 1000)], bench_id="c", suite_id="other")
+    result = evaluate_gate(base, cand, GateThresholds(max_token_increase=0.1))
+    assert result.verdict == GateVerdict.ERROR
+    assert result.regressions == []

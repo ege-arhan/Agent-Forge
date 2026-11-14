@@ -135,6 +135,8 @@ async def benchmark_gate(
     max_task_pass_rate_drop: Annotated[float, Query(ge=0.0, le=1.0)] = 0.0,
     max_mean_score_drop: Annotated[float, Query(ge=0.0, le=1.0)] = 0.0,
     min_pass_rate: Annotated[float | None, Query(ge=0.0, le=1.0)] = None,
+    max_token_increase: Annotated[float | None, Query(ge=0.0)] = None,
+    max_duration_increase: Annotated[float | None, Query(ge=0.0)] = None,
 ) -> GateResult:
     """CI regression gate between two stored runs (same rules as `agentforge bench gate`)."""
     reports = []
@@ -147,6 +149,8 @@ async def benchmark_gate(
         max_task_pass_rate_drop=max_task_pass_rate_drop,
         max_mean_score_drop=max_mean_score_drop,
         min_pass_rate=min_pass_rate,
+        max_token_increase=max_token_increase,
+        max_duration_increase=max_duration_increase,
     )
     return evaluate_gate(reports[0], reports[1], thresholds)
 

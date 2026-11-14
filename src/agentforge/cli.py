@@ -380,6 +380,8 @@ def cmd_bench_gate(args: argparse.Namespace) -> int:
             max_task_pass_rate_drop=args.max_task_pass_rate_drop,
             max_mean_score_drop=args.max_mean_score_drop,
             min_pass_rate=args.min_pass_rate,
+            max_token_increase=args.max_token_increase,
+            max_duration_increase=args.max_duration_increase,
         )
     except ValidationError as exc:
         result = gate_error(f"invalid thresholds: {str(exc).splitlines()[0]}")
@@ -653,6 +655,20 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--max-mean-score-drop", type=float, default=0.0, metavar="F")
     gate.add_argument(
         "--min-pass-rate", type=float, default=None, metavar="F", help="absolute floor (optional)"
+    )
+    gate.add_argument(
+        "--max-token-increase",
+        type=float,
+        default=None,
+        metavar="F",
+        help="opt-in token budget: allowed relative increase of total tokens (0.25 = +25%%)",
+    )
+    gate.add_argument(
+        "--max-duration-increase",
+        type=float,
+        default=None,
+        metavar="F",
+        help="opt-in latency budget: allowed relative increase of mean run duration",
     )
     gate.add_argument("--json", action="store_true", help="print the result as JSON")
     gate.add_argument("--output", help="also write the JSON result to this file")

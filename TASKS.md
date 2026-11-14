@@ -10,15 +10,17 @@ _None open. Continue with P1 in roadmap order._
 ## P1 — Important
 
 ### T-015b Public beta readiness / v0.2.0
-- **Status:** in-progress — everything but the owner's GitHub actions is done.
+- **Status:** done — verified 2026-09-28: PRs #8–#12 are merged into `main`
+  (`918f3bf`), `main` is the repository's default branch, and `v0.2.0` is
+  tagged on that commit and published as a GitHub release (not a draft).
 - **Done:** CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates,
   clean-clone walkthrough of the README quick start, stable `main` and the
   PR-based workflow, versions bumped to 0.2.0 everywhere
   (`scripts/release_notes.py check 0.2.0` passes), CHANGELOG `[0.2.0]` section,
   release readiness checklist (`docs/RELEASE_CHECKLIST.md`).
-- **Remaining (owner, GitHub UI):** merge PRs #8 → #9 → #10 → #11; set `main`
-  as default branch and protect it; push the `v0.2.0` tag on `main` (this
-  builds artifacts, publishes GHCR images and drafts the release).
+- **Not verified from a coding session:** branch protection rules on `main`
+  (the GitHub API denies reading them to this session's token), Dependabot
+  PRs against `main` (none open as of 2026-09-28), OpenCode Go key rotation.
 
 ### T-018 Scheduled routine can access the repository
 - **Status:** blocked (owner action in the routines UI)
@@ -36,6 +38,51 @@ _None open. Continue with P1 in roadmap order._
   of "AgentForge daily development"
   (https://claude.ai/code/routines/trig_01PkiuJ7LQqCzv7ZiFigY2DS).
 
+### T-021 Portfolio-quality release (milestone 16)
+- **Status:** in-progress — the agent work is finished; what remains is the
+  owner's review and merges (#37 → #38 → #39, or the combined PR #40; see `docs/STATUS.md`).
+- **Done (2026-11-11, PR from `claude/stoic-gates-773dp5`):** offline
+  five-minute tour — `scripts/tour.py` (runs the documented CLI commands and
+  checks each exit code; `--keep DIR` for the dashboard), `docs/tour.md`
+  (annotated real transcript, OFFLINE label), README link,
+  `tests/e2e/test_tour.py` (tour passes, an unexpected exit fails it, docs
+  name the commands and files the tour uses).
+- **Done (2026-11-12, PR from `claude/stoic-gates-za4zoq`; depends on the
+  tour PR #37):** reproducible screenshots — `scripts/screenshots.py` +
+  `scripts/screenshots.cjs` seed OFFLINE demo data, run the API and the
+  dashboard and capture 8 pages (new: a run paused at the approval gate; the
+  agent improvement page now shows the tour's cycle with its gate verdict);
+  `docs/screenshots/` regenerated from the current dashboard; docs index
+  `docs/README.md`; README pass (link bar, shorter positioning text, "What is
+  tested", current roadmap note, approval and benchmark pictures);
+  `tests/e2e/test_screenshots.py` and a Markdown link/anchor checker
+  `tests/unit/test_docs_links.py`.
+- **Done (2026-11-13, PR #39; depends on #38):**
+  walk-through recording `docs/screenshots/tour.gif` (23 s, 2.2 MB, OFFLINE
+  demo data) produced by `scripts/screenshots.py --record` +
+  `scripts/recording.cjs` (Playwright video → `ffmpeg` GIF), shown in the
+  README and `docs/tour.md`; dashboard fix — the *Improvement history* table
+  no longer clips "Δ pass rate" (the cycle's age moved under the agent name,
+  the two history cards sit side by side only from 1536 px); screenshots are
+  captured with the viewport grown to the page, so the sidebar spans the
+  picture (it is sticky, which is correct in a browser; only the stitched
+  full-page capture cut it short); all pictures regenerated; 6 new tests. Also fixed after a review
+  finding: the tour and the screenshot tooling now set their demo database
+  URL explicitly, so an `AGENTFORGE_DATABASE_URL` in `.env` no longer
+  redirects their data (2 regression tests).
+- **Remaining (owner):** review the README wording and the recording; merge
+  the three PRs in order. Milestone 16 is complete once they are merged.
+
+### T-002c Live smoke test of the native Gemini adapter
+- **Status:** blocked — needs `GEMINI_API_KEY` and the owner's approval for a
+  real-model call. The adapter (T-002b) is unit-tested against a mocked
+  transport only; no session has had credentials, and `ai.google.dev` is not
+  reachable from the cloud sessions, so its wire format (in particular
+  `parametersJsonSchema` for tool schemas, thought signatures and the usage
+  fields) is unconfirmed.
+- **To do:** one run of `examples/agents/gemini.yaml` with a tool call and a
+  tool result; record the outcome as REAL, fix what the API rejects.
+
 ## P2 — Enhancements (future work, not started)
 
 ### T-009c Broader real-model evaluations
@@ -45,17 +92,15 @@ _None open. Continue with P1 in roadmap order._
   validation (T-009b) is the baseline for this.
 
 ### T-019b More regression policies
-- **Status:** todo — e.g. per-check or per-category thresholds, token/latency
-  budgets as gate criteria, trend baselines over several accepted runs,
-  required repeats before a gate may pass.
+- **Status:** in-progress — token and latency budgets done (opt-in, relative
+  increase; unit-tested). Remaining: per-check or per-category thresholds,
+  trend baselines over several accepted runs, required repeats before a gate
+  may pass.
 
 ### T-020 Richer failure analysis
 - **Status:** todo — trace-level diagnosis (e.g. distinguishing planning from
   reasoning failures, which today needs a human reading the trace).
 
-
-### T-002b Native Gemini adapter
-- **Status:** todo — currently served by the OpenAI-compatible endpoint.
 
 ### T-011b Dashboard enhancements
 - **Status:** todo
@@ -96,7 +141,8 @@ _None open. Continue with P1 in roadmap order._
 |---|---|---|
 | T-000 | Repository foundation | pyproject (uv, ruff, mypy strict, pytest), layout, .gitignore |
 | T-001 | Core domain models | `core/config.py`, `core/models.py`, errors, IDs |
-| T-002 | Provider abstraction | Anthropic + OpenAI-compatible (OpenAI/OpenRouter/Gemini/local) + scripted; pricing; plugin registry; tested with SDKs over mock transports |
+| T-002 | Provider abstraction | Anthropic + OpenAI-compatible (OpenAI/OpenRouter/local) + scripted; pricing; plugin registry; tested with SDKs over mock transports |
+| T-002b | Native Gemini adapter | `llm/gemini.py` speaks `generateContent` directly over `httpx` (no SDK, no optional extra); id-less function calls resolved by name; opaque "thought" parts echoed back; tool schemas sent as `parametersJsonSchema`; unit-tested with a mocked transport **only — not yet run against the live API (T-002c)**. Replaces the OpenAI-compatible `gemini` preset. |
 | T-003 | Agent runtime | retries/backoff, timeouts, cancellation, max steps/tool calls, consecutive-error cap, refusal/max_tokens handling, plan_execute, evaluation retries, events |
 | T-004 | Tool system | registry/toolsets/entry points, executor, filesystem/terminal/git/http/github/memory tools |
 | T-005 | Sandbox | workspace confinement, local sandbox (scrubbed env, process-group kill, output caps), Docker sandbox (hardened, tested against a real daemon) |
