@@ -8,6 +8,16 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Regression gate budgets (part of T-019b): opt-in `--max-token-increase` and
+  `--max-duration-increase` (and matching API query parameters). Missing usage
+  data makes the gate exit 2 rather than pass.
+- Native Gemini adapter (T-002b): `llm/gemini.py` speaks the Gemini
+  `generateContent` API directly over `httpx` (already a core dependency, so
+  no optional extra is needed). Replaces the `gemini` provider's previous
+  routing through the OpenAI-compatible Chat Completions shim. The API key
+  is sent as the `x-goog-api-key` header, never the `?key=` query string.
+  Unit-tested with a mocked transport (message/tool translation, usage,
+  stop-reason mapping, error classification).
 - Offline five-minute tour (milestone 16, T-021): `scripts/tour.py` runs the
   documented loop — benchmark a versioned agent, failure analysis, rule-based
   proposal applied as v2, re-benchmark, comparison, and the regression gate in
@@ -35,6 +45,21 @@ All notable changes are documented here. The format follows
 
 ### Fixed
 
+- Gemini adapter: tool schemas are sent as `parametersJsonSchema` (standard
+  JSON Schema) instead of `parameters`, an OpenAPI subset that does not
+  define `exclusiveMinimum` and other keywords the built-in tool schemas
+  use. A success or error body that is not a JSON object is now a classified
+  `LLMError` instead of an unhandled exception. The adapter is still tested
+  with a mocked transport only (T-002c).
+- Gemini adapter: `thoughtSignature` on text parts is preserved (new optional
+  `TextPart.provider_data`); a blocked prompt (no candidates, `blockReason`)
+  is a non-retryable refusal; thinking tokens count toward output usage
+  (review findings on #33).
+- Gemini adapter echoes the provider's function-call `id` and `thoughtSignature`
+  (new optional `ToolUsePart.provider_data`) instead of synthesising ids only
+  (review finding on #13).
+- Gate budgets are no longer evaluated for incomparable reports, so an `error`
+  verdict carries no regressions (review finding on #32).
 - Dashboard: the *Improvement history* table on `/improvement` clipped its
   last column ("Δ pass rate") at common laptop widths. The cycle's age now
   sits under the agent name instead of in its own column, and the two history

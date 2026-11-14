@@ -8,7 +8,7 @@ latest session report and `TASKS.md` for task-level detail).
 |---|---|---|
 | 0 | Repository foundation (packaging, tooling, layout) | ✅ Done |
 | 1 | Architecture and core domain models | ✅ Done |
-| 2 | LLM provider abstraction (Anthropic, OpenAI, OpenRouter, Gemini, local, scripted) | ✅ Done — native Gemini adapter planned (P2) |
+| 2 | LLM provider abstraction (Anthropic, OpenAI, OpenRouter, Gemini (native), local, scripted) | ✅ Done |
 | 3 | Agent runtime (loop, retries, limits, cancellation, planning, events) | ✅ Done |
 | 4 | Tool registry (filesystem, terminal, git, HTTP, GitHub, memory; plugins) | ✅ Done |
 | 5 | Sandbox (workspace confinement, local, hardened Docker) | ✅ Done — stronger isolation options planned |
@@ -21,22 +21,21 @@ latest session report and `TASKS.md` for task-level detail).
 | 12 | Observability (structured logs, events/SSE, OpenTelemetry traces, Prometheus metrics) | ✅ Done |
 | 13 | Security hardening (API policy, limits, audit, sandbox egress control, gVisor option) | ✅ Done — see SECURITY.md limitations |
 | 14 | CI/CD and developer experience (CI, security scans, migrations, release workflow) | ✅ Done |
-| 15 | Public beta / v0.2.0: stable `main` + PR workflow, dogfooding program, agent improvement loop, human approval gate, CI regression gate, limited real-model validation | ✅ Done in the release branch (PR #11, which also carries #12) — awaiting the owner's merges and the `v0.2.0` tag; see `docs/RELEASE_CHECKLIST.md` |
-| 16 | Portfolio-quality release (screenshots, demo, polished docs) | 🚧 Implemented, awaiting the owner's review and merges — offline tour (PR #37), reproducible screenshots, docs index and README pass (PR #38), walk-through recording and dashboard polish (the PR from `claude/stoic-gates-a37k0l`); stacked in that order (T-021) |
+| 15 | Public beta / v0.2.0: stable `main` + PR workflow, dogfooding program, agent improvement loop, human approval gate, CI regression gate, limited real-model validation | ✅ Done and released — PRs #8–#12 merged, `main` is the default branch, `v0.2.0` tagged and published (verified 2026-09-28) |
+| 16 | Portfolio-quality release (screenshots, demo, polished docs) | 🚧 Implemented, awaiting the owner's review and merges — offline tour (PR #37), reproducible screenshots, docs index and README pass (PR #38), walk-through recording and dashboard polish (PR #39); stacked in that order (T-021) |
 
-The project is in **feature freeze** after v0.2.0: fixes, tests, security and
-documentation only. Milestone 16 is documentation and demo work, so it was
-started within the freeze (2026-11-11); future-work items still wait for the
-owner.
+v0.2.0 is released. No milestone after 16 is defined yet: once the open pull
+requests are merged, the next work comes from the future-work list below and
+the owner's priorities. Two future-work items are already implemented in
+pull requests that await review: the native Gemini adapter (T-002b) and the
+gate's token and latency budgets (part of T-019b). `docs/STATUS.md` lists the
+open pull requests and the order to merge them in.
 
-## Next up (owner, in order)
+## Next up (owner)
 
-1. Merge PRs #8 → #9 → #10 → #11 (PR #11 contains PR #12's commit, merged with
-   its conflicts resolved; #12 then shows as merged).
-2. Make `main` the default branch and protect it; push the `v0.2.0` tag on
-   `main` (the release workflow drafts the release).
-3. Rotate the OpenCode Go key; disable the old "Agent Forge" routine and attach
-   the repository to "AgentForge daily development" (T-018).
+- Rotate the OpenCode Go key; disable the old "Agent Forge" routine and attach
+  the repository to "AgentForge daily development" (T-018) — session-side
+  code cannot verify or change either from here.
 
 ## Future work (not started; not part of v0.2.0)
 
@@ -49,7 +48,6 @@ owner.
 - Broader model evaluations: more tasks, repeats and models, and a real
   improvement cycle on an unconstrained failure; needs a budget (T-009c).
 - More regression policies: per-check/per-category thresholds, token and
-  latency budgets, trend baselines, required repeats (T-019b).
-- Also planned: native Gemini adapter (T-002b), vector memory (T-006b),
-  streaming output (T-003b), distributed execution (T-015), dashboard
-  enhancements (T-011b).
+  trend baselines, required repeats (T-019b; token/latency budgets done).
+- Also planned: vector memory (T-006b), streaming output (T-003b), distributed
+  execution (T-015), dashboard enhancements (T-011b).
