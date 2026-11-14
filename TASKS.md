@@ -40,8 +40,7 @@ _None open. Continue with P1 in roadmap order._
 
 ### T-021 Portfolio-quality release (milestone 16)
 - **Status:** in-progress — the agent work is finished; what remains is the
-  owner's review and merges (#37 → #38 → #39, or the combined PR from
-  `claude/stoic-gates-xe8k3q`; see `docs/STATUS.md`).
+  owner's review and merges (#37 → #38 → #39, or the combined PR #40; see `docs/STATUS.md`).
 - **Done (2026-11-11, PR from `claude/stoic-gates-773dp5`):** offline
   five-minute tour — `scripts/tour.py` (runs the documented CLI commands and
   checks each exit code; `--keep DIR` for the dashboard), `docs/tour.md`

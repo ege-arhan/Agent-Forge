@@ -27,14 +27,13 @@ session the two stacks could not both be merged:
   with `main`** (`CHANGELOG.md`, `docs/STATUS.md`) and with the milestone 16
   stack (also `ROADMAP.md`), so GitHub cannot merge them.
 
-**This session's branch `claude/stoic-gates-xe8k3q` contains both stacks**
+**PR #40 (branch `claude/stoic-gates-xe8k3q`) contains both stacks**
 with the conflicts resolved (the head of #39 plus a merge of the head of
 #34), and one fix on top (below). Two ways to merge:
 
-1. Merge only the pull request from `claude/stoic-gates-xe8k3q`, then close
+1. Merge only #40, then close
    #13, #32, #33, #34, #37, #38 and #39 — their commits are all in it.
-2. Or merge #37 → #38 → #39 first, then the pull request from
-   `claude/stoic-gates-xe8k3q`, and close #13, #32, #33 and #34.
+2. Or merge #37 → #38 → #39 first, then #40, and close #13, #32, #33 and #34.
 
 Dependabot PRs #15–#19, #27–#31 and #36 are the owner's to merge; their CI
 was not checked this session. #36 (Python 3.12 → 3.15 base image) is a
