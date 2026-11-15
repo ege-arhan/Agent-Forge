@@ -15,7 +15,8 @@ this file's git history.
 
 ## This session (2026-11-15)
 
-Branch `claude/stoic-gates-y0aicw`, **stacked on PR #40** (merge #40 first).
+**PR #41** (branch `claude/stoic-gates-y0aicw`), **stacked on PR #40** (merge #40
+first, then #41).
 PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 - Finished T-019b, the regression gate's remaining policies. All are opt-in;
