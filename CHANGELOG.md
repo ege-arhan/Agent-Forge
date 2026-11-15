@@ -8,6 +8,15 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- More regression-gate policies (completes T-019b), all opt-in:
+  `--min-repeats N` (the gate cannot decide unless every task has at least
+  `N` runs on both sides), `--max-check-pass-rate-drop F` (per-check
+  threshold: catches a check that starts failing while its task still
+  passes), `--fail-on-category CATEGORY` (a candidate run failing with a
+  listed failure category is always a regression) and pooled baselines
+  (repeat `--baseline` to compare against several accepted runs at once).
+  Same options on `GET /benchmarks/gate`; the result's baseline side lists
+  `benchmark_run_ids`.
 - Regression gate budgets (part of T-019b): opt-in `--max-token-increase` and
   `--max-duration-increase` (and matching API query parameters). Missing usage
   data makes the gate exit 2 rather than pass.
@@ -44,6 +53,13 @@ All notable changes are documented here. The format follows
   Markdown docs resolve).
 
 ### Fixed
+
+- Regression gate budgets: usage is averaged over each task's repeats before
+  the comparison. Totals were compared before, so a candidate with three
+  repeats looked like +200% tokens against a baseline with one, and a
+  baseline with more repeats could hide a real increase. The token budget's
+  message now says "tokens per suite pass" (identical to the total when every
+  task ran once).
 
 - Gemini adapter: tool schemas are sent as `parametersJsonSchema` (standard
   JSON Schema) instead of `parameters`, an OpenAPI subset that does not

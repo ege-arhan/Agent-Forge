@@ -1,17 +1,48 @@
 # AgentForge Development Status
 
-Date: 2026-11-14
+Date: 2026-11-15
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
 merged. Milestone 16 (documentation and demo) and two future-work items are
 implemented in pull requests that await the owner's review; nothing has been
-merged into `main` since 2026-11-01. Earlier dated session reports are in
+merged into `main` since 2026-11-01 (checked 2026-11-15). Earlier dated session reports are in
 this file's git history.
 
-## State of `main` (2026-11-14)
+## State of `main` (2026-11-15)
 
 - `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
   of 2026-11-09 succeeded.
+
+## This session (2026-11-15)
+
+Branch `claude/stoic-gates-y0aicw`, **stacked on PR #40** (merge #40 first).
+PR #40 itself was unchanged: green CI, no review findings, mergeable.
+
+- Finished T-019b, the regression gate's remaining policies. All are opt-in;
+  the defaults and existing verdicts are unchanged:
+  - `--min-repeats N`: the gate cannot decide (exit 2) unless every task has
+    at least `N` runs on both sides;
+  - `--max-check-pass-rate-drop F`: per-check threshold, for a check that
+    starts failing while its task still passes;
+  - `--fail-on-category CATEGORY`: a candidate run failing with a listed
+    failure category is a regression whatever the thresholds allow;
+  - pooled baselines: repeat `--baseline` to compare against several accepted
+    runs; every one must be comparable with the candidate.
+  The same options exist on `GET /benchmarks/gate`.
+- Bug found and fixed while doing so: the token budget compared totals, so
+  reports with different numbers of repeats were compared unfairly (a
+  candidate with three repeats looked like +200% tokens). Usage is now
+  averaged per task first; regression test added.
+- Scope, stated plainly: the pooled baseline is a rate over the reports the
+  caller passes. The gate does not store accepted runs, weight them by age,
+  detect drift or apply a significance test.
+- Verification on this branch: ruff, ruff format, mypy --strict,
+  `ruff --select S`: clean. `pytest`: 436 passed, 8 skipped (the
+  Docker-sandbox tests: the `python:3.12-slim` image could not be pulled
+  here). PostgreSQL tests not run locally; CI runs both. Dashboard (one type
+  definition extended): lint, typecheck, unit tests and production build
+  pass. The new options were also run by hand through the CLI on
+  OFFLINE (scripted) benchmark runs.
 
 ## Pull requests awaiting the owner
 
@@ -39,7 +70,7 @@ Dependabot PRs #15–#19, #27–#31 and #36 are the owner's to merge; their CI
 was not checked this session. #36 (Python 3.12 → 3.15 base image) is a
 three-minor-version jump and deserves a deliberate look.
 
-## This session (2026-11-14)
+## Previous session (2026-11-14)
 
 - Combined the two stacks as described above. Only documentation files
   conflicted; no source file needed manual resolution.
@@ -108,8 +139,9 @@ Documented in `docs/REAL_MODEL_BENCHMARK.md`; not rerun or altered.
 
 - Real-model evidence is small (one run per task); see REAL_MODEL_BENCHMARK.md.
 - The approval gate runs in-process (single-node execution model).
-- The regression gate compares against one baseline; trend baselines,
-  per-check thresholds and required repeats are future work (T-019b).
+- The regression gate's pooled baseline is a plain rate over the reports it
+  is given; it keeps no history of accepted runs and applies no significance
+  test.
 - The native Gemini adapter is tested with a mocked transport only (T-002c).
 - The rule-based proposer changes configuration and prompt guidance only.
 - The `agentforge-sandbox` image cannot be built in this development

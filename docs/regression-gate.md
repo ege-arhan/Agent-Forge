@@ -28,7 +28,8 @@ agentforge bench gate --baseline baselines/offline/suite-v1/<...>.json \
 `--baseline` and `--candidate` each take a **report JSON file** (from `bench
 report --out` or `bench run --report`) or the id of a **stored benchmark run**
 in the configured database. The baseline must be given explicitly; there is no
-default and nothing is inferred.
+default and nothing is inferred. `--baseline` may be repeated to
+[pool several accepted runs](#pooled-baselines).
 
 Options:
 
@@ -38,15 +39,60 @@ Options:
 | `--max-task-pass-rate-drop F` | `0` | allowed drop of any single task's pass rate |
 | `--max-mean-score-drop F` | `0` | allowed drop of the mean evaluation score |
 | `--min-pass-rate F` | none | absolute floor for the candidate's pass rate |
-| `--max-token-increase F` | off | opt-in token budget: allowed relative increase of total tokens (`0.25` = +25%) |
+| `--max-token-increase F` | off | opt-in token budget: allowed relative increase of the tokens one pass over the suite uses (`0.25` = +25%) |
 | `--max-duration-increase F` | off | opt-in latency budget: allowed relative increase of mean run duration (wall-clock is noisy; use a generous value) |
+| `--min-repeats N` | off | opt-in: every task needs at least `N` runs in the baseline and in the candidate, otherwise exit 2 |
+| `--max-check-pass-rate-drop F` | off | opt-in: allowed drop of any single check's pass rate within a task |
+| `--fail-on-category CATEGORY` | off | opt-in, repeatable: a candidate run that failed with this [failure category](improvement.md#failure-categories) is always a regression |
+| `--json` | off | print the result as JSON instead of text |
+| `--output FILE` | none | also write the JSON result to `FILE` (e.g. a CI artifact) |
 
 The budgets only apply when set. If a budget is set but any run of either report
 has no recorded usage (e.g. the scripted provider reports no tokens), or the
 baseline value is zero, the gate cannot decide and exits 2 — it never treats
-missing data as a pass. The API accepts the same options as query parameters.
-| `--json` | off | print the result as JSON instead of text |
-| `--output FILE` | none | also write the JSON result to `FILE` (e.g. a CI artifact) |
+missing data as a pass. Usage is averaged over each task's repeats first, so a
+report with three repeats is not charged three times the usage of a report
+with one. The API accepts the same options as query parameters
+(`fail_on_category` and `baseline` may be repeated).
+
+### Opt-in policies
+
+- **Required repeats** (`--min-repeats N`). One run per task says little about
+  a model that passes the task only some of the time. With this option the gate
+  refuses to decide (exit 2) unless every task has at least `N` runs on both
+  sides. A pooled baseline counts all its reports' runs.
+- **Per-check threshold** (`--max-check-pass-rate-drop F`). A task can keep
+  passing while one of its checks starts failing — a check that is not
+  `required`, with the score unchanged or the score threshold loosened. This
+  compares the pass rate of every named check of the baseline, task by task. A
+  run that did not record a check (it stopped before evaluation) did not pass
+  it; a check only the candidate has is ignored.
+- **Categories that are never tolerated** (`--fail-on-category CATEGORY`).
+  When the pass-rate thresholds are loosened for a noisy suite, some kinds of
+  failure may still be unacceptable — e.g. `timeout`, `token_budget` or
+  `llm_refusal`. Any candidate run that failed with a listed category is a
+  regression, whatever the baseline did. Unknown category names are rejected
+  (exit 2; HTTP 422). Reports written before 0.2.0 have no categories, so
+  this policy cannot see their failures.
+
+### Pooled baselines
+
+```bash
+agentforge bench gate --baseline accepted/run-1.json --baseline accepted/run-2.json \
+                      --baseline accepted/run-3.json --candidate "$BENCH_ID" --min-repeats 3
+```
+
+Give `--baseline` several times to compare against the last accepted runs
+instead of a single one. Their runs are pooled: a task that passed in 2 of 3
+accepted runs has a baseline pass rate of 0.67, so one lucky (or unlucky)
+baseline run no longer decides the verdict. Every pooled report must be
+comparable with the candidate (same suite, task definitions, result class and
+task set; finished; no infrastructure failures) — otherwise the gate exits 2
+and names the report. The baseline line of the result shows the last report
+given; the result's notes say how many reports and runs were pooled and
+whether they came from different agent versions or models. This is a pooled
+rate, not a trend analysis: the gate does not weight newer runs or fit a
+slope, and choosing which accepted runs to pass in is up to the CI job.
 
 The defaults are conservative: any drop fails. Loosen them only when a suite is
 known to be noisy (real models, few repeats) — and prefer more repeats.
@@ -102,5 +148,8 @@ agent. The workflow never merges anything.
 - One run per task makes pass rates coarse (0 or 1 per task); with real models
   the same config can pass or fail across runs. Use `-r N` repeats for both
   baseline and candidate, and thresholds that match the suite's noise.
-- The gate compares against one baseline; it does not track trends across many
-  runs.
+- A pooled baseline averages the accepted runs it is given; the gate does not
+  store accepted runs, pick them, weight them by age or detect a slow drift
+  that stays inside the thresholds at every step.
+- No statistical test is applied: thresholds are compared with observed rates.
+  `--min-repeats` only makes sure the rates rest on enough runs.

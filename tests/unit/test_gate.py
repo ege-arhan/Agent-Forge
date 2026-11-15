@@ -14,7 +14,12 @@ from agentforge.benchmarks.gate import (
     gate_error,
     render_gate,
 )
-from agentforge.benchmarks.report import BenchmarkReport, ReportSummary, TaskRunRecord
+from agentforge.benchmarks.report import (
+    BenchmarkReport,
+    CheckResult,
+    ReportSummary,
+    TaskRunRecord,
+)
 from agentforge.benchmarks.runner import ResultClass
 
 
@@ -212,7 +217,7 @@ def test_token_budget_regression_and_boundary() -> None:
     assert ok.verdict == GateVerdict.PASS  # exactly at the limit is allowed
     bad = evaluate_gate(base, over, GateThresholds(max_token_increase=0.10))
     assert bad.verdict == GateVerdict.REGRESSION
-    assert "total tokens increased by 12.5%" in bad.regressions[0]
+    assert "tokens per suite pass increased by 12.5%" in bad.regressions[0]
 
 
 def test_token_budget_missing_usage_cannot_decide() -> None:
@@ -246,3 +251,202 @@ def test_budgets_not_applied_to_incomparable_reports() -> None:
     result = evaluate_gate(base, cand, GateThresholds(max_token_increase=0.1))
     assert result.verdict == GateVerdict.ERROR
     assert result.regressions == []
+
+
+def test_budgets_compare_reports_with_different_repeats_fairly() -> None:
+    """Regression: three repeats used to look like three times the tokens of one."""
+
+    def usage(repeats: int, tokens: int, bench_id: str) -> BenchmarkReport:
+        return report(
+            [
+                record(task, True, repeat=n, input_tokens=tokens, output_tokens=0)
+                for task in ("a", "b")
+                for n in range(1, repeats + 1)
+            ],
+            bench_id=bench_id,
+        )
+
+    limits = GateThresholds(max_token_increase=0.1)
+    same_usage = evaluate_gate(usage(1, 100, "b"), usage(3, 100, "c"), limits)
+    assert same_usage.verdict == GateVerdict.PASS
+    # ... and a real increase is not hidden by a baseline with more repeats.
+    hidden = evaluate_gate(usage(3, 100, "b"), usage(1, 200, "c"), limits)
+    assert hidden.verdict == GateVerdict.REGRESSION
+    assert "increased by 100.0% (200 -> 400 tokens" in hidden.regressions[0]
+
+
+# --- opt-in policies: required repeats, per-check thresholds, categories, pooled baselines
+
+
+def repeated(task: str, outcomes: list[bool], **extra: Any) -> list[TaskRunRecord]:
+    return [record(task, ok, repeat=n, **extra) for n, ok in enumerate(outcomes, 1)]
+
+
+def test_min_repeats_cannot_decide_on_too_few_runs() -> None:
+    three = report(repeated("a", [True] * 3) + repeated("b", [True] * 3), bench_id="b3")
+    one = report(repeated("a", [True]) + repeated("b", [True] * 3), bench_id="c1")
+    assert evaluate_gate(three, one).verdict == GateVerdict.PASS  # opt-in
+    result = evaluate_gate(three, one, GateThresholds(min_repeats=3))
+    assert (result.verdict, result.exit_code) == (GateVerdict.ERROR, 2)
+    assert result.errors == ["min repeats 3 not met: candidate has fewer runs for a (1)"]
+    assert evaluate_gate(three, three, GateThresholds(min_repeats=3)).verdict == GateVerdict.PASS
+    both = evaluate_gate(one, one, GateThresholds(min_repeats=2))
+    assert [e.split(":")[1].split(" has")[0].strip() for e in both.errors] == [
+        "baseline",
+        "candidate",
+    ]
+    assert "policies: min repeats 3" in render_gate(result)
+
+
+def checked(task: str, checks: dict[str, bool], repeat: int = 1, **extra: Any) -> TaskRunRecord:
+    results = [
+        CheckResult(name=name, passed=ok, score=1.0 if ok else 0.0, required=False)
+        for name, ok in checks.items()
+    ]
+    return record(task, True, repeat=repeat, checks=results, **extra)
+
+
+def test_check_threshold_catches_a_check_the_task_verdict_hides() -> None:
+    base = report([checked("a", {"tests": True, "hidden": True})], bench_id="b")
+    cand = report([checked("a", {"tests": True, "hidden": False})], bench_id="c")
+    # The task still passes and the score is unchanged, so the default gate passes.
+    assert evaluate_gate(base, cand).verdict == GateVerdict.PASS
+    result = evaluate_gate(base, cand, GateThresholds(max_check_pass_rate_drop=0.0))
+    assert result.verdict == GateVerdict.REGRESSION
+    assert result.regressions == [
+        "task a: check 'hidden' pass rate dropped by 1.0000 (1.0000 -> 0.0000; allowed 0.0000)"
+    ]
+    assert evaluate_gate(base, base, GateThresholds(max_check_pass_rate_drop=0.0)).verdict == (
+        GateVerdict.PASS
+    )
+
+
+def test_check_threshold_uses_rates_over_repeats_and_counts_missing_checks_as_failed() -> None:
+    base = report(
+        [checked("a", {"hidden": True}, n) for n in (1, 2, 3, 4)], bench_id="b", repeats=4
+    )
+    cand = report(
+        [checked("a", {"hidden": n != 1}, n) for n in (1, 2, 3, 4)], bench_id="c", repeats=4
+    )
+    assert evaluate_gate(base, cand, GateThresholds(max_check_pass_rate_drop=0.25)).verdict == (
+        GateVerdict.PASS
+    )
+    assert evaluate_gate(base, cand, GateThresholds(max_check_pass_rate_drop=0.2)).verdict == (
+        GateVerdict.REGRESSION
+    )
+    # A candidate run that never recorded the check did not pass it.
+    silent = report([checked("a", {}, n) for n in (1, 2, 3, 4)], bench_id="s", repeats=4)
+    result = evaluate_gate(base, silent, GateThresholds(max_check_pass_rate_drop=0.5))
+    assert result.verdict == GateVerdict.REGRESSION
+    # A check that only the candidate has is not a regression.
+    extra = report(
+        [checked("a", {"hidden": True, "new": False}, n) for n in (1, 2, 3, 4)], bench_id="e"
+    )
+    assert evaluate_gate(base, extra, GateThresholds(max_check_pass_rate_drop=0.0)).verdict == (
+        GateVerdict.PASS
+    )
+
+
+def test_fail_on_category_overrides_loose_thresholds() -> None:
+    base = report(repeated("a", [True, True, True, False]), bench_id="b")
+    cand = report(
+        [*repeated("a", [True, True, True]), record("a", False, 4, failure_category="timeout")],
+        bench_id="c",
+    )
+    loose = {"max_pass_rate_drop": 1.0, "max_task_pass_rate_drop": 1.0, "max_mean_score_drop": 1.0}
+    assert evaluate_gate(base, cand, GateThresholds(**loose)).verdict == GateVerdict.PASS
+    result = evaluate_gate(base, cand, GateThresholds(fail_on_categories=["timeout"], **loose))
+    assert result.verdict == GateVerdict.REGRESSION
+    assert result.regressions == [
+        "candidate run a#4 failed with the category 'timeout', which is not tolerated"
+    ]
+    # Only the listed categories count, and only in the candidate.
+    other = GateThresholds(fail_on_categories=["llm_refusal"], **loose)
+    assert evaluate_gate(base, cand, other).verdict == GateVerdict.PASS
+    reverse = evaluate_gate(cand, base, GateThresholds(fail_on_categories=["timeout"], **loose))
+    assert reverse.verdict == GateVerdict.PASS
+
+
+def test_fail_on_category_rejects_unknown_names() -> None:
+    with pytest.raises(ValueError, match="unknown failure categories: timout"):
+        GateThresholds(fail_on_categories=["timout"])
+    assert GateThresholds(fail_on_categories=["timeout", "llm_error", "timeout"]).model_dump()[
+        "fail_on_categories"
+    ] == ["llm_error", "timeout"]
+
+
+def test_pooled_baseline_uses_the_rate_over_all_accepted_runs() -> None:
+    """A flaky task: one lucky baseline makes a normal candidate look like a regression."""
+    lucky = report([record("a", True), record("b", True)], bench_id="b1")
+    unlucky = report([record("a", True), record("b", False)], bench_id="b2")
+    cand = report([record("a", True), record("b", False)], bench_id="c")
+    assert evaluate_gate(lucky, cand).verdict == GateVerdict.REGRESSION
+    tolerant = GateThresholds(
+        max_pass_rate_drop=0.25, max_task_pass_rate_drop=0.5, max_mean_score_drop=0.25
+    )
+    assert evaluate_gate(lucky, cand, tolerant).verdict == GateVerdict.REGRESSION
+    result = evaluate_gate([lucky, unlucky], cand, tolerant)
+    assert result.verdict == GateVerdict.PASS
+    assert result.baseline is not None
+    assert (result.baseline.runs, result.baseline.passed) == (4, 3)
+    assert result.baseline.benchmark_run_ids == ["b1", "b2"]
+    assert result.baseline.benchmark_run_id == "b1+b2"
+    [task_b] = [t for t in result.tasks if t.task_id == "b"]
+    assert (task_b.baseline_passed, task_b.baseline_runs, task_b.delta) == (1, 2, -0.5)
+    assert any("pooled from 2 reports (4 runs)" in n for n in result.notes)
+    # Still strict by default: the pooled rate is 0.75 and the candidate's is 0.5.
+    assert evaluate_gate([lucky, unlucky], cand).verdict == GateVerdict.REGRESSION
+    # A single-element list is the plain gate.
+    assert evaluate_gate([lucky], cand) == evaluate_gate(lucky, cand)
+    assert evaluate_gate(lucky, cand).baseline.benchmark_run_ids == ["b1"]  # type: ignore[union-attr]
+
+
+def test_pooled_baseline_counts_towards_min_repeats() -> None:
+    runs = [report([record("a", True)], bench_id=f"b{i}") for i in range(3)]
+    cand = report(repeated("a", [True, True, True]), bench_id="c")
+    assert evaluate_gate(runs, cand, GateThresholds(min_repeats=3)).verdict == GateVerdict.PASS
+    assert evaluate_gate(runs[:2], cand, GateThresholds(min_repeats=3)).verdict == (
+        GateVerdict.ERROR
+    )
+
+
+@pytest.mark.parametrize(
+    ("bad", "expected"),
+    [
+        ({"suite_version": "2"}, "different suites: baseline b2 suite@2"),
+        ({"suite_digest": "other"}, "suite digests do not match) (baseline b2)"),
+        ({"result_class": ResultClass.REAL}, "different result classes: baseline b2 real"),
+        ({"status": "failed"}, "baseline b2 benchmark did not finish"),
+    ],
+)
+def test_every_pooled_baseline_must_be_comparable(bad: dict[str, Any], expected: str) -> None:
+    good = report([record("a", True)], bench_id="b1")
+    cand = report([record("a", True)], bench_id="c")
+    result = evaluate_gate([good, report([record("a", True)], bench_id="b2", **bad)], cand)
+    assert result.verdict == GateVerdict.ERROR
+    assert any(expected in e for e in result.errors), result.errors
+
+
+def test_pooled_baseline_input_errors() -> None:
+    good = report([record("a", True)], bench_id="b1")
+    cand = report([record("a", True)], bench_id="c")
+    assert evaluate_gate([], cand).errors == ["no baseline given"]
+    assert "more than once" in evaluate_gate([good, good], cand).errors[0]
+    assert "one of the pooled baselines" in evaluate_gate([good, cand], cand).errors[0]
+    other_tasks = report([record("z", True)], bench_id="b2")
+    result = evaluate_gate([good, other_tasks], cand)
+    assert any("missing in candidate: z; not in baseline b2: a" in e for e in result.errors)
+    infra = report([record("a", False, failure_category="setup")], bench_id="b3")
+    assert any(
+        e.startswith("baseline b3 run a#1 failed for an infrastructure reason")
+        for e in evaluate_gate([good, infra], cand).errors
+    )
+
+
+def test_pooled_baseline_notes_mixed_agent_versions() -> None:
+    v1 = report([record("a", True)], bench_id="b1", agent_version=1)
+    v2 = report([record("a", True)], bench_id="b2", agent_version=2)
+    result = evaluate_gate([v1, v2], report([record("a", True)], bench_id="c"))
+    assert result.verdict == GateVerdict.PASS
+    assert result.baseline is not None and result.baseline.agent_version == 2
+    assert any("different agent versions or models" in n for n in result.notes)

@@ -91,12 +91,6 @@ _None open. Continue with P1 in roadmap order._
   estimates; a real improvement cycle on an unconstrained failure. The limited
   validation (T-009b) is the baseline for this.
 
-### T-019b More regression policies
-- **Status:** in-progress — token and latency budgets done (opt-in, relative
-  increase; unit-tested). Remaining: per-check or per-category thresholds,
-  trend baselines over several accepted runs, required repeats before a gate
-  may pass.
-
 ### T-020 Richer failure analysis
 - **Status:** todo — trace-level diagnosis (e.g. distinguishing planning from
   reasoning failures, which today needs a human reading the trace).
@@ -168,3 +162,4 @@ _None open. Continue with P1 in roadmap order._
 | T-004b | Human approval for sensitive tools | Opt-in per agent (`AgentConfig.approval.require_for`/`timeout_seconds`); runtime pauses (`RunStatus.AWAITING_APPROVAL`) before a tool call needing one of the listed permissions and blocks on an in-process `ApprovalGate` until decided, cancelled or timed out (then denied); denial fails only that call, not the run. `GET/POST /runs/{id}/approvals[/{call_id}]`; dashboard run page shows a Pending approval card with Approve/Deny; `agentforge run` prompts on a TTY and auto-denies without one. Migration 0003 (written as 0002 on its branch; renumbered after the stack's 0002) widens `runs.status` (`String(16)` → `String(24)`, "awaiting_approval" didn't fit — caught by testing against real PostgreSQL, not just SQLite). Unit + e2e (API, real Postgres) + a regression test for a synchronous-decide race found during manual dashboard verification (screenshots: paused run + Approve card, and the resumed/succeeded run) |
 | T-009b | Limited real-model validation | OpenCode Go provider fixes (`x-opencode-session`, Responses API routing, proxy-injected credentials); 5 models × 2 dogfood tasks (10 executions, all passed); hard suite `dogfood-hard` v1 (4 tasks, offline-validated; 2 run with `deepseek-v4.1-flash`, both passed); controlled improvement-loop demonstration (step limit 8 → failed, proposal `max_steps` 25 → v2 passed; verdict inconclusive). REAL results in `dogfood/results/real/`, write-up in `docs/REAL_MODEL_BENCHMARK.md`. Small samples: no rankings; not evidence of model learning |
 | T-019 | CI regression gate | `agentforge bench gate` (exit 0 pass / 1 regression / 2 cannot decide), thresholds, report `suite_digest` + `failure_category`, `GET /benchmarks/gate`, dashboard verdict on evaluated cycles, GitHub Actions example with a committed offline baseline, `docs/regression-gate.md`; unit, CLI e2e and API tests |
+| T-019b | More regression policies | All opt-in, on `agentforge bench gate` and `GET /benchmarks/gate`: token and latency budgets (`--max-token-increase`, `--max-duration-increase`; usage averaged per task so different repeat counts compare fairly), required repeats (`--min-repeats`, exit 2 when not met), per-check threshold (`--max-check-pass-rate-drop`), failure categories that are never tolerated (`--fail-on-category`), pooled baselines (repeat `--baseline`). Unit, CLI e2e and API tests; `docs/regression-gate.md`. Not included: stored baseline history, age weighting, drift detection or significance tests — the pooled baseline is a plain rate over the reports the caller passes. In PR #40 (budgets) and the PR from `claude/stoic-gates-y0aicw` (the rest); not merged yet |

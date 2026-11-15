@@ -382,12 +382,24 @@ def cmd_bench_gate(args: argparse.Namespace) -> int:
             min_pass_rate=args.min_pass_rate,
             max_token_increase=args.max_token_increase,
             max_duration_increase=args.max_duration_increase,
+            min_repeats=args.min_repeats,
+            max_check_pass_rate_drop=args.max_check_pass_rate_drop,
+            fail_on_categories=args.fail_on_category or [],
         )
     except ValidationError as exc:
-        result = gate_error(f"invalid thresholds: {str(exc).splitlines()[0]}")
+        detail = "; ".join(
+            f"{'.'.join(str(part) for part in e['loc'])}: {e['msg']}" for e in exc.errors()
+        )
+        result = gate_error(f"invalid thresholds: {detail}")
     else:
         try:
-            refs = {"baseline": args.baseline, "candidate": args.candidate}
+            # Several --baseline values are pooled; keys keep the order they were given in.
+            many = len(args.baseline) > 1
+            refs = {
+                (f"baseline #{i}" if many else "baseline"): ref
+                for i, ref in enumerate(args.baseline, 1)
+            }
+            refs["candidate"] = args.candidate
             reports: dict[str, Any] = {}
             stored: dict[str, str] = {}
             for which, ref in refs.items():
@@ -398,7 +410,11 @@ def cmd_bench_gate(args: argparse.Namespace) -> int:
                     stored[which] = ref
             if stored:
                 reports.update(asyncio.run(_gate_stored_reports(stored)))
-            result = evaluate_gate(reports["baseline"], reports["candidate"], thresholds)
+            result = evaluate_gate(
+                [reports[which] for which in refs if which != "candidate"],
+                reports["candidate"],
+                thresholds,
+            )
         except ValueError as exc:
             result = gate_error(str(exc), thresholds)
     payload = result.model_dump_json(indent=2)
@@ -646,9 +662,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="CI regression gate: exit 0 pass, 1 regression, 2 error (cannot decide)",
         description="Compare a candidate benchmark with an explicit baseline. Each of "
         "--baseline/--candidate is a report JSON file (agentforge bench report --out) or a "
-        "stored benchmark run id. Defaults allow no drop at all.",
+        "stored benchmark run id. Defaults allow no drop at all. Repeat --baseline to pool "
+        "several accepted runs of the same suite into one baseline.",
     )
-    gate.add_argument("--baseline", required=True, help="report file or benchmark run id")
+    gate.add_argument(
+        "--baseline",
+        required=True,
+        action="append",
+        help="report file or benchmark run id (repeatable: the runs of all are pooled)",
+    )
     gate.add_argument("--candidate", required=True, help="report file or benchmark run id")
     gate.add_argument("--max-pass-rate-drop", type=float, default=0.0, metavar="F")
     gate.add_argument("--max-task-pass-rate-drop", type=float, default=0.0, metavar="F")
@@ -661,7 +683,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         metavar="F",
-        help="opt-in token budget: allowed relative increase of total tokens (0.25 = +25%%)",
+        help="opt-in token budget: allowed relative increase of the tokens one pass over the "
+        "suite uses (0.25 = +25%%)",
     )
     gate.add_argument(
         "--max-duration-increase",
@@ -669,6 +692,27 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="F",
         help="opt-in latency budget: allowed relative increase of mean run duration",
+    )
+    gate.add_argument(
+        "--min-repeats",
+        type=int,
+        default=None,
+        metavar="N",
+        help="opt-in: every task needs at least N runs on both sides, else exit 2",
+    )
+    gate.add_argument(
+        "--max-check-pass-rate-drop",
+        type=float,
+        default=None,
+        metavar="F",
+        help="opt-in: allowed drop of any single check's pass rate within a task",
+    )
+    gate.add_argument(
+        "--fail-on-category",
+        action="append",
+        metavar="CATEGORY",
+        help="opt-in, repeatable: a candidate run failing with this failure category "
+        "(e.g. timeout, llm_refusal) is always a regression",
     )
     gate.add_argument("--json", action="store_true", help="print the result as JSON")
     gate.add_argument("--output", help="also write the JSON result to this file")

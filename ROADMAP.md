@@ -28,7 +28,9 @@ v0.2.0 is released. No milestone after 16 is defined yet: once the open pull
 requests are merged, the next work comes from the future-work list below and
 the owner's priorities. Two future-work items are already implemented in
 pull requests that await review: the native Gemini adapter (T-002b) and the
-gate's token and latency budgets (part of T-019b). `docs/STATUS.md` lists the
+regression gate's additional policies (T-019b: token and latency budgets,
+required repeats, per-check thresholds, intolerable failure categories,
+pooled baselines). `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
 ## Next up (owner)
@@ -47,7 +49,5 @@ open pull requests and the order to merge them in.
   within the same allowlist (T-017b).
 - Broader model evaluations: more tasks, repeats and models, and a real
   improvement cycle on an unconstrained failure; needs a budget (T-009c).
-- More regression policies: per-check/per-category thresholds, token and
-  trend baselines, required repeats (T-019b; token/latency budgets done).
 - Also planned: vector memory (T-006b), streaming output (T-003b), distributed
   execution (T-015), dashboard enhancements (T-011b).
