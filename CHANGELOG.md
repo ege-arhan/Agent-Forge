@@ -6,6 +6,95 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- More regression-gate policies (completes T-019b), all opt-in:
+  `--min-repeats N` (the gate cannot decide unless every task has at least
+  `N` runs on both sides), `--max-check-pass-rate-drop F` (per-check
+  threshold: catches a check that starts failing while its task still
+  passes), `--fail-on-category CATEGORY` (a candidate run failing with a
+  listed failure category is always a regression) and pooled baselines
+  (repeat `--baseline` to compare against several accepted runs at once).
+  Same options on `GET /benchmarks/gate`; the result's baseline side lists
+  `benchmark_run_ids`.
+- Regression gate budgets (part of T-019b): opt-in `--max-token-increase` and
+  `--max-duration-increase` (and matching API query parameters). Missing usage
+  data makes the gate exit 2 rather than pass.
+- Native Gemini adapter (T-002b): `llm/gemini.py` speaks the Gemini
+  `generateContent` API directly over `httpx` (already a core dependency, so
+  no optional extra is needed). Replaces the `gemini` provider's previous
+  routing through the OpenAI-compatible Chat Completions shim. The API key
+  is sent as the `x-goog-api-key` header, never the `?key=` query string.
+  Unit-tested with a mocked transport (message/tool translation, usage,
+  stop-reason mapping, error classification).
+- Offline five-minute tour (milestone 16, T-021): `scripts/tour.py` runs the
+  documented loop — benchmark a versioned agent, failure analysis, rule-based
+  proposal applied as v2, re-benchmark, comparison, and the regression gate in
+  both directions plus against the committed CI baseline — and checks every
+  exit code; `--keep DIR` keeps the database for the dashboard.
+  `docs/tour.md` is the annotated transcript (linked from the README);
+  `tests/e2e/test_tour.py` runs the tour and checks the page against it.
+- Reproducible dashboard screenshots (T-021): `scripts/screenshots.py` seeds
+  OFFLINE demo data (tour, starter benchmark, step-budget experiment, one run
+  paused at the approval gate), starts the API and the dashboard and captures
+  eight pages with `scripts/screenshots.cjs` (needs Playwright; not a project
+  dependency). New picture: a run waiting for approval.
+- Dashboard walk-through recording (T-021): `scripts/screenshots.py --record`
+  runs `scripts/recording.cjs` on the same OFFLINE demo data (overview → the
+  tour agent's improvement cycle → a run paused at the approval gate is
+  approved and finishes) and converts the video to
+  `docs/screenshots/tour.gif` with `ffmpeg`. Shown in the README and
+  `docs/tour.md`.
+- Documentation index `docs/README.md`; README "What is tested" section and
+  link bar.
+- Tests: `tests/e2e/test_screenshots.py` (demo data, approval demo run,
+  committed pictures match the script and are shown in the docs) and
+  `tests/unit/test_docs_links.py` (relative links and heading anchors in the
+  Markdown docs resolve).
+
+### Fixed
+
+- Regression gate budgets: usage is averaged over each task's repeats before
+  the comparison. Totals were compared before, so a candidate with three
+  repeats looked like +200% tokens against a baseline with one, and a
+  baseline with more repeats could hide a real increase. The token budget's
+  message now says "tokens per suite pass" (identical to the total when every
+  task ran once).
+
+- Gemini adapter: tool schemas are sent as `parametersJsonSchema` (standard
+  JSON Schema) instead of `parameters`, an OpenAPI subset that does not
+  define `exclusiveMinimum` and other keywords the built-in tool schemas
+  use. A success or error body that is not a JSON object is now a classified
+  `LLMError` instead of an unhandled exception. The adapter is still tested
+  with a mocked transport only (T-002c).
+- Gemini adapter: `thoughtSignature` on text parts is preserved (new optional
+  `TextPart.provider_data`); a blocked prompt (no candidates, `blockReason`)
+  is a non-retryable refusal; thinking tokens count toward output usage
+  (review findings on #33).
+- Gemini adapter echoes the provider's function-call `id` and `thoughtSignature`
+  (new optional `ToolUsePart.provider_data`) instead of synthesising ids only
+  (review finding on #13).
+- Gate budgets are no longer evaluated for incomparable reports, so an `error`
+  verdict carries no regressions (review finding on #32).
+- Dashboard: the *Improvement history* table on `/improvement` clipped its
+  last column ("Δ pass rate") at common laptop widths. The cycle's age now
+  sits under the agent name instead of in its own column, and the two history
+  cards are side by side only from 1536 px.
+- `scripts/tour.py` and `scripts/screenshots.py` wrote their demo data to the
+  database configured in the repository's `.env` (`AGENTFORGE_DATABASE_URL`)
+  instead of their own: they only removed the variable from the environment,
+  and Settings also reads `.env`. Both now set the demo database URL
+  explicitly (and the screenshot tooling an empty API key).
+- Screenshots: pages taller than the viewport were stitched with a sidebar
+  that ended after one viewport; the capture now grows the viewport to the
+  page.
+
+### Changed
+
+- `docs/screenshots/` regenerated from the current dashboard; the README's
+  positioning text is shorter and its roadmap note is current.
+- `.gitignore`: `web/AGENTS.md` and `web/CLAUDE.md`, which `next dev` writes.
+
 ### Security
 
 - Lockfile: `certifi` 2026.7.22 → 2026.10.23 (PYSEC-2026-4320) and

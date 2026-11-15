@@ -454,6 +454,11 @@ export interface GateResult {
     max_task_pass_rate_drop: number;
     max_mean_score_drop: number;
     min_pass_rate: number | null;
+    max_token_increase?: number | null;
+    max_duration_increase?: number | null;
+    min_repeats?: number | null;
+    max_check_pass_rate_drop?: number | null;
+    fail_on_categories?: string[];
   };
   tasks: {
     task_id: string;
