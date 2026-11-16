@@ -52,17 +52,24 @@ benchmark bench_01a1c95f7e150987de886ef2  suite=dogfood-coding@1  agent=dogfood-
 runs 2  passed 0  failed 2
 failure categories:
   step_limit             2
+failure stages (trace diagnosis):
+  execution              2
 - implement-slugify #1 [step_limit] run_01a1c95f7e269adea9008eec
+    stage: execution (last_command_failed)
     max_steps: reached the limit of 3 steps
     finished (no_final_answer): run status failed
 - add-cli-flag #1 [step_limit] run_01a1c95f7ea1b66c1815591d
+    stage: execution (no signals)
     max_steps: reached the limit of 3 steps
     finished (no_final_answer): run status failed
 ```
 
 Every failed run is classified from its stored record — stop reason, evaluator
 results, tool calls — and the evidence is listed with it
-([categories](improvement.md#failure-categories)).
+([categories](improvement.md#failure-categories)). The `stage` line is the
+[trace-level diagnosis](improvement.md#trace-level-diagnosis): both runs had
+started working when the step limit stopped them, and the last command of the
+first one had failed.
 
 ## 3. Propose, apply and re-evaluate
 

@@ -8,6 +8,18 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Trace-level failure diagnosis (T-020): `agentforge.improvement.diagnosis`
+  reads each failed run's recorded tool calls, plan and evaluator results and
+  reports signals (`no_tool_calls`, `read_only`, `plan_missing`,
+  `repeated_call`, `trailing_tool_errors`, `unverified_change`,
+  `last_command_failed`) and the stage they point to (`planning`,
+  `execution`, `verification`, `reasoning`, `reporting`, `undetermined`).
+  Rule-based and deterministic; a heuristic for where to look first, not a
+  proven cause. Shown by `agentforge improve analyze`, in
+  `GET /benchmarks/runs/{id}/analysis` (`stages`, `signals`,
+  `failures[].diagnosis`), on the dashboard's agent improvement page, and as
+  notes on rule-based proposals; vocabulary at `GET /improvements/diagnosis`.
+  No schema change: analyses stored earlier simply have no diagnosis.
 - More regression-gate policies (completes T-019b), all opt-in:
   `--min-repeats N` (the gate cannot decide unless every task has at least
   `N` runs on both sides), `--max-check-pass-rate-drop F` (per-check

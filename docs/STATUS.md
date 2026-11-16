@@ -1,19 +1,49 @@
 # AgentForge Development Status
 
-Date: 2026-11-15
+Date: 2026-11-16
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
-merged. Milestone 16 (documentation and demo) and two future-work items are
+merged. Milestone 16 (documentation and demo) and three future-work items are
 implemented in pull requests that await the owner's review; nothing has been
-merged into `main` since 2026-11-01 (checked 2026-11-15). Earlier dated session reports are in
+merged into `main` since 2026-11-01 (checked 2026-11-16). Earlier dated session reports are in
 this file's git history.
 
-## State of `main` (2026-11-15)
+## State of `main` (2026-11-16)
 
 - `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
   of 2026-11-09 succeeded.
 
-## This session (2026-11-15)
+## This session (2026-11-16)
+
+A new pull request from branch `claude/stoic-gates-h7ov06`, **stacked on
+PR #41** (merge #40, then #41, then this one). PRs #40 and #41 were unchanged:
+green CI, no review findings.
+
+- Implemented T-020, trace-level failure diagnosis
+  (`agentforge.improvement.diagnosis`, documented in `docs/improvement.md`).
+  For each failed run it reads the recorded tool calls, plan and evaluator
+  results and reports trace signals (e.g. `repeated_call`,
+  `unverified_change`) and the stage they point to: planning, execution,
+  verification, reasoning, reporting or undetermined. It appears in the
+  failure analysis (API and stored cycles), `agentforge improve analyze`, the
+  dashboard's agent improvement page and as notes on rule-based proposals.
+  No database change.
+- Scope, stated plainly: these are deterministic rules over tool-call
+  records. The diagnosis does not read the model's text; `reasoning` is the
+  residual when no process defect is found; a shell command is opaque to it
+  (it may read, write or test). It has been exercised on unit-test traces and
+  OFFLINE (scripted) benchmark runs only — whether the stages are useful on
+  real-model failure traces is unverified (no credentials, no budget).
+- Verification on this branch: ruff, ruff format, mypy --strict: clean.
+  `pytest`: 461 passed, 8 skipped (the Docker-sandbox tests: no
+  `python:3.12-slim` image here). PostgreSQL tests not run locally; CI runs
+  both. Dashboard: lint, typecheck, 18 unit tests and production build pass;
+  the agent improvement page was checked in a browser capture and
+  `docs/screenshots/improvement-agent-light.png` regenerated from it.
+  `scripts/tour.py` passes; the `improve analyze` transcript in
+  `docs/tour.md` gained the new stage lines.
+
+## Session of 2026-11-15
 
 **PR #41** (branch `claude/stoic-gates-y0aicw`), **stacked on PR #40** (merge #40
 first, then #41).
@@ -46,6 +76,10 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
   OFFLINE (scripted) benchmark runs.
 
 ## Pull requests awaiting the owner
+
+Merge order for everything open: **#40 → #41 → the T-020 pull request**
+(each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
+#39, whose commits are all in #40.
 
 Agent work is spread over seven pull requests in two stacks. Before this
 session the two stacks could not both be merged:

@@ -21,7 +21,7 @@ endpoint except `/health` requires `Authorization: Bearer <key>`.
 | `POST /benchmarks/runs` | `{suite_id, agent_id or config, repeats?, task_ids?}`; with `agent_id` the run records the agent's current version |
 | `GET /benchmarks/runs?suite_id&experiment_id&agent_id&result_class&limit` | benchmark runs with results, summary, `agent_id`, `agent_version` and `result_class` (`offline` or `real`) |
 | `GET /benchmarks/runs/{id}` | one benchmark run |
-| `GET /benchmarks/runs/{id}/analysis` | failure analysis: categories, per-task counts, failed runs with evidence, tool issues |
+| `GET /benchmarks/runs/{id}/analysis` | failure analysis: categories, diagnosed stages and trace signals, per-task counts, failed runs with evidence and diagnosis, tool issues |
 | `GET /benchmarks/runs/{id}/report` | publication record per task run (success, checks, tool calls, retries, duration, tokens or `null`, estimated cost, `actual_cost_usd: null`) |
 | `GET /benchmarks/compare?baseline&candidate` | comparison (verdict, intervals, per-task changes); offline vs real is refused as `not_comparable` |
 | `GET /benchmarks/gate?baseline&candidate[&max_pass_rate_drop&max_task_pass_rate_drop&max_mean_score_drop&min_pass_rate&max_token_increase&max_duration_increase&min_repeats&max_check_pass_rate_drop&fail_on_category]` (`baseline` and `fail_on_category` may be repeated) | CI regression gate result: `verdict` (`pass`/`regression`/`error`), `exit_code` (0/1/2), per-task counts, `errors`, `regressions`, `notes`; same rules as `agentforge bench gate` ([regression-gate.md](regression-gate.md)) |
@@ -36,6 +36,7 @@ See [improvement.md](improvement.md) for the concepts.
 | Method & path | Description |
 |---|---|
 | `GET /improvements/categories` | failure categories with descriptions |
+| `GET /improvements/diagnosis` | stages and trace signals of the trace-level diagnosis, with descriptions |
 | `POST /improvements` | `{benchmark_run_id, changes?, notes?}` → 201 cycle with analysis and proposal (rule-based unless `changes` is given; `changes` are `{path, value, operation?, rationale?}` limited to an allowlist) |
 | `GET /improvements?agent_id&limit` | cycles, newest first |
 | `GET /improvements/{id}` | one cycle |

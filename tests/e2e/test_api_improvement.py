@@ -66,6 +66,13 @@ def test_improvement_loop_via_api(client: TestClient) -> None:
     baseline = start_benchmark(client, agent["id"], repeats=2)
     analysis = client.get(f"{API}/benchmarks/runs/{baseline['id']}/analysis").json()
     assert analysis["categories"] == {"step_limit": 4}
+    assert sum(analysis["stages"].values()) == 4
+    vocabulary = client.get(f"{API}/improvements/diagnosis").json()
+    assert set(analysis["stages"]) <= set(vocabulary["stages"])
+    assert set(analysis["signals"]) <= set(vocabulary["signals"])
+    for failure in analysis["failures"]:
+        assert failure["diagnosis"]["stage"] in analysis["stages"]
+        assert failure["diagnosis"]["phases"]
     report = client.get(f"{API}/benchmarks/runs/{baseline['id']}/report").json()
     assert report["result_class"] == "offline" and report["summary"]["passed"] == 0
     assert report["runs"][0]["input_tokens"] is None

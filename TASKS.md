@@ -91,10 +91,6 @@ _None open. Continue with P1 in roadmap order._
   estimates; a real improvement cycle on an unconstrained failure. The limited
   validation (T-009b) is the baseline for this.
 
-### T-020 Richer failure analysis
-- **Status:** todo — trace-level diagnosis (e.g. distinguishing planning from
-  reasoning failures, which today needs a human reading the trace).
-
 
 ### T-011b Dashboard enhancements
 - **Status:** todo
@@ -136,6 +132,7 @@ _None open. Continue with P1 in roadmap order._
 | T-000 | Repository foundation | pyproject (uv, ruff, mypy strict, pytest), layout, .gitignore |
 | T-001 | Core domain models | `core/config.py`, `core/models.py`, errors, IDs |
 | T-002 | Provider abstraction | Anthropic + OpenAI-compatible (OpenAI/OpenRouter/local) + scripted; pricing; plugin registry; tested with SDKs over mock transports |
+| T-020 | Trace-level failure diagnosis | `improvement/diagnosis.py`: tool calls get a phase from the tool's permissions (explore/modify/execute/other); seven trace signals; a stage per failed run (planning, execution, verification, reasoning, reporting, undetermined) by ordered rules. Rule-based heuristics over the recorded tool calls — it does not read the model's text, `reasoning` is a residual, and shell commands are opaque to it (see `docs/improvement.md`). In the analysis (`stages`, `signals`, `failures[].diagnosis`), `improve analyze`, `GET /improvements/diagnosis`, the dashboard and proposal notes. Exercised on OFFLINE (scripted) runs only; not yet checked against real-model failure traces. Awaiting review (PR stacked on #41). |
 | T-002b | Native Gemini adapter | `llm/gemini.py` speaks `generateContent` directly over `httpx` (no SDK, no optional extra); id-less function calls resolved by name; opaque "thought" parts echoed back; tool schemas sent as `parametersJsonSchema`; unit-tested with a mocked transport **only — not yet run against the live API (T-002c)**. Replaces the OpenAI-compatible `gemini` preset. |
 | T-003 | Agent runtime | retries/backoff, timeouts, cancellation, max steps/tool calls, consecutive-error cap, refusal/max_tokens handling, plan_execute, evaluation retries, events |
 | T-004 | Tool system | registry/toolsets/entry points, executor, filesystem/terminal/git/http/github/memory tools |

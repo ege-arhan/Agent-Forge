@@ -30,7 +30,8 @@ the owner's priorities. Two future-work items are already implemented in
 pull requests that await review: the native Gemini adapter (T-002b) and the
 regression gate's additional policies (T-019b: token and latency budgets,
 required repeats, per-check thresholds, intolerable failure categories,
-pooled baselines). `docs/STATUS.md` lists the
+pooled baselines). A third, the rule-based trace-level failure diagnosis
+(T-020), is implemented in a pull request stacked on those. `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
 ## Next up (owner)
@@ -43,8 +44,6 @@ open pull requests and the order to merge them in.
 
 - Stronger benchmark suites: larger, SWE-style tasks with harder hidden checks
   (T-008b).
-- Richer failure analysis: trace-level diagnosis, e.g. planning vs reasoning
-  failures (T-020).
 - More sophisticated improvement proposals: an optional LLM-assisted proposer
   within the same allowlist (T-017b).
 - Broader model evaluations: more tasks, repeats and models, and a real
