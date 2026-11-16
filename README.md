@@ -2,6 +2,13 @@
 
 **An open-source Agent CI/CD and evaluation platform.**
 
+[Five-minute offline tour](docs/tour.md) ·
+[Quick start](#quick-start-offline-no-api-key) ·
+[Documentation](docs/README.md) ·
+[Architecture](ARCHITECTURE.md) ·
+[Security](SECURITY.md) ·
+[What is tested](#what-is-tested)
+
 AgentForge treats an LLM agent the way CI/CD treats code: every agent
 configuration (model, prompt, tools, memory, limits, sandbox) is a stored,
 versioned artifact; every run is recorded and reproducible; every change is
@@ -33,16 +40,11 @@ was changed in response, and whether the change regressed anything.
 
 **Not primarily another LLM wrapper.** It works with Anthropic, OpenAI, Gemini,
 OpenRouter, OpenCode Go and local models, but its focus is what happens around
-the model — versioned agents, reproducible execution, sandboxed tool use,
-benchmark evaluation, failure analysis, agent improvement, regression
-detection and CI/CD for agents. It runs locally or self-hosted (SQLite or
-PostgreSQL, Docker).
-
-Many projects cover parts of this space (tracing and observability platforms,
-evaluation harnesses, agent frameworks). AgentForge's approach is to keep the
-whole loop in one self-hosted tool with one data model, so that an agent change
-can be traced from the failure that motivated it to the benchmark and gate that
-confirmed or rejected it.
+the model. Tracing platforms, evaluation harnesses and agent frameworks each
+cover part of this; AgentForge keeps the whole loop in one self-hosted tool
+(SQLite or PostgreSQL, Docker) with one data model, so a change can be traced
+from the failure that motivated it to the benchmark and gate that confirmed or
+rejected it.
 
 > Status: 0.2.0, alpha. Core engine, API, CLI, dashboard, benchmarks,
 > improvement loop, CI regression gate, human approval gate and GitHub
@@ -52,10 +54,19 @@ confirmed or rejected it.
 
 ![Dashboard overview](docs/screenshots/dashboard-light.png)
 
+*The dashboard with OFFLINE demo data (scripted provider, no model calls).*
+
+![Walk-through: an improvement cycle, then a run approved at the gate](docs/screenshots/tour.gif)
+
+*A 23-second walk-through of the [offline tour](docs/tour.md)'s data: the
+agent's improvement cycle with its gate verdict, then a run that waits at the
+approval gate is approved and finishes. OFFLINE demo data; it shows the
+dashboard, not model performance.*
+
 ## Features
 
 - **Multi-provider**: Anthropic (Claude), OpenAI, OpenRouter, Gemini
-  (OpenAI-compatible endpoint), OpenCode Go (OpenAI-compatible endpoint, set
+  (native `generateContent` API), OpenCode Go (OpenAI-compatible endpoint, set
   `model.base_url`), local OpenAI-compatible servers (Ollama, vLLM,
   LM Studio), plus a deterministic *scripted* provider for offline tests.
 - **Instrumented runtime**: ReAct or plan-and-execute loop with LLM retry
@@ -122,8 +133,8 @@ uv sync --all-extras            # or: pip install -e '.[all]'
 source .venv/bin/activate
 ```
 
-Extras: `anthropic`, `openai` (also used for OpenRouter, Gemini and local
-servers), `postgres`, `otel`, `all`.
+Extras: `anthropic`, `openai` (also used for OpenRouter and local servers),
+`postgres`, `otel`, `all`. Gemini needs no extra.
 
 With Docker Compose (API + PostgreSQL + dashboard):
 
@@ -136,6 +147,11 @@ docker compose up --build       # dashboard http://localhost:3000, API http://lo
 
 The scripted demo agent replays fixed solutions, so you can see the whole
 pipeline without a model. Its scores say nothing about real models.
+
+**Five-minute tour:** `uv run python scripts/tour.py` walks the whole loop —
+benchmark → failure analysis → proposal → v2 → re-benchmark → comparison →
+regression gate — offline, checking every exit code. The annotated transcript
+is in [docs/tour.md](docs/tour.md).
 
 ```bash
 agentforge bench run examples/benchmarks/starter.yaml -a examples/agents/scripted-demo.yaml
@@ -232,6 +248,8 @@ instead of executing it. Resolve it with:
 A denial fails only that tool call (the agent sees why and can try something
 else); the run keeps going. Unanswered after `approval.timeout_seconds`
 (default 1h) is treated as a denial too.
+
+![A run paused at the approval gate](docs/screenshots/run-approval-light.png)
 
 ## Memory
 
@@ -353,6 +371,14 @@ agentforge serve                       # API on :8000
 cd web && npm ci && npm run dev        # dashboard on :3000
 ```
 
+All screenshots show OFFLINE demo data (scripted provider) and are regenerated
+with `uv run python scripts/screenshots.py` (the walk-through recording above
+with `--record`); they illustrate the dashboard, not model performance.
+
+| Run list | Benchmark detail |
+|---|---|
+| ![Runs](docs/screenshots/runs-light.png) | ![Benchmark detail](docs/screenshots/benchmark-detail-light.png) |
+
 | Run detail (dark) | Experiment comparison |
 |---|---|
 | ![Run detail](docs/screenshots/run-detail-dark.png) | ![Experiment](docs/screenshots/experiment-light.png) |
@@ -386,21 +412,41 @@ local experiments; the local sandbox provides no isolation. Secrets are kept
 out of child processes and redacted from logs and records. Full model and
 limitations: [SECURITY.md](SECURITY.md).
 
+## What is tested
+
+All tests are offline; the scripted provider stands in for models, and
+provider adapters are exercised through the real SDKs over a mocked HTTP
+transport. CI runs on every pull request:
+
+| Check | What it covers |
+|---|---|
+| Unit, integration and end-to-end tests (Python 3.12 and 3.13) | runtime, tools, sandbox, memory, evaluators, benchmarks, experiments, improvement loop, regression gate, API and CLI — over 350 tests |
+| The same integration and end-to-end tests against PostgreSQL 16 | storage and migrations on a real server, not only SQLite |
+| Docker sandbox tests | the hardened container sandbox against a real Docker daemon |
+| Model/migration drift test | Alembic migrations match the SQLAlchemy models |
+| Documentation checks | the [tour](docs/tour.md) runs and matches its page; the screenshots match the script that produces them |
+| Dashboard | ESLint, TypeScript, unit tests, production build |
+| Static checks | ruff, `mypy --strict` |
+| Security | pip-audit, ruff security rules, gitleaks, CodeQL |
+| Images | API, dashboard and sandbox images build; the API container is smoke-tested |
+
+Not covered by CI: calls to real model providers. The small real-model
+validation is a recorded, manual experiment (see
+[Real-model validation](#real-model-validation)).
+
 ## Development
 
 ```bash
 uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 ```
 
-See [DEVELOPMENT.md](DEVELOPMENT.md). CI runs lint, strict type checking,
-tests on Python 3.12/3.13, PostgreSQL and Docker-sandbox tests, dashboard lint/
-type check/tests/build, image builds, dependency audit, secret scanning and
-CodeQL.
+See [DEVELOPMENT.md](DEVELOPMENT.md) and the [documentation index](docs/README.md).
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md). Next: public beta
-(M15) — real-model dogfooding results once credentials are available.
+See [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md). v0.2.0 is released; the
+project is in feature freeze while milestone 16 (portfolio-quality release:
+tour, screenshots, documentation) is in progress.
 
 ## License
 

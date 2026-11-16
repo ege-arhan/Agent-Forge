@@ -5,7 +5,6 @@ so this one adapter serves several provider presets:
 
 * ``openai``      - api.openai.com
 * ``openrouter``  - openrouter.ai (hundreds of hosted models)
-* ``gemini``      - Google's OpenAI-compatible Gemini endpoint
 * ``local``       - any local OpenAI-compatible server (Ollama, vLLM, LM Studio,
   llama.cpp server); defaults to Ollama's address.
 * ``opencode-go`` - OpenCode Go (endpoint set via ``model.base_url``). Every
@@ -110,11 +109,6 @@ PRESETS: dict[str, OpenAICompatPreset] = {
         name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-    ),
-    "gemini": OpenAICompatPreset(
-        name="gemini",
-        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        api_key_env="GEMINI_API_KEY",
     ),
     "opencode-go": OpenAICompatPreset(
         name="opencode-go",

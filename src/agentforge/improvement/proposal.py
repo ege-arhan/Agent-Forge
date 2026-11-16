@@ -24,6 +24,7 @@ from agentforge.improvement.analysis import (
     FailureAnalysis,
     FailureCategory,
 )
+from agentforge.improvement.diagnosis import FailureStage, TraceSignal
 
 ALLOWED_PATHS = frozenset(
     {
@@ -312,6 +313,7 @@ def propose(
                 f"{category.value}: {runs}; inspect the evidence - no rule-based change applies."
             )
 
+    b.notes.extend(_diagnosis_notes(analysis))
     invalid = sum(v.get("invalid_input", 0) for v in analysis.tool_issues.values())
     if invalid and not any(FailureCategory.TOOL_ERRORS in c.addresses for c in b.changes):
         b.notes.append(
@@ -328,6 +330,42 @@ def propose(
     for index, change in enumerate(b.changes, 1):
         change.id = f"c{index}"
     return ImprovementProposal(proposer="rules", changes=b.changes, notes=b.notes)
+
+
+_LIMIT_CATEGORIES = frozenset(
+    {FailureCategory.STEP_LIMIT, FailureCategory.TOOL_BUDGET, FailureCategory.TIMEOUT}
+)
+
+
+def _diagnosis_notes(analysis: FailureAnalysis) -> list[str]:
+    """Findings from the trace diagnosis that qualify the rule-based changes."""
+    notes: list[str] = []
+    diagnosed = [f for f in analysis.failures if f.diagnosis is not None]
+    looping = [
+        f
+        for f in diagnosed
+        if f.category in _LIMIT_CATEGORIES
+        and f.diagnosis is not None
+        and TraceSignal.REPEATED_CALL in f.diagnosis.signals
+    ]
+    if looping:
+        notes.append(
+            f"trace diagnosis: {len(looping)} run(s) that hit a limit were repeating an "
+            "identical call; a higher limit alone is unlikely to help them "
+            f"({', '.join(f.run_id for f in looping[:5])})."
+        )
+    planning = [
+        f
+        for f in diagnosed
+        if f.diagnosis is not None and f.diagnosis.stage == FailureStage.PLANNING
+    ]
+    if planning:
+        notes.append(
+            f"trace diagnosis: {len(planning)} failed run(s) never attempted a change to the "
+            "workspace (planning stage); check that the agent has the tools and the "
+            f"instructions to act ({', '.join(f.run_id for f in planning[:5])})."
+        )
+    return notes
 
 
 def describe(changes: list[ProposedChange]) -> str:
