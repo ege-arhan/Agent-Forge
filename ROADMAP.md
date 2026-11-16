@@ -31,7 +31,7 @@ pull requests that await review: the native Gemini adapter (T-002b) and the
 regression gate's additional policies (T-019b: token and latency budgets,
 required repeats, per-check thresholds, intolerable failure categories,
 pooled baselines). A third, the rule-based trace-level failure diagnosis
-(T-020), is implemented in a pull request stacked on those. `docs/STATUS.md` lists the
+(T-020), is implemented in PR #42, stacked on those. `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
 ## Next up (owner)

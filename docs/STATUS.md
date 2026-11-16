@@ -15,7 +15,7 @@ this file's git history.
 
 ## This session (2026-11-16)
 
-A new pull request from branch `claude/stoic-gates-h7ov06`, **stacked on
+**PR #42** (branch `claude/stoic-gates-h7ov06`), **stacked on
 PR #41** (merge #40, then #41, then this one). PRs #40 and #41 were unchanged:
 green CI, no review findings.
 
@@ -77,7 +77,7 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 ## Pull requests awaiting the owner
 
-Merge order for everything open: **#40 → #41 → the T-020 pull request**
+Merge order for everything open: **#40 → #41 → #42**
 (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40.
 
