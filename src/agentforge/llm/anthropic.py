@@ -10,11 +10,13 @@ from agentforge.llm.base import LLMProvider
 from agentforge.llm.types import (
     CompletionRequest,
     CompletionResponse,
+    CompletionStream,
     ContentPart,
     Message,
     ProviderPart,
     Role,
     StopReason,
+    StreamDelta,
     TextPart,
     ToolResultPart,
     ToolUsePart,
@@ -112,22 +114,7 @@ class AnthropicProvider(LLMProvider):
         )
 
     async def complete(self, request: CompletionRequest) -> CompletionResponse:
-        params: dict[str, Any] = {
-            "model": request.model or DEFAULT_MODEL,
-            "max_tokens": request.max_tokens,
-            "messages": to_anthropic_messages(request.messages),
-        }
-        if request.system:
-            params["system"] = request.system
-        if request.tools:
-            params["tools"] = [
-                {"name": t.name, "description": t.description, "input_schema": t.input_schema}
-                for t in request.tools
-            ]
-        if request.temperature is not None:
-            params["temperature"] = request.temperature
-        params.update(self._extra)
-
+        params = self._build_params(request)
         try:
             response = await self._client.messages.create(**params)
         except Exception as exc:
@@ -152,10 +139,90 @@ class AnthropicProvider(LLMProvider):
             response_id=getattr(response, "id", None),
         )
 
+    async def stream(self, request: CompletionRequest) -> CompletionStream:
+        params = self._build_params(request)
+        try:
+            sdk_stream = self._client.messages.stream(**params)
+        except Exception as exc:
+            raise _translate_error(exc) from exc
+        return _AnthropicStream(sdk_stream, params["model"])
+
+    def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "model": request.model or DEFAULT_MODEL,
+            "max_tokens": request.max_tokens,
+            "messages": to_anthropic_messages(request.messages),
+        }
+        if request.system:
+            params["system"] = request.system
+        if request.tools:
+            params["tools"] = [
+                {"name": t.name, "description": t.description, "input_schema": t.input_schema}
+                for t in request.tools
+            ]
+        if request.temperature is not None:
+            params["temperature"] = request.temperature
+        params.update(self._extra)
+        return params
+
     async def aclose(self) -> None:
         close = getattr(self._client, "close", None)
         if close is not None:
             await close()
+
+
+class _AnthropicStream(CompletionStream):
+    """Wraps the Anthropic SDK streaming context manager."""
+
+    def __init__(self, sdk_stream: Any, requested_model: str) -> None:
+        super().__init__()
+        self._sdk_stream = sdk_stream
+        self._requested_model = requested_model
+        self._text_iter: Any = None
+        self._entered = False
+
+    def __aiter__(self) -> _AnthropicStream:
+        return self
+
+    async def __anext__(self) -> StreamDelta:
+        if not self._entered:
+            self._ctx = await self._sdk_stream.__aenter__()
+            self._text_iter = self._ctx.text_stream.__aiter__()
+            self._entered = True
+        try:
+            text = await self._text_iter.__anext__()
+            return StreamDelta(text=text)
+        except StopAsyncIteration:
+            await self._finish()
+            raise
+
+    async def _finish(self) -> None:
+        if self._response is not None:  # already built
+            return
+        try:
+            final = await self._ctx.get_final_message()
+        except Exception as exc:
+            await self._sdk_stream.__aexit__(type(exc), exc, exc.__traceback__)
+            raise _translate_error(exc) from exc
+        await self._sdk_stream.__aexit__(None, None, None)
+        usage = getattr(final, "usage", None)
+        token_usage = TokenUsage(
+            input_tokens=getattr(usage, "input_tokens", 0) or 0,
+            output_tokens=getattr(usage, "output_tokens", 0) or 0,
+            cache_read_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
+            cache_write_tokens=getattr(usage, "cache_creation_input_tokens", 0) or 0,
+        )
+        raw_stop = getattr(final, "stop_reason", None)
+        self._response = CompletionResponse(
+            message=Message(
+                role=Role.ASSISTANT, content=from_anthropic_content(list(final.content))
+            ),
+            stop_reason=_STOP_REASONS.get(raw_stop or "", StopReason.OTHER),
+            raw_stop_reason=raw_stop,
+            usage=token_usage,
+            model=getattr(final, "model", self._requested_model),
+            response_id=getattr(final, "id", None),
+        )
 
 
 def _translate_error(exc: Exception) -> LLMError:

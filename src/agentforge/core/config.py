@@ -38,6 +38,10 @@ class ModelConfig(_Strict):
         description="Name of the environment variable holding the API key. The key itself is "
         "never stored in configs or runs.",
     )
+    stream: bool = Field(
+        default=False,
+        description="Stream model output for live token display (SSE llm.delta events).",
+    )
     options: dict[str, Any] = Field(
         default_factory=dict, description="Provider-specific extra options."
     )

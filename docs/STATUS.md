@@ -1,10 +1,22 @@
 # AgentForge Development Status
 
-Date: 2026-10-31
+Date: 2026-11-17
 
-Version: **0.2.0** (release prepared; not tagged). Milestones 0–15 complete in
-the release branch; the project is in **feature freeze** until the owner
-starts milestone 16 or a future-work item (see ROADMAP.md).
+Version: **0.2.0** (tagged). Milestones 0–15 complete; the project is in
+**feature freeze** until the owner starts milestone 16 or a future-work item
+(see ROADMAP.md).
+
+## Update 2026-11-17
+
+- **T-003b (streaming model output) implemented** on branch
+  `claude/stoic-gates-cy2bvl`. Added `CompletionStream` base class with
+  `StreamDelta` chunks, `_AnthropicStream` and `_OpenAIStream` subclasses
+  wrapping each SDK's native streaming, `ModelConfig.stream` opt-in field
+  (default `False`), runtime `_stream_completion` emitting `llm.delta`
+  events, and `ConsoleObserver` live token display. Responses API models
+  fall back to the default non-streaming path. 16 new tests; total 363
+  non-docker tests passing (docker tests and web not run). ruff, ruff
+  format, mypy --strict: clean.
 
 ## Update 2026-10-31
 

@@ -6,6 +6,16 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Streaming model output (T-003b): `CompletionStream` base class with
+  `StreamDelta` chunks; `_AnthropicStream` and `_OpenAIStream` subclasses
+  wrapping each SDK's native streaming; `ModelConfig.stream` opt-in field
+  (default `False`); runtime `_stream_completion` emitting `llm.delta`
+  events through the existing observer/SSE pipeline; `ConsoleObserver` live
+  token display (prefixed with `◇`). Responses API models fall back to the
+  default non-streaming path. 16 new tests.
+
 ### Security
 
 - Lockfile: `certifi` 2026.7.22 → 2026.10.23 (PYSEC-2026-4320) and
