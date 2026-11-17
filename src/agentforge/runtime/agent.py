@@ -55,6 +55,10 @@ from agentforge.tools.executor import ToolExecutor
 
 logger = logging.getLogger("agentforge.runtime")
 
+_STREAM_PROVIDERS = frozenset(
+    {"anthropic", "openai", "openrouter", "gemini", "opencode-go", "local"}
+)
+
 EVALUATION_TIMEOUT_SECONDS = 900.0
 
 
@@ -396,6 +400,7 @@ class AgentRuntime:
     ) -> CompletionResponse:
         policy = self.config.retry
         model = self.config.model
+        use_stream = model.stream and model.provider in _STREAM_PROVIDERS
         started_at = utcnow()
         t0 = time.monotonic()
         attempt = 0
@@ -403,7 +408,10 @@ class AgentRuntime:
             attempt += 1
             self._check_cancelled()
             try:
-                response = await self.deps.provider.complete(request)
+                if use_stream:
+                    response = await self._stream_completion(run, step, request)
+                else:
+                    response = await self.deps.provider.complete(request)
                 break
             except LLMError as exc:
                 if not exc.retryable or attempt >= policy.llm_max_attempts:
@@ -459,6 +467,15 @@ class AgentRuntime:
             stop_reason=response.stop_reason.value,
         )
         return response
+
+    async def _stream_completion(
+        self, run: Run, step: Step, request: CompletionRequest
+    ) -> CompletionResponse:
+        stream = await self.deps.provider.stream(request)
+        async for delta in stream:
+            if delta.text:
+                await self._emit(run, "llm.delta", step=step.index, text=delta.text)
+        return stream.response
 
     async def _plan(self, run: Run, tool_names: list[str]) -> list[str] | None:
         plan_request = build_plan_request(self.config.planner, run.goal, tool_names)

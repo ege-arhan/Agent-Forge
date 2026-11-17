@@ -49,5 +49,6 @@ documentation only, until the owner starts milestone 16 or a future-work item.
 - More regression policies: per-check/per-category thresholds, token and
   latency budgets, trend baselines, required repeats (T-019b).
 - Also planned: native Gemini adapter (T-002b), vector memory (T-006b),
-  streaming output (T-003b), distributed execution (T-015), dashboard
-  enhancements (T-011b).
+  distributed execution (T-015), dashboard enhancements (T-011b).
+- Streaming output (T-003b): done — `CompletionStream` with Anthropic and
+  OpenAI-compatible subclasses, `llm.delta` events, CLI live display.
