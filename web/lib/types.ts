@@ -18,6 +18,8 @@ export interface ModelConfig {
   max_tokens: number;
   base_url: string | null;
   api_key_env: string | null;
+  /** Stream model output as `llm.delta` events (live preview on the run page). */
+  stream?: boolean;
   options: Record<string, unknown>;
 }
 

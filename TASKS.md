@@ -93,8 +93,11 @@ _None open. Continue with P1 in roadmap order._
 
 
 ### T-011b Dashboard enhancements
-- **Status:** todo
-- **Description:** live trace via SSE instead of polling; component tests
+- **Status:** in-progress — the SSE part is done (awaiting merge): the run
+  page follows `GET /runs/{id}/events`, shows streamed model output live and
+  refreshes on record-changing events; its poll remains as a fallback when
+  the stream cannot be opened. The rest is todo.
+- **Remaining:** component tests
   (React Testing Library once the npm/vitest resolver issue is resolved —
   `npm install vitest` currently crashes npm 10.9 with "Cannot read properties
   of null (reading 'edgesOut')"); YAML import in the agent form; run
@@ -119,7 +122,12 @@ _None open. Continue with P1 in roadmap order._
   proposals' limits.
 
 ### T-003b Streaming model output
-- **Status:** todo — stream tokens to the SSE channel for live thoughts.
+- **Status:** done (awaiting merge) — implemented in PR #43, then reviewed,
+  fixed and extended in the follow-up PR (see the Done table). Not verified
+  against a live model: no session has had credentials. Not included: native
+  streaming for the Gemini adapter and Responses-API models (they answer
+  without deltas), streamed thinking or tool-call arguments, and replay of
+  text streamed before a client subscribed.
 
 ### T-015 Distributed execution
 - **Status:** todo — Redis-backed queue + worker process when multi-node
@@ -160,3 +168,4 @@ _None open. Continue with P1 in roadmap order._
 | T-009b | Limited real-model validation | OpenCode Go provider fixes (`x-opencode-session`, Responses API routing, proxy-injected credentials); 5 models × 2 dogfood tasks (10 executions, all passed); hard suite `dogfood-hard` v1 (4 tasks, offline-validated; 2 run with `deepseek-v4.1-flash`, both passed); controlled improvement-loop demonstration (step limit 8 → failed, proposal `max_steps` 25 → v2 passed; verdict inconclusive). REAL results in `dogfood/results/real/`, write-up in `docs/REAL_MODEL_BENCHMARK.md`. Small samples: no rankings; not evidence of model learning |
 | T-019 | CI regression gate | `agentforge bench gate` (exit 0 pass / 1 regression / 2 cannot decide), thresholds, report `suite_digest` + `failure_category`, `GET /benchmarks/gate`, dashboard verdict on evaluated cycles, GitHub Actions example with a committed offline baseline, `docs/regression-gate.md`; unit, CLI e2e and API tests |
 | T-019b | More regression policies | All opt-in, on `agentforge bench gate` and `GET /benchmarks/gate`: token and latency budgets (`--max-token-increase`, `--max-duration-increase`; usage averaged per task so different repeat counts compare fairly), required repeats (`--min-repeats`, exit 2 when not met), per-check threshold (`--max-check-pass-rate-drop`), failure categories that are never tolerated (`--fail-on-category`), pooled baselines (repeat `--baseline`). Unit, CLI e2e and API tests; `docs/regression-gate.md`. Not included: stored baseline history, age weighting, drift detection or significance tests — the pooled baseline is a plain rate over the reports the caller passes. In PR #40 (budgets) and PR #41 (the rest; depends on #40); not merged yet |
+| T-003b | Streaming model output | Opt-in `model.stream`; `LLMProvider.stream()` → `CompletionStream` (default wraps `complete()`), native for Anthropic and OpenAI-compatible chat completions, word-by-word replay in the scripted provider; runtime emits coalesced `llm.delta` events (≤ 1 per 50 ms), retries a stream that fails midway, closes it on error/cancel; deltas reach the CLI, SSE and the dashboard run page and are never logged or persisted. Tests: both SDKs over mock transports (incl. the real Anthropic SSE parser), runtime failure/cancel/coalescing, API SSE e2e, dashboard parser/reducer; live preview checked in a browser with the scripted provider. In PR #43 + its follow-up; not merged yet; never run against a live model |

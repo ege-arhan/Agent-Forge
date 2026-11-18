@@ -8,6 +8,25 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Streaming model output (T-003b), opt-in with `model.stream: true`: the
+  runtime reads the provider's stream and emits `llm.delta` events (text
+  only), which reach `agentforge run` (live `◇` line), SSE clients of
+  `GET /runs/{id}/events` and the dashboard's run page (a *Model output
+  (live)* preview under the trace, read over SSE with the API key; the page
+  also refreshes on record-changing events instead of waiting for its poll,
+  which stays as a fallback). Native streaming for Anthropic and
+  OpenAI-compatible chat-completions providers; other providers (native
+  Gemini, Responses-API models, plugins without `stream()`) answer as before
+  with no deltas. The scripted provider replays a turn's text word by word
+  (`stream_delay_seconds` for demos) so the path is testable offline.
+  Deltas are a live view only — never logged, persisted or traced; the
+  stored step text is unchanged. See `docs/observability.md`. Reviewed after
+  PR #43 and fixed before merge: Anthropic stream errors were raised
+  untranslated (so never retried), streams were not closed on error or
+  cancellation, every token was written to the structured log, and
+  streaming was limited to a hard-coded list of provider names; deltas are
+  now coalesced (at most one event per 50 ms per run) and a cancel is
+  honoured mid-stream.
 - Trace-level failure diagnosis (T-020): `agentforge.improvement.diagnosis`
   reads each failed run's recorded tool calls, plan and evaluator results and
   reports signals (`no_tool_calls`, `read_only`, `plan_missing`,
@@ -106,7 +125,6 @@ All notable changes are documented here. The format follows
 - `docs/screenshots/` regenerated from the current dashboard; the README's
   positioning text is shorter and its roadmap note is current.
 - `.gitignore`: `web/AGENTS.md` and `web/CLAUDE.md`, which `next dev` writes.
-
 ### Security
 
 - Lockfile: `certifi` 2026.7.22 → 2026.10.23 (PYSEC-2026-4320) and

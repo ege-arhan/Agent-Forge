@@ -188,6 +188,7 @@ model:
   provider: anthropic          # anthropic | openai | openrouter | gemini | opencode-go | local | scripted
   model: claude-opus-5
   max_tokens: 16000
+  # stream: true               # live model output (CLI, SSE, dashboard); docs/observability.md
   # api_key_env: MY_KEY_VAR    # defaults to the provider's standard variable
 system_prompt: |
   You are a careful software engineer...

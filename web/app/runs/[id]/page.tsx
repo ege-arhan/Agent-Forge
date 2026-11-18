@@ -3,7 +3,7 @@
 import { RotateCcw, Square } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { ErrorState, Loading } from "@/components/states";
@@ -23,6 +23,7 @@ import {
   relativeTime,
   truncate,
 } from "@/lib/format";
+import { changesRecord, EMPTY_LIVE, type LiveOutput, reduceLive, streamRunEvents } from "@/lib/live";
 import { useApi } from "@/lib/use-api";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -42,7 +43,34 @@ export default function RunDetailPage() {
   const run = useApi(() => api.run(id), [id], {
     pollMs: (data) => (data && !isTerminal(data.status) ? 1_500 : undefined),
   });
-  const awaitingApproval = run.data?.status === "awaiting_approval";
+  const status = run.data?.status;
+  const streamable = status !== undefined && !isTerminal(status);
+  const reloadRun = run.reload;
+  const [live, setLive] = useState<LiveOutput>(EMPTY_LIVE);
+  // While the run is active, follow its event stream: token deltas feed the
+  // live preview and record-changing events refresh the page at once. The
+  // poll above stays on as a fallback if the stream cannot be opened.
+  useEffect(() => {
+    if (!streamable) return;
+    const controller = new AbortController();
+    streamRunEvents(
+      id,
+      (event) => {
+        setLive((state) => reduceLive(state, event));
+        if (changesRecord(event)) reloadRun();
+      },
+      controller.signal,
+    )
+      .catch(() => undefined)
+      .finally(() => {
+        if (!controller.signal.aborted) setLive(EMPTY_LIVE);
+      });
+    return () => {
+      controller.abort();
+      setLive(EMPTY_LIVE);
+    };
+  }, [id, streamable, reloadRun]);
+  const awaitingApproval = status === "awaiting_approval";
   const approvals = useApi(
     () => (awaitingApproval ? api.pendingApprovals(id) : Promise.resolve([])),
     [id, awaitingApproval],
@@ -152,6 +180,15 @@ export default function RunDetailPage() {
           />
           <CardBody>
             <Trace steps={r.steps} />
+            {active && live.text ? (
+              <div className="mt-3" aria-live="off">
+                <div className="mb-1 flex items-center gap-2 text-[11px] font-medium tracking-wide text-muted uppercase">
+                  <span aria-hidden className="size-1.5 rounded-full bg-series-1 motion-safe:animate-pulse" />
+                  Model output (live{live.step !== null ? `, step ${live.step}` : ""})
+                </div>
+                <Pre>{live.text}</Pre>
+              </div>
+            ) : null}
           </CardBody>
         </Card>
 

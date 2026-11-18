@@ -19,6 +19,41 @@ dashboard (*Runs → run*), with `agentforge runs show <id> [--json]` or
 progress (keep-alive comments every 15 s; the stream ends after
 `run.finished`).
 
+### Streamed model output
+
+With `model.stream: true` in the agent config the runtime reads the model's
+answer as it is produced and emits `llm.delta` events
+(`{"step": 3, "text": "…"}`) between `step.started` and `llm.finished`:
+
+- `agentforge run` prints the text live on a `◇` line;
+- SSE clients receive the events like any other;
+- the dashboard's run page shows a *Model output (live)* preview under the
+  trace until the step is recorded.
+
+Things to know:
+
+- **Text only.** Thinking and tool-call arguments are not streamed.
+- **A preview, not a record.** Deltas are never logged, persisted or
+  exported as traces; the step's stored text is the provider's final
+  response, exactly as without streaming. A client that subscribes midway
+  sees only what is produced from then on.
+- **Coalesced.** Providers send a chunk per token; the runtime forwards the
+  accumulated text at most every 50 ms. A slow SSE consumer whose queue is
+  full loses events rather than slowing the run.
+- **Retries.** If a stream breaks midway the call is retried under the usual
+  retry policy; `llm.retry` tells clients to discard the partial text.
+- **Providers.** Anthropic and the OpenAI-compatible chat-completions
+  providers (`openai`, `openrouter`, `opencode-go`, `local`) stream natively.
+  The native Gemini adapter, Responses-API models and plugin providers
+  without a `stream()` method answer as usual with no deltas. For
+  OpenAI-compatible servers the request adds `stream_options.include_usage`;
+  a server that omits usage on streamed replies reports zero tokens for that
+  call.
+- **Offline.** The scripted provider replays a turn's text word by word
+  (`options.stream_delay_seconds`, 0–2, slows it down for a demo).
+- Streaming is tested against both SDKs with mocked transports; it has not
+  been run against a live model endpoint.
+
 ## 3. Structured logs
 
 `AGENTFORGE_LOG_JSON=true` emits one JSON object per line

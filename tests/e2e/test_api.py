@@ -283,3 +283,44 @@ def test_cancel_orphaned_run_sets_finished_at(client: TestClient) -> None:
     body = client.post(f"{API}/runs/{run.id}/cancel").json()
     assert body["status"] == "cancelled"
     assert body["finished_at"] is not None
+
+
+def test_event_stream_carries_streamed_model_output(client: TestClient) -> None:
+    """model.stream: token deltas reach SSE clients; the stored run has the whole text."""
+    import json
+
+    thought = "I will write the greeting file and then report back to the user in one line."
+    config = demo_config()
+    config["model"]["stream"] = True
+    config["model"]["options"] = {
+        "stream_delay_seconds": 0.05,  # keeps the run alive while the test subscribes
+        "turns": [
+            {
+                "text": thought,
+                "tool_calls": [
+                    {"name": "write_file", "arguments": {"path": "hello.txt", "content": "hi\n"}}
+                ],
+            },
+            {"text": "Done."},
+        ],
+    }
+    run_id = client.post(f"{API}/runs", json={"goal": "Create hello.txt", "config": config}).json()[
+        "id"
+    ]
+    with client.stream("GET", f"{API}/runs/{run_id}/events") as stream:
+        body = "".join(stream.iter_text())
+
+    events = [
+        json.loads(block.split("data: ", 1)[1])
+        for block in body.split("\n\n")
+        if block.startswith("event: llm.delta")
+    ]
+    first_step = "".join(e["data"]["text"] for e in events if e["data"]["step"] == 0)
+    # The subscription may begin after the first words; what arrives is in order.
+    assert first_step and thought.endswith(first_step)
+    assert "event: step.finished" in body
+
+    run = wait_for(client, f"{API}/runs/{run_id}", terminal)
+    assert run["status"] == "succeeded", run
+    assert run["steps"][0]["thought"] == thought
+    assert run["result"] == "Done."

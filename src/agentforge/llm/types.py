@@ -121,3 +121,39 @@ class CompletionResponse(BaseModel):
     model: str
     raw_stop_reason: str | None = None
     response_id: str | None = None
+
+
+class StreamDelta(BaseModel):
+    """A chunk from a streaming completion."""
+
+    text: str = ""
+
+
+class CompletionStream:
+    """Wraps a streaming completion, yielding text deltas.
+
+    Iterate to receive :class:`StreamDelta` chunks.  After iteration completes,
+    :attr:`response` holds the fully-assembled :class:`CompletionResponse`.
+    Errors raised while iterating are :class:`~agentforge.core.errors.LLMError`,
+    exactly as from ``LLMProvider.complete``.  Call :meth:`aclose` when done
+    (also after an error or when abandoning the stream early) so the provider
+    can release the connection; it is safe to call more than once.
+    """
+
+    def __init__(self, response: CompletionResponse | None = None) -> None:
+        self._response: CompletionResponse | None = response
+
+    def __aiter__(self) -> CompletionStream:
+        return self
+
+    async def __anext__(self) -> StreamDelta:
+        raise StopAsyncIteration
+
+    async def aclose(self) -> None:
+        """Release the underlying connection. Idempotent."""
+
+    @property
+    def response(self) -> CompletionResponse:
+        if self._response is None:
+            raise RuntimeError("stream not yet exhausted")
+        return self._response

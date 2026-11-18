@@ -27,9 +27,15 @@ class ConsoleObserver:
 
     def __init__(self, stream: Any = None) -> None:
         self.stream = stream or sys.stderr
+        self._streaming = False
+        self._streamed_step = False
 
     def _print(self, text: str) -> None:
         print(text, file=self.stream, flush=True)
+
+    def _write(self, text: str) -> None:
+        self.stream.write(text)
+        self.stream.flush()
 
     async def on_event(self, event: Any, run: Run) -> None:
         data = event.data
@@ -43,22 +49,39 @@ class ConsoleObserver:
             self._print("  plan:")
             for i, item in enumerate(run.plan, 1):
                 self._print(f"    {i}. {item}")
+        elif event.type == "llm.delta":
+            if not self._streaming:
+                self._write("  ◇ ")
+                self._streaming = True
+                self._streamed_step = True
+            self._write(data.get("text", ""))
         elif event.type == "llm.retry":
+            self._end_streaming()
             self._print(f"  ↻ LLM retry {data.get('attempt')} after error: {data.get('error')}")
+        elif event.type == "llm.finished":
+            self._end_streaming()
         elif event.type == "step.finished":
+            self._end_streaming()  # a failed call has no llm.finished
             step = run.steps[data["step"]]
-            if step.thought:
+            if not self._streamed_step and step.thought:
                 first = step.thought.strip().splitlines()[0][:160] if step.thought.strip() else ""
                 if first:
                     self._print(f"  [{step.index}] {first}")
             for call in step.tool_calls:
                 args = json.dumps(call.arguments)[:100]
                 self._print(f"      → {call.tool}({args}) {call.status.value} {call.duration_ms}ms")
+            self._streamed_step = False
         elif event.type == "evaluation.finished":
             mark = "✔" if data.get("passed") else "✘"
             self._print(f"  {mark} evaluation score={data.get('score')}")
         elif event.type == "run.finished":
+            self._end_streaming()
             self._print(f"■ {run.status.value}" + (f": {run.error.message}" if run.error else ""))
+
+    def _end_streaming(self) -> None:
+        if self._streaming:
+            self._write("\n")
+            self._streaming = False
 
 
 class ConsoleApprovalObserver:

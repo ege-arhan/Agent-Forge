@@ -1,19 +1,80 @@
 # AgentForge Development Status
 
-Date: 2026-11-16
+Date: 2026-11-18
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
-merged. Milestone 16 (documentation and demo) and three future-work items are
+merged. Milestone 16 (documentation and demo) and four future-work items are
 implemented in pull requests that await the owner's review; nothing has been
-merged into `main` since 2026-11-01 (checked 2026-11-16). Earlier dated session reports are in
+merged into `main` since 2026-11-01 (checked 2026-11-18). Earlier dated session reports are in
 this file's git history.
 
-## State of `main` (2026-11-16)
+## State of `main` (2026-11-18)
 
 - `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
-  of 2026-11-09 succeeded.
+  of 2026-11-16 succeeded.
 
-## This session (2026-11-16)
+## This session (2026-11-18)
+
+**PR #NN** (branch `claude/stoic-gates-hqwl3k`), **stacked on PR #42 and
+containing PR #43** (merge #40 → #41 → #42 → this one, then close #43).
+PRs #40–#42 were unchanged: green CI, no review findings.
+
+PR #43 (streaming model output, T-003b, opened 2026-11-17 as a draft from
+`main`) had green CI but had not been reviewed, conflicted with the #40–#42
+stack in four documentation files, and its own `docs/STATUS.md` had gone back
+to the pre-release text. This session merged it onto the stack, reviewed it
+and fixed what the review found:
+
+- **Anthropic stream errors were not translated.** The SDK sends the request
+  when the stream is first read; a failure there (or midway) surfaced as a
+  raw SDK exception instead of `LLMError`, so it was never retried. Fixed;
+  tested through the real SDK over a mock transport (529 → retryable,
+  401 → not).
+- **Streams were never closed** after an error, a cancel or a timeout
+  (leaked connections). `CompletionStream.aclose()` added; the runtime always
+  calls it. A cancel request is now honoured between chunks.
+- **Every token was written to the structured log** (`LoggingObserver` logs
+  each event's data, and a delta's data is model text). `llm.delta` is now
+  excluded from logging; it was already not persisted or traced.
+- **Streaming was tied to a hard-coded list of provider names**, which
+  excluded plugin providers and still listed `gemini` although the stack's
+  native Gemini adapter does not stream. Removed: `model.stream` now always
+  goes through `provider.stream()`, whose default answers without deltas.
+- **One event per token.** Deltas are now coalesced (first chunk at once,
+  then at most one event per 50 ms), because SSE subscriber queues are
+  bounded and drop events when full.
+- The OpenAI-compatible stream built its request separately from
+  `complete()`; both now share one builder (a test asserts the bodies differ
+  only by the two streaming fields). An empty stream is the same retryable
+  error as an empty non-streamed response.
+- The CLI left the cursor on the token line when a streamed call failed.
+
+Added on top, to make the feature visible and testable end to end:
+
+- The scripted provider replays a turn's text word by word when streaming is
+  on (OFFLINE; for tests and demos only).
+- Dashboard run page (the SSE part of T-011b): follows the run's event
+  stream (fetch-based, because `EventSource` cannot send the API key), shows
+  a *Model output (live)* preview and refreshes on record-changing events;
+  the 1.5 s poll remains as a fallback.
+- `docs/observability.md` documents streaming (PR #43 had no user
+  documentation).
+
+Scope, stated plainly: streaming is tested against the Anthropic and OpenAI
+SDKs over mocked transports and end to end with the scripted provider; **it
+has never been run against a live model** (no credentials). Only text is
+streamed. The native Gemini adapter and Responses-API models do not stream.
+A client that subscribes midway sees only later text.
+
+Verification on this branch: ruff, ruff format, mypy --strict,
+`ruff --select S`: clean. `pytest`: 499 passed, 8 skipped (the
+Docker-sandbox tests: no `python:3.12-slim` image here). PostgreSQL tests
+not run locally; CI runs both. Dashboard: lint, typecheck, 26 unit tests
+(8 new) and production build pass. The live preview was checked in a browser
+against a running API with a slowed-down scripted run: preview appears while
+the step streams, clears when the step is recorded, no console errors.
+
+## Session of 2026-11-16
 
 **PR #42** (branch `claude/stoic-gates-h7ov06`), **stacked on
 PR #41** (merge #40, then #41, then this one). PRs #40 and #41 were unchanged:
@@ -77,12 +138,13 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 ## Pull requests awaiting the owner
 
-Merge order for everything open: **#40 → #41 → #42**
+Merge order for everything open: **#40 → #41 → #42 → #NN**
 (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
-#39, whose commits are all in #40.
+#39, whose commits are all in #40, and #43, whose commit is in #NN. Do not
+merge #43 by itself: it lacks the fixes above and conflicts with the stack.
 
-Agent work is spread over seven pull requests in two stacks. Before this
-session the two stacks could not both be merged:
+Agent work is spread over eleven pull requests. The two oldest stacks could
+not both be merged until PR #40 combined them (2026-11-14):
 
 - **Milestone 16 stack** — #37 (offline tour) → #38 (screenshots, docs index,
   README) → #39 (walk-through recording, dashboard table fix). Green CI, no
@@ -178,6 +240,9 @@ Documented in `docs/REAL_MODEL_BENCHMARK.md`; not rerun or altered.
   is given; it keeps no history of accepted runs and applies no significance
   test.
 - The native Gemini adapter is tested with a mocked transport only (T-002c).
+- Streaming model output is tested with mocked transports and the scripted
+  provider only; text only; no native streaming for Gemini or Responses-API
+  models; no replay for clients that subscribe midway.
 - The rule-based proposer changes configuration and prompt guidance only.
 - The `agentforge-sandbox` image cannot be built in this development
   environment (Debian mirrors blocked); CI builds it.
