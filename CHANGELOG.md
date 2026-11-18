@@ -26,7 +26,10 @@ All notable changes are documented here. The format follows
   cancellation, every token was written to the structured log, and
   streaming was limited to a hard-coded list of provider names; deltas are
   now coalesced (at most one event per 50 ms per run) and a cancel is
-  honoured mid-stream.
+  honoured mid-stream. From the automated review of PR #44: an
+  OpenAI-compatible stream that ends without a finish reason is a retryable
+  error instead of a partial answer, and only the first choice is read when
+  `n > 1` is passed.
 - Trace-level failure diagnosis (T-020): `agentforge.improvement.diagnosis`
   reads each failed run's recorded tool calls, plan and evaluator results and
   reports signals (`no_tool_calls`, `read_only`, `plan_missing`,

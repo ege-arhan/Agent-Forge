@@ -599,6 +599,53 @@ async def test_openai_stream_without_any_choice_is_a_retryable_error() -> None:
     assert "no choices" in excinfo.value.message
 
 
+async def test_openai_stream_cut_off_before_finish_reason_is_retryable() -> None:
+    """A stream that closes cleanly midway must not pass as a complete answer."""
+    provider = OpenAICompatibleProvider(
+        PRESETS["openai"],
+        client=_openai_client(lambda request: _sse([_chunk({"content": "half an ans"})])),
+    )
+    stream = await provider.stream(_request("gpt-test"))
+    with pytest.raises(LLMError) as excinfo:
+        async for _ in stream:
+            pass
+    assert excinfo.value.retryable is True
+    assert excinfo.value.code == "incomplete_stream"
+    with pytest.raises(RuntimeError):
+        _ = stream.response
+
+
+async def test_openai_stream_uses_only_the_first_choice() -> None:
+    """With n > 1 the answers interleave; only index 0 is shown and returned."""
+
+    def chunk(index: int, delta: dict[str, Any], finish: str | None = None) -> dict[str, Any]:
+        data = _chunk(delta, finish)
+        data["choices"][0]["index"] = index
+        return data
+
+    def tool(args: str) -> dict[str, Any]:
+        return {
+            "tool_calls": [{"index": 0, "id": "c", "function": {"name": "f", "arguments": args}}]
+        }
+
+    chunks = [
+        chunk(1, {"content": "other "}),
+        chunk(0, {"content": "first "}),
+        chunk(1, tool('{"x": ')),
+        chunk(0, {"content": "answer"}),
+        chunk(1, tool("1}"), "tool_calls"),
+        chunk(0, {}, "stop"),
+    ]
+    provider = OpenAICompatibleProvider(
+        PRESETS["openai"], client=_openai_client(lambda request: _sse(chunks))
+    )
+    stream = await provider.stream(_request("gpt-test"))
+    assert [d.text async for d in stream] == ["first ", "answer"]
+    assert stream.response.message.text == "first answer"
+    assert stream.response.message.tool_uses == []
+    assert stream.response.stop_reason == StopReason.END_TURN
+
+
 async def test_openai_stream_http_error_is_translated() -> None:
     provider = OpenAICompatibleProvider(
         PRESETS["openai"],

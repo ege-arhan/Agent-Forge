@@ -496,9 +496,9 @@ class _OpenAIStream(CompletionStream):
                 await self.aclose()
                 raise _translate_error(self._provider, exc) from exc
             self._chunks.append(chunk)
-            if chunk.choices:
-                delta = chunk.choices[0].delta
-                text = getattr(delta, "content", None) or ""
+            choice = _first_choice(chunk)
+            if choice is not None:
+                text = getattr(choice.delta, "content", None) or ""
                 if text:
                     return StreamDelta(text=text)
 
@@ -529,9 +529,9 @@ class _OpenAIStream(CompletionStream):
                 response_id = chunk.id
             if hasattr(chunk, "usage") and chunk.usage is not None:
                 usage = chunk.usage
-            if not chunk.choices:
+            choice = _first_choice(chunk)
+            if choice is None:
                 continue
-            choice = chunk.choices[0]
             if choice.finish_reason:
                 finish_reason = choice.finish_reason
             delta = choice.delta
@@ -555,6 +555,14 @@ class _OpenAIStream(CompletionStream):
                     if fn.arguments:
                         acc["arguments"] += fn.arguments
 
+        if finish_reason is None:
+            # The connection closed cleanly before the final chunk: what was
+            # received is a partial answer (possibly half a tool call).
+            raise LLMError(
+                f"{self._provider}: stream ended before the completion finished",
+                retryable=True,
+                code="incomplete_stream",
+            )
         parts: list[ContentPart] = []
         full_text = "".join(text_parts)
         if full_text:
@@ -587,6 +595,18 @@ class _OpenAIStream(CompletionStream):
             model=model,
             response_id=response_id,
         )
+
+
+def _first_choice(chunk: Any) -> Any:
+    """The chunk's choice with index 0, the one ``complete()`` would return.
+
+    With ``n > 1`` (via extra params) chunks interleave several answers;
+    mixing them would corrupt both the text and tool-call arguments.
+    """
+    for choice in getattr(chunk, "choices", None) or []:
+        if (getattr(choice, "index", 0) or 0) == 0:
+            return choice
+    return None
 
 
 async def _no_client_credential() -> str:

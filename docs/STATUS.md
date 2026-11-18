@@ -48,6 +48,11 @@ and fixed what the review found:
   only by the two streaming fields). An empty stream is the same retryable
   error as an empty non-streamed response.
 - The CLI left the cursor on the token line when a streamed call failed.
+- From the automated (Codex) review of PR #44, both verified and fixed: an
+  OpenAI-compatible stream that closed cleanly before its final chunk was
+  accepted as a complete answer (now a retryable `incomplete_stream` error);
+  with `n > 1` the interleaved choices were concatenated (now only choice 0
+  is read, as `complete()` does).
 
 Added on top, to make the feature visible and testable end to end:
 
@@ -67,7 +72,7 @@ streamed. The native Gemini adapter and Responses-API models do not stream.
 A client that subscribes midway sees only later text.
 
 Verification on this branch: ruff, ruff format, mypy --strict,
-`ruff --select S`: clean. `pytest`: 499 passed, 8 skipped (the
+`ruff --select S`: clean. `pytest`: 501 passed, 8 skipped (the
 Docker-sandbox tests: no `python:3.12-slim` image here). PostgreSQL tests
 not run locally; CI runs both. Dashboard: lint, typecheck, 26 unit tests
 (8 new) and production build pass. The live preview was checked in a browser

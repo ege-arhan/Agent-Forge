@@ -48,7 +48,8 @@ Things to know:
   without a `stream()` method answer as usual with no deltas. For
   OpenAI-compatible servers the request adds `stream_options.include_usage`;
   a server that omits usage on streamed replies reports zero tokens for that
-  call.
+  call. A stream that ends without a finish reason is treated as cut off and
+  retried, and only the first choice is read if `n > 1` is passed.
 - **Offline.** The scripted provider replays a turn's text word by word
   (`options.stream_delay_seconds`, 0–2, slows it down for a demo).
 - Streaming is tested against both SDKs with mocked transports; it has not
