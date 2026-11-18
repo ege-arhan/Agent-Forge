@@ -15,7 +15,7 @@ this file's git history.
 
 ## This session (2026-11-18)
 
-**PR #NN** (branch `claude/stoic-gates-hqwl3k`), **stacked on PR #42 and
+**PR #44** (branch `claude/stoic-gates-hqwl3k`), **stacked on PR #42 and
 containing PR #43** (merge #40 → #41 → #42 → this one, then close #43).
 PRs #40–#42 were unchanged: green CI, no review findings.
 
@@ -138,9 +138,9 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 ## Pull requests awaiting the owner
 
-Merge order for everything open: **#40 → #41 → #42 → #NN**
+Merge order for everything open: **#40 → #41 → #42 → #44**
 (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
-#39, whose commits are all in #40, and #43, whose commit is in #NN. Do not
+#39, whose commits are all in #40, and #43, whose commit is in #44. Do not
 merge #43 by itself: it lacks the fixes above and conflicts with the stack.
 
 Agent work is spread over eleven pull requests. The two oldest stacks could
