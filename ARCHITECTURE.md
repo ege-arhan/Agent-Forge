@@ -38,7 +38,8 @@ flowchart LR
     EV --> SB
 
     LLM --> P1[Anthropic]
-    LLM --> P2[OpenAI-compatible<br/>OpenAI, OpenRouter,<br/>Gemini, local]
+    LLM --> P2[OpenAI-compatible<br/>OpenAI, OpenRouter,<br/>OpenCode Go, local]
+    LLM --> P4[Gemini native]
     LLM --> P3[Scripted]
 
     BE[Benchmark Engine] --> RT
@@ -62,7 +63,7 @@ flowchart LR
 | Evaluation | `evaluation/` | Evaluator interface + built-ins, aggregation, objective run metrics |
 | Benchmarks | `benchmarks/` | Suite spec, repeated execution, statistics (Wilson CI, stddev) |
 | Experiments | `experiments/` | Variants over a base config, comparison against a baseline |
-| Improvement loop | `improvement/` | Failure analysis of benchmark runs, rule-based/manual proposals, applying them as new agent versions, re-benchmarking and comparison ([docs/improvement.md](docs/improvement.md)) |
+| Improvement loop | `improvement/` | Failure analysis of benchmark runs (categories plus a rule-based trace-level diagnosis), rule-based/manual proposals, applying them as new agent versions, re-benchmarking and comparison ([docs/improvement.md](docs/improvement.md)) |
 | Reports | `benchmarks/report.py` | Publication records per benchmark run, stored under `<offline\|real>/` |
 | Regression gate | `benchmarks/gate.py` | CI decision between a baseline and a candidate report: pass / regression / error with exit codes 0 / 1 / 2 and configurable thresholds ([docs/regression-gate.md](docs/regression-gate.md)) |
 | Storage | `storage/` | Async SQLAlchemy tables and repositories; persistence observer |
@@ -113,7 +114,8 @@ limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · 
 | Decision | Rationale |
 |---|---|
 | **Official SDKs as optional extras** (`anthropic`, `openai`), imported lazily inside adapters | Correct wire handling and typed errors without making the core depend on any vendor. |
-| **One OpenAI-compatible adapter** serves OpenAI, OpenRouter, Gemini (its OpenAI-compatible endpoint) and local servers | Chat Completions is the common denominator; presets differ only in URL, key and token-parameter name. A native Gemini adapter is a planned enhancement. |
+| **One OpenAI-compatible adapter** serves OpenAI, OpenRouter, OpenCode Go and local servers | Chat Completions (and, for OpenCode Go, the Responses API) is the common denominator; presets differ only in URL, key, token-parameter name and wire API. |
+| **Gemini's own native adapter**, over `httpx` directly (no SDK, no optional extra) | `generateContent`'s role names (`user`/`model`), `systemInstruction` field and id-less function calls don't fit the OpenAI-compatible shape cleanly; a thin adapter over the plain REST API is simpler than forcing the fit. |
 | **Opaque `ProviderPart`** in the neutral message format | Some APIs (e.g. Anthropic thinking blocks) require blocks to be echoed back verbatim; other providers drop them, keeping conversations portable. |
 | **Runtime owns retries** | One source of truth for attempts, backoff and recorded retry metrics. |
 | **Tool executor wraps every call** | Tools stay small; validation, permission policy, timeouts, truncation, redaction and records are uniform. |

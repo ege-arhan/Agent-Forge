@@ -20,10 +20,15 @@ Script format (``ModelConfig.options``)::
 
 A turn may also be ``{error: {message: "...", retryable: true}}`` to simulate
 provider failures.
+
+With ``model.stream: true`` a turn's text is replayed word by word, so live
+output can be exercised offline; ``stream_delay_seconds`` (0-2, default 0)
+pauses before each word for demos.
 """
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any
 
@@ -35,10 +40,12 @@ from agentforge.llm.base import LLMProvider
 from agentforge.llm.types import (
     CompletionRequest,
     CompletionResponse,
+    CompletionStream,
     ContentPart,
     Message,
     Role,
     StopReason,
+    StreamDelta,
     TextPart,
     ToolUsePart,
 )
@@ -69,6 +76,7 @@ class Script(BaseModel):
     turns: list[ScriptedTurn] = Field(default_factory=list)
     rules: list[ScriptRule] = Field(default_factory=list)
     on_exhausted: str = "finish"
+    stream_delay_seconds: float = Field(default=0.0, ge=0.0, le=2.0)
 
 
 class ScriptedProvider(LLMProvider):
@@ -127,6 +135,9 @@ class ScriptedProvider(LLMProvider):
             parts.append(TextPart(text=""))
         return self._response(Message(role=Role.ASSISTANT, content=parts), request)
 
+    async def stream(self, request: CompletionRequest) -> CompletionStream:
+        return _ScriptedStream(await self.complete(request), self._script.stream_delay_seconds)
+
     def _response(self, message: Message, request: CompletionRequest) -> CompletionResponse:
         stop = StopReason.TOOL_USE if message.tool_uses else StopReason.END_TURN
         return CompletionResponse(
@@ -136,3 +147,24 @@ class ScriptedProvider(LLMProvider):
             model=request.model or "scripted",
             raw_stop_reason=stop.value,
         )
+
+
+class _ScriptedStream(CompletionStream):
+    """Replays a scripted turn's text one word at a time."""
+
+    def __init__(self, response: CompletionResponse, delay_seconds: float) -> None:
+        super().__init__()
+        self._final = response
+        self._delay = delay_seconds
+        self._words = re.findall(r"\S+\s*|\s+", response.message.text)
+        self._index = 0
+
+    async def __anext__(self) -> StreamDelta:
+        if self._index >= len(self._words):
+            self._response = self._final
+            raise StopAsyncIteration
+        if self._delay:
+            await asyncio.sleep(self._delay)
+        word = self._words[self._index]
+        self._index += 1
+        return StreamDelta(text=word)
