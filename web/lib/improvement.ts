@@ -40,6 +40,27 @@ export function categoryLabel(category: string): string {
   return CATEGORY_LABELS[category] ?? category.replaceAll("_", " ");
 }
 
+/** Human labels for the stages of the trace-level diagnosis. */
+export const STAGE_LABELS: Record<string, string> = {
+  planning: "Planning",
+  execution: "Execution",
+  verification: "Verification",
+  reasoning: "Reasoning",
+  reporting: "Reporting",
+  undetermined: "Undetermined",
+};
+
+export function stageLabel(stage: string): string {
+  return STAGE_LABELS[stage] ?? stage.replaceAll("_", " ");
+}
+
+/** "Planning 2 · Execution 1", largest first; empty when nothing was diagnosed. */
+export function stageSummary(stages: Record<string, number> | undefined): string {
+  return categoryRows(stages ?? {})
+    .map((row) => `${stageLabel(row.category)} ${row.count}`)
+    .join(" · ");
+}
+
 /** Category counts as sorted rows (largest first, then by name). */
 export function categoryRows(counts: Record<string, number>): { category: string; count: number; share: number }[] {
   const total = Object.values(counts).reduce((sum, n) => sum + n, 0);

@@ -5,7 +5,6 @@ so this one adapter serves several provider presets:
 
 * ``openai``      - api.openai.com
 * ``openrouter``  - openrouter.ai (hundreds of hosted models)
-* ``gemini``      - Google's OpenAI-compatible Gemini endpoint
 * ``local``       - any local OpenAI-compatible server (Ollama, vLLM, LM Studio,
   llama.cpp server); defaults to Ollama's address.
 * ``opencode-go`` - OpenCode Go (endpoint set via ``model.base_url``). Every
@@ -25,6 +24,7 @@ Authentication modes (``model.options.auth``):
 
 from __future__ import annotations
 
+import contextlib
 import json
 import uuid
 from collections.abc import Mapping
@@ -38,10 +38,12 @@ from agentforge.llm.base import LLMProvider
 from agentforge.llm.types import (
     CompletionRequest,
     CompletionResponse,
+    CompletionStream,
     ContentPart,
     Message,
     Role,
     StopReason,
+    StreamDelta,
     TextPart,
     ToolResultPart,
     ToolUsePart,
@@ -110,11 +112,6 @@ PRESETS: dict[str, OpenAICompatPreset] = {
         name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-    ),
-    "gemini": OpenAICompatPreset(
-        name="gemini",
-        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        api_key_env="GEMINI_API_KEY",
     ),
     "opencode-go": OpenAICompatPreset(
         name="opencode-go",
@@ -297,28 +294,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 retryable=False,
                 code="unsupported_api",
             )
-        params: dict[str, Any] = {
-            "model": request.model,
-            "messages": to_openai_messages(request.system, request.messages),
-            self._preset.token_param: request.max_tokens,
-        }
-        if request.tools:
-            params["tools"] = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": t.name,
-                        "description": t.description,
-                        "parameters": t.input_schema,
-                    },
-                }
-                for t in request.tools
-            ]
-        if request.temperature is not None:
-            params["temperature"] = request.temperature
-        params.update(self._extra)
-        if headers := self._headers(request):
-            params["extra_headers"] = {**params.get("extra_headers", {}), **headers}
+        params = self._chat_params(request)
 
         try:
             response = await self._client.chat.completions.create(**params)
@@ -436,10 +412,201 @@ class OpenAICompatibleProvider(LLMProvider):
             response_id=getattr(response, "id", None),
         )
 
+    def _chat_params(self, request: CompletionRequest) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "model": request.model,
+            "messages": to_openai_messages(request.system, request.messages),
+            self._preset.token_param: request.max_tokens,
+        }
+        if request.tools:
+            params["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.input_schema,
+                    },
+                }
+                for t in request.tools
+            ]
+        if request.temperature is not None:
+            params["temperature"] = request.temperature
+        params.update(self._extra)
+        if headers := self._headers(request):
+            params["extra_headers"] = {**params.get("extra_headers", {}), **headers}
+        return params
+
+    async def stream(self, request: CompletionRequest) -> CompletionStream:
+        if not request.model:
+            raise ConfigurationError(f"provider '{self.name}' requires model.model to be set")
+        api = self._preset.model_apis.get(request.model, "chat_completions")
+        if api != "chat_completions":
+            # Responses-API models (and unsupported endpoints, which raise the
+            # same error as ``complete``) are not streamed.
+            return await super().stream(request)
+        params = self._chat_params(request)
+        params["stream"] = True
+        # Without this the server sends no usage at all on a streamed reply.
+        params["stream_options"] = {"include_usage": True, **params.get("stream_options", {})}
+        try:
+            sdk_stream = await self._client.chat.completions.create(**params)
+        except Exception as exc:
+            raise _translate_error(self.name, exc) from exc
+        return _OpenAIStream(sdk_stream, self.name, params["model"])
+
     async def aclose(self) -> None:
         close = getattr(self._client, "close", None)
         if close is not None:
             await close()
+
+
+class _OpenAIStream(CompletionStream):
+    """Wraps the OpenAI SDK's async chat-completions stream.
+
+    Text is forwarded as deltas; tool-call fragments are only accumulated for
+    the final response.
+    """
+
+    def __init__(self, sdk_stream: Any, provider: str, requested_model: str) -> None:
+        super().__init__()
+        self._sdk_stream = sdk_stream
+        self._provider = provider
+        self._requested_model = requested_model
+        self._chunks: list[Any] = []
+        self._iter: Any = None
+        self._closed = False
+
+    def __aiter__(self) -> _OpenAIStream:
+        return self
+
+    async def __anext__(self) -> StreamDelta:
+        if self._response is not None or self._closed:
+            raise StopAsyncIteration
+        if self._iter is None:
+            self._iter = self._sdk_stream.__aiter__()
+        while True:
+            try:
+                chunk = await self._iter.__anext__()
+            except StopAsyncIteration:
+                await self.aclose()
+                self._build_response()
+                raise
+            except Exception as exc:
+                await self.aclose()
+                raise _translate_error(self._provider, exc) from exc
+            self._chunks.append(chunk)
+            choice = _first_choice(chunk)
+            if choice is not None:
+                text = getattr(choice.delta, "content", None) or ""
+                if text:
+                    return StreamDelta(text=text)
+
+    async def aclose(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        close = getattr(self._sdk_stream, "close", None)
+        if close is not None:
+            with contextlib.suppress(Exception):
+                await close()
+
+    def _build_response(self) -> None:
+        if not any(chunk.choices for chunk in self._chunks):
+            # Same condition and error as the non-streamed path.
+            raise LLMError(f"{self._provider}: response contained no choices", retryable=True)
+        text_parts: list[str] = []
+        tool_calls_acc: dict[int, dict[str, Any]] = {}
+        finish_reason: str | None = None
+        usage: Any = None
+        model: str = self._requested_model
+        response_id: str | None = None
+
+        for chunk in self._chunks:
+            if hasattr(chunk, "model") and chunk.model:
+                model = chunk.model
+            if hasattr(chunk, "id") and chunk.id:
+                response_id = chunk.id
+            if hasattr(chunk, "usage") and chunk.usage is not None:
+                usage = chunk.usage
+            choice = _first_choice(chunk)
+            if choice is None:
+                continue
+            if choice.finish_reason:
+                finish_reason = choice.finish_reason
+            delta = choice.delta
+            if getattr(delta, "content", None):
+                text_parts.append(delta.content)
+            for tc in getattr(delta, "tool_calls", None) or []:
+                idx = tc.index
+                if idx not in tool_calls_acc:
+                    tool_calls_acc[idx] = {
+                        "id": getattr(tc, "id", None) or "",
+                        "name": "",
+                        "arguments": "",
+                    }
+                acc = tool_calls_acc[idx]
+                if tc.id:
+                    acc["id"] = tc.id
+                fn = getattr(tc, "function", None)
+                if fn:
+                    if fn.name:
+                        acc["name"] = fn.name
+                    if fn.arguments:
+                        acc["arguments"] += fn.arguments
+
+        if finish_reason is None:
+            # The connection closed cleanly before the final chunk: what was
+            # received is a partial answer (possibly half a tool call).
+            raise LLMError(
+                f"{self._provider}: stream ended before the completion finished",
+                retryable=True,
+                code="incomplete_stream",
+            )
+        parts: list[ContentPart] = []
+        full_text = "".join(text_parts)
+        if full_text:
+            parts.append(TextPart(text=full_text))
+        for _idx in sorted(tool_calls_acc):
+            tc_data = tool_calls_acc[_idx]
+            parts.append(
+                ToolUsePart(
+                    id=tc_data["id"],
+                    name=tc_data["name"],
+                    arguments=_parse_arguments(tc_data["arguments"]),
+                )
+            )
+        stop = _FINISH_REASONS.get(finish_reason or "", StopReason.OTHER)
+        if stop != StopReason.TOOL_USE and any(isinstance(p, ToolUsePart) for p in parts):
+            stop = StopReason.TOOL_USE
+        cached = 0
+        details = getattr(usage, "prompt_tokens_details", None) if usage else None
+        if details is not None:
+            cached = getattr(details, "cached_tokens", 0) or 0
+        self._response = CompletionResponse(
+            message=Message(role=Role.ASSISTANT, content=parts or [TextPart(text="")]),
+            stop_reason=stop,
+            raw_stop_reason=finish_reason,
+            usage=TokenUsage(
+                input_tokens=(usage.prompt_tokens or 0) if usage else 0,
+                output_tokens=(usage.completion_tokens or 0) if usage else 0,
+                cache_read_tokens=cached,
+            ),
+            model=model,
+            response_id=response_id,
+        )
+
+
+def _first_choice(chunk: Any) -> Any:
+    """The chunk's choice with index 0, the one ``complete()`` would return.
+
+    With ``n > 1`` (via extra params) chunks interleave several answers;
+    mixing them would corrupt both the text and tool-call arguments.
+    """
+    for choice in getattr(chunk, "choices", None) or []:
+        if (getattr(choice, "index", 0) or 0) == 0:
+            return choice
+    return None
 
 
 async def _no_client_credential() -> str:

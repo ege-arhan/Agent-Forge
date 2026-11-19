@@ -66,6 +66,13 @@ def test_improvement_loop_via_api(client: TestClient) -> None:
     baseline = start_benchmark(client, agent["id"], repeats=2)
     analysis = client.get(f"{API}/benchmarks/runs/{baseline['id']}/analysis").json()
     assert analysis["categories"] == {"step_limit": 4}
+    assert sum(analysis["stages"].values()) == 4
+    vocabulary = client.get(f"{API}/improvements/diagnosis").json()
+    assert set(analysis["stages"]) <= set(vocabulary["stages"])
+    assert set(analysis["signals"]) <= set(vocabulary["signals"])
+    for failure in analysis["failures"]:
+        assert failure["diagnosis"]["stage"] in analysis["stages"]
+        assert failure["diagnosis"]["phases"]
     report = client.get(f"{API}/benchmarks/runs/{baseline['id']}/report").json()
     assert report["result_class"] == "offline" and report["summary"]["passed"] == 0
     assert report["runs"][0]["input_tokens"] is None
@@ -140,6 +147,35 @@ def test_improvement_loop_via_api(client: TestClient) -> None:
         ).status_code
         == 404
     )
+
+    # Opt-in policies and pooled baselines use the same query interface.
+    def gate_with(**params: object) -> dict[str, object]:
+        query = {"baseline": baseline["id"], "candidate": candidate_id, **params}
+        response = client.get(f"{API}/benchmarks/gate", params=query)
+        assert response.status_code == 200, response.text
+        result: dict[str, object] = response.json()
+        return result
+
+    short = gate_with(min_repeats=99)
+    assert short["verdict"] == "error" and "min repeats 99 not met" in str(short["errors"])
+    assert gate_with(min_repeats=1, fail_on_category=["timeout"])["verdict"] == "pass"
+    doubled = gate_with(baseline=[baseline["id"], baseline["id"]])
+    assert doubled["verdict"] == "error" and "more than once" in str(doubled["errors"])
+    reverse_checks = gate_with(
+        baseline=candidate_id,
+        candidate=baseline["id"],
+        max_pass_rate_drop=1,
+        max_task_pass_rate_drop=1,
+        max_mean_score_drop=1,
+        max_check_pass_rate_drop=0,
+    )
+    assert reverse_checks["verdict"] == "regression"
+    assert "check " in str(reverse_checks["regressions"])
+    unknown = client.get(
+        f"{API}/benchmarks/gate",
+        params={"baseline": baseline["id"], "candidate": candidate_id, "fail_on_category": "nope"},
+    )
+    assert unknown.status_code == 422 and "unknown failure categories" in unknown.text
 
     history = client.get(f"{API}/improvements", params={"agent_id": agent["id"]}).json()
     assert [c["id"] for c in history] == [cycle["id"]]

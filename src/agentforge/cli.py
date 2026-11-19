@@ -27,9 +27,15 @@ class ConsoleObserver:
 
     def __init__(self, stream: Any = None) -> None:
         self.stream = stream or sys.stderr
+        self._streaming = False
+        self._streamed_step = False
 
     def _print(self, text: str) -> None:
         print(text, file=self.stream, flush=True)
+
+    def _write(self, text: str) -> None:
+        self.stream.write(text)
+        self.stream.flush()
 
     async def on_event(self, event: Any, run: Run) -> None:
         data = event.data
@@ -43,22 +49,39 @@ class ConsoleObserver:
             self._print("  plan:")
             for i, item in enumerate(run.plan, 1):
                 self._print(f"    {i}. {item}")
+        elif event.type == "llm.delta":
+            if not self._streaming:
+                self._write("  ◇ ")
+                self._streaming = True
+                self._streamed_step = True
+            self._write(data.get("text", ""))
         elif event.type == "llm.retry":
+            self._end_streaming()
             self._print(f"  ↻ LLM retry {data.get('attempt')} after error: {data.get('error')}")
+        elif event.type == "llm.finished":
+            self._end_streaming()
         elif event.type == "step.finished":
+            self._end_streaming()  # a failed call has no llm.finished
             step = run.steps[data["step"]]
-            if step.thought:
+            if not self._streamed_step and step.thought:
                 first = step.thought.strip().splitlines()[0][:160] if step.thought.strip() else ""
                 if first:
                     self._print(f"  [{step.index}] {first}")
             for call in step.tool_calls:
                 args = json.dumps(call.arguments)[:100]
                 self._print(f"      → {call.tool}({args}) {call.status.value} {call.duration_ms}ms")
+            self._streamed_step = False
         elif event.type == "evaluation.finished":
             mark = "✔" if data.get("passed") else "✘"
             self._print(f"  {mark} evaluation score={data.get('score')}")
         elif event.type == "run.finished":
+            self._end_streaming()
             self._print(f"■ {run.status.value}" + (f": {run.error.message}" if run.error else ""))
+
+    def _end_streaming(self) -> None:
+        if self._streaming:
+            self._write("\n")
+            self._streaming = False
 
 
 class ConsoleApprovalObserver:
@@ -380,12 +403,26 @@ def cmd_bench_gate(args: argparse.Namespace) -> int:
             max_task_pass_rate_drop=args.max_task_pass_rate_drop,
             max_mean_score_drop=args.max_mean_score_drop,
             min_pass_rate=args.min_pass_rate,
+            max_token_increase=args.max_token_increase,
+            max_duration_increase=args.max_duration_increase,
+            min_repeats=args.min_repeats,
+            max_check_pass_rate_drop=args.max_check_pass_rate_drop,
+            fail_on_categories=args.fail_on_category or [],
         )
     except ValidationError as exc:
-        result = gate_error(f"invalid thresholds: {str(exc).splitlines()[0]}")
+        detail = "; ".join(
+            f"{'.'.join(str(part) for part in e['loc'])}: {e['msg']}" for e in exc.errors()
+        )
+        result = gate_error(f"invalid thresholds: {detail}")
     else:
         try:
-            refs = {"baseline": args.baseline, "candidate": args.candidate}
+            # Several --baseline values are pooled; keys keep the order they were given in.
+            many = len(args.baseline) > 1
+            refs = {
+                (f"baseline #{i}" if many else "baseline"): ref
+                for i, ref in enumerate(args.baseline, 1)
+            }
+            refs["candidate"] = args.candidate
             reports: dict[str, Any] = {}
             stored: dict[str, str] = {}
             for which, ref in refs.items():
@@ -396,7 +433,11 @@ def cmd_bench_gate(args: argparse.Namespace) -> int:
                     stored[which] = ref
             if stored:
                 reports.update(asyncio.run(_gate_stored_reports(stored)))
-            result = evaluate_gate(reports["baseline"], reports["candidate"], thresholds)
+            result = evaluate_gate(
+                [reports[which] for which in refs if which != "candidate"],
+                reports["candidate"],
+                thresholds,
+            )
         except ValueError as exc:
             result = gate_error(str(exc), thresholds)
     payload = result.model_dump_json(indent=2)
@@ -644,15 +685,57 @@ def build_parser() -> argparse.ArgumentParser:
         help="CI regression gate: exit 0 pass, 1 regression, 2 error (cannot decide)",
         description="Compare a candidate benchmark with an explicit baseline. Each of "
         "--baseline/--candidate is a report JSON file (agentforge bench report --out) or a "
-        "stored benchmark run id. Defaults allow no drop at all.",
+        "stored benchmark run id. Defaults allow no drop at all. Repeat --baseline to pool "
+        "several accepted runs of the same suite into one baseline.",
     )
-    gate.add_argument("--baseline", required=True, help="report file or benchmark run id")
+    gate.add_argument(
+        "--baseline",
+        required=True,
+        action="append",
+        help="report file or benchmark run id (repeatable: the runs of all are pooled)",
+    )
     gate.add_argument("--candidate", required=True, help="report file or benchmark run id")
     gate.add_argument("--max-pass-rate-drop", type=float, default=0.0, metavar="F")
     gate.add_argument("--max-task-pass-rate-drop", type=float, default=0.0, metavar="F")
     gate.add_argument("--max-mean-score-drop", type=float, default=0.0, metavar="F")
     gate.add_argument(
         "--min-pass-rate", type=float, default=None, metavar="F", help="absolute floor (optional)"
+    )
+    gate.add_argument(
+        "--max-token-increase",
+        type=float,
+        default=None,
+        metavar="F",
+        help="opt-in token budget: allowed relative increase of the tokens one pass over the "
+        "suite uses (0.25 = +25%%)",
+    )
+    gate.add_argument(
+        "--max-duration-increase",
+        type=float,
+        default=None,
+        metavar="F",
+        help="opt-in latency budget: allowed relative increase of mean run duration",
+    )
+    gate.add_argument(
+        "--min-repeats",
+        type=int,
+        default=None,
+        metavar="N",
+        help="opt-in: every task needs at least N runs on both sides, else exit 2",
+    )
+    gate.add_argument(
+        "--max-check-pass-rate-drop",
+        type=float,
+        default=None,
+        metavar="F",
+        help="opt-in: allowed drop of any single check's pass rate within a task",
+    )
+    gate.add_argument(
+        "--fail-on-category",
+        action="append",
+        metavar="CATEGORY",
+        help="opt-in, repeatable: a candidate run failing with this failure category "
+        "(e.g. timeout, llm_refusal) is always a regression",
     )
     gate.add_argument("--json", action="store_true", help="print the result as JSON")
     gate.add_argument("--output", help="also write the JSON result to this file")

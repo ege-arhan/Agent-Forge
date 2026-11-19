@@ -19,6 +19,15 @@ from agentforge.improvement.analysis import (
 )
 from agentforge.improvement.comparison import BenchmarkComparison, Verdict, compare_benchmarks
 from agentforge.improvement.cycle import CycleStatus, ImprovementCycle
+from agentforge.improvement.diagnosis import (
+    SIGNAL_DESCRIPTIONS,
+    STAGE_DESCRIPTIONS,
+    FailureStage,
+    ToolPhase,
+    TraceDiagnosis,
+    TraceSignal,
+    diagnose_run,
+)
 from agentforge.improvement.proposal import (
     ALLOWED_PATHS,
     ChangeOperation,
@@ -32,20 +41,27 @@ from agentforge.improvement.proposal import (
 __all__ = [
     "ALLOWED_PATHS",
     "CATEGORY_DESCRIPTIONS",
+    "SIGNAL_DESCRIPTIONS",
+    "STAGE_DESCRIPTIONS",
     "BenchmarkComparison",
     "ChangeOperation",
     "CycleStatus",
     "FailureAnalysis",
     "FailureCategory",
+    "FailureStage",
     "ImprovementCycle",
     "ImprovementProposal",
     "ProposedChange",
     "TaskFailure",
+    "ToolPhase",
+    "TraceDiagnosis",
+    "TraceSignal",
     "Verdict",
     "analyze",
     "apply_changes",
     "classify_run",
     "compare_benchmarks",
+    "diagnose_run",
     "prepare_manual",
     "propose",
 ]

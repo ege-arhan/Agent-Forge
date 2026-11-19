@@ -26,6 +26,8 @@ import {
   gateDisplay,
   resultClassOf,
   splitByResultClass,
+  stageLabel,
+  stageSummary,
 } from "@/lib/improvement";
 import type { AgentVersion, BenchmarkRun, ImprovementCycle, ResultClass } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
@@ -146,6 +148,11 @@ function AnalysisPanel({
         <h3 className="mb-2 text-xs font-medium text-ink-2">Failure categories</h3>
         <CategoryBars counts={a.categories} />
       </div>
+      {stageSummary(a.stages) ? (
+        <p className="text-xs text-ink-2" title="Rule-based reading of each failed run's trace: where to look first, not a proven cause.">
+          Failure stages (trace diagnosis): {stageSummary(a.stages)}
+        </p>
+      ) : null}
       {a.failures.length ? (
         <div>
           <h3 className="mb-2 text-xs font-medium text-ink-2">Failed runs</h3>
@@ -164,6 +171,14 @@ function AnalysisPanel({
                     {f.run_id}
                   </Link>
                 </div>
+                {f.diagnosis ? (
+                  <p className="mt-1 text-xs text-ink-2">
+                    <span className="font-medium">{stageLabel(f.diagnosis.stage)} stage</span> · {f.diagnosis.summary}
+                    {f.diagnosis.details.length ? (
+                      <span className="text-muted"> {f.diagnosis.details.join(" ")}</span>
+                    ) : null}
+                  </p>
+                ) : null}
                 {f.evidence.slice(0, 3).map((line, i) => (
                   <p key={i} className="mt-1 font-mono text-xs break-words text-ink-2">
                     {formatValue(line, 240)}

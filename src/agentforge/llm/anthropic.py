@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from agentforge.core.errors import ConfigurationError, LLMError
@@ -10,11 +11,13 @@ from agentforge.llm.base import LLMProvider
 from agentforge.llm.types import (
     CompletionRequest,
     CompletionResponse,
+    CompletionStream,
     ContentPart,
     Message,
     ProviderPart,
     Role,
     StopReason,
+    StreamDelta,
     TextPart,
     ToolResultPart,
     ToolUsePart,
@@ -112,6 +115,20 @@ class AnthropicProvider(LLMProvider):
         )
 
     async def complete(self, request: CompletionRequest) -> CompletionResponse:
+        params = self._build_params(request)
+        try:
+            response = await self._client.messages.create(**params)
+        except Exception as exc:
+            raise _translate_error(exc) from exc
+        return _to_response(response, params["model"])
+
+    async def stream(self, request: CompletionRequest) -> CompletionStream:
+        params = self._build_params(request)
+        # Nothing is sent yet: the SDK opens the request when the manager is
+        # entered, which the stream does on its first iteration.
+        return _AnthropicStream(self._client.messages.stream(**params), params["model"])
+
+    def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
         params: dict[str, Any] = {
             "model": request.model or DEFAULT_MODEL,
             "max_tokens": request.max_tokens,
@@ -127,35 +144,79 @@ class AnthropicProvider(LLMProvider):
         if request.temperature is not None:
             params["temperature"] = request.temperature
         params.update(self._extra)
-
-        try:
-            response = await self._client.messages.create(**params)
-        except Exception as exc:
-            raise _translate_error(exc) from exc
-
-        usage = getattr(response, "usage", None)
-        token_usage = TokenUsage(
-            input_tokens=getattr(usage, "input_tokens", 0) or 0,
-            output_tokens=getattr(usage, "output_tokens", 0) or 0,
-            cache_read_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
-            cache_write_tokens=getattr(usage, "cache_creation_input_tokens", 0) or 0,
-        )
-        raw_stop = getattr(response, "stop_reason", None)
-        return CompletionResponse(
-            message=Message(
-                role=Role.ASSISTANT, content=from_anthropic_content(list(response.content))
-            ),
-            stop_reason=_STOP_REASONS.get(raw_stop or "", StopReason.OTHER),
-            raw_stop_reason=raw_stop,
-            usage=token_usage,
-            model=getattr(response, "model", params["model"]),
-            response_id=getattr(response, "id", None),
-        )
+        return params
 
     async def aclose(self) -> None:
         close = getattr(self._client, "close", None)
         if close is not None:
             await close()
+
+
+class _AnthropicStream(CompletionStream):
+    """Wraps the Anthropic SDK's streaming context manager.
+
+    Only text is forwarded as deltas; thinking and tool-call input are not.
+    The final response is the SDK's accumulated message, so it carries
+    everything a non-streamed completion would.
+    """
+
+    def __init__(self, manager: Any, requested_model: str) -> None:
+        super().__init__()
+        self._manager = manager
+        self._requested_model = requested_model
+        self._events: Any = None
+        self._text_iter: Any = None
+        self._closed = False
+
+    def __aiter__(self) -> _AnthropicStream:
+        return self
+
+    async def __anext__(self) -> StreamDelta:
+        if self._response is not None or self._closed:
+            raise StopAsyncIteration
+        try:
+            if self._events is None:
+                self._events = await self._manager.__aenter__()
+                self._text_iter = self._events.text_stream.__aiter__()
+            try:
+                return StreamDelta(text=await self._text_iter.__anext__())
+            except StopAsyncIteration:
+                final = await self._events.get_final_message()
+        except Exception as exc:
+            await self.aclose()
+            raise _translate_error(exc) from exc
+        await self.aclose()
+        self._response = _to_response(final, self._requested_model)
+        raise StopAsyncIteration
+
+    async def aclose(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        if self._events is not None:
+            with contextlib.suppress(Exception):
+                await self._manager.__aexit__(None, None, None)
+
+
+def _to_response(response: Any, requested_model: str) -> CompletionResponse:
+    usage = getattr(response, "usage", None)
+    token_usage = TokenUsage(
+        input_tokens=getattr(usage, "input_tokens", 0) or 0,
+        output_tokens=getattr(usage, "output_tokens", 0) or 0,
+        cache_read_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
+        cache_write_tokens=getattr(usage, "cache_creation_input_tokens", 0) or 0,
+    )
+    raw_stop = getattr(response, "stop_reason", None)
+    return CompletionResponse(
+        message=Message(
+            role=Role.ASSISTANT, content=from_anthropic_content(list(response.content))
+        ),
+        stop_reason=_STOP_REASONS.get(raw_stop or "", StopReason.OTHER),
+        raw_stop_reason=raw_stop,
+        usage=token_usage,
+        model=getattr(response, "model", None) or requested_model,
+        response_id=getattr(response, "id", None),
+    )
 
 
 def _translate_error(exc: Exception) -> LLMError:
