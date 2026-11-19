@@ -1,19 +1,52 @@
 # AgentForge Development Status
 
-Date: 2026-11-18
+Date: 2026-11-19
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
 merged. Milestone 16 (documentation and demo) and four future-work items are
 implemented in pull requests that await the owner's review; nothing has been
-merged into `main` since 2026-11-01 (checked 2026-11-18). Earlier dated session reports are in
+merged into `main` since 2026-11-01 (checked 2026-11-19). Earlier dated session reports are in
 this file's git history.
 
-## State of `main` (2026-11-18)
+## State of `main` (2026-11-19)
 
 - `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
   of 2026-11-16 succeeded.
 
-## This session (2026-11-18)
+## This session (2026-11-19)
+
+**A new pull request from branch `claude/stoic-gates-6vxbc1`, stacked on
+PR #44** (merge #40 → #41 → #42 → #44 first; this branch contains them).
+PRs #40–#44 were unchanged: green CI, no unresolved review findings.
+
+- Implemented the run comparison view, a part of T-011b: the dashboard page
+  `/runs/compare?a=RUN&b=RUN` shows two runs side by side — metrics with the
+  difference B − A, evaluator results by name, the settings that differ
+  between the two configuration snapshots, the tool calls paired step by
+  step with the first row where the runs diverge, and both final answers.
+  It is reached by ticking two runs in the run list or with *Compare with
+  original* on a re-run. Dashboard only: no API, schema or Python change
+  apart from the screenshot tooling and one test.
+- Scope, stated plainly: steps are paired by position, so one extra step
+  early in a run marks every later row as different (no re-alignment). Only
+  tool calls, their outcomes and evaluation results are compared, not the
+  model's text. A difference in cost or score is shown only when both values
+  are known. The page states that two single runs are not a measured effect
+  and warns when the runs have different goals or checks. It has been used
+  on OFFLINE (scripted) runs only.
+- Verification on this branch: ruff, ruff format, mypy --strict: clean.
+  `pytest`: 501 passed, 8 skipped (the Docker-sandbox tests: no
+  `python:3.12-slim` image here). PostgreSQL tests not run locally; CI runs
+  both. Dashboard: lint, typecheck, 38 unit tests (12 new) and production
+  build pass. Checked in a browser against a running API with the demo data:
+  selecting runs (a third tick replaces the oldest), Compare, Swap,
+  *Compare with original*, the empty and not-found states, 1440 px and
+  420 px widths, light and dark; no console errors.
+  `scripts/screenshots.py` ran end to end; `run-compare-light.png` is new
+  and `runs-light.png` was regenerated (the list gained the tick column).
+  The other pictures were left as committed.
+
+## Session of 2026-11-18
 
 **PR #44** (branch `claude/stoic-gates-hqwl3k`), **stacked on PR #42 and
 containing PR #43** (merge #40 → #41 → #42 → this one, then close #43).
@@ -143,8 +176,8 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 ## Pull requests awaiting the owner
 
-Merge order for everything open: **#40 → #41 → #42 → #44**
-(each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
+Merge order for everything open: **#40 → #41 → #42 → #44 → the run
+comparison PR** (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not
 merge #43 by itself: it lacks the fixes above and conflicts with the stack.
 

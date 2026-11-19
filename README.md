@@ -360,6 +360,7 @@ follow shadcn/ui conventions):
 | Dashboard | runs, active runs, evaluation pass rate, completion rate, known cost, recent runs, tool reliability, recent benchmarks |
 | Agents / agent detail | stored configs, start a run with evaluators, the agent's runs |
 | Runs / run detail | filterable run list; trace of every step (model turn, tool calls with arguments and outputs, evaluations, errors), metrics, config snapshot, cancel and re-run; live updates while running |
+| Run comparison | tick two runs in the run list (or *Compare with original* on a re-run): metrics with differences, evaluator results by name, the settings that differ between the two config snapshots, and the tool calls step by step with the first point where the runs diverge. Two single runs, not a statistic — benchmarks and experiments give rates |
 | Benchmarks / benchmark detail | suites and tasks, start a benchmark, history, per-task pass rates, results linked to runs, environment |
 | Experiments / experiment detail | start an experiment, variant comparison with 95% intervals and deltas, per-task matrix |
 | Improvement / agent improvement | agent versions with config diffs, benchmark runs split into offline and real, failure categories with evidence, improvement cycles (proposal, comparison, apply / evaluate / reject), improvement and experiment history |
@@ -387,6 +388,10 @@ with `--record`); they illustrate the dashboard, not model performance.
 | Agent improvement (offline demo data) | Improvement overview (dark) |
 |---|---|
 | ![Agent improvement](docs/screenshots/improvement-agent-light.png) | ![Improvement](docs/screenshots/improvement-dark.png) |
+
+Two runs side by side (the tour agent's failed and passed run of one task):
+
+![Run comparison](docs/screenshots/run-compare-light.png)
 
 ## GitHub integration
 

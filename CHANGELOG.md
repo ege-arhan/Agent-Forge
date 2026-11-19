@@ -8,6 +8,18 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Dashboard run comparison (T-011b, part): `/runs/compare?a=RUN&b=RUN` shows
+  two runs side by side — metrics with the difference B − A (no difference
+  is shown when either value is unknown, e.g. cost), evaluator results by
+  name, the settings that differ between the two configuration snapshots,
+  the tool calls paired step by step with the first row where the runs
+  diverge, and both final answers. Reached by ticking two runs in the run
+  list or with *Compare with original* on a re-run. It compares recorded
+  tool calls and outcomes, not the model's wording, pairs steps by position
+  only, and says on the page that two single runs are not a measured effect
+  and when the runs have different goals or checks. Dashboard only: no API
+  or schema change. New screenshot `run-compare-light.png` (OFFLINE demo
+  data).
 - Streaming model output (T-003b), opt-in with `model.stream: true`: the
   runtime reads the provider's stream and emits `llm.delta` events (text
   only), which reach `agentforge run` (live `◇` line), SSE clients of

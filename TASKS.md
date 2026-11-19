@@ -93,15 +93,25 @@ _None open. Continue with P1 in roadmap order._
 
 
 ### T-011b Dashboard enhancements
-- **Status:** in-progress — the SSE part is done (PR #44, awaiting merge): the run
-  page follows `GET /runs/{id}/events`, shows streamed model output live and
-  refreshes on record-changing events; its poll remains as a fallback when
-  the stream cannot be opened. The rest is todo.
+- **Status:** in-progress — two parts are done and await merge; the rest is todo.
+- **Done (PR #44):** the SSE part — the run page follows
+  `GET /runs/{id}/events`, shows streamed model output live and refreshes on
+  record-changing events; its poll remains as a fallback when the stream
+  cannot be opened.
+- **Done (2026-11-19, PR from `claude/stoic-gates-6vxbc1`; depends on #44):**
+  run comparison — `/runs/compare?a=…&b=…` (tick two runs in the run list, or
+  *Compare with original* on a re-run): metrics with differences, evaluator
+  results by name, differing configuration settings, tool calls paired step
+  by step with the first divergence, both final answers. Logic in
+  `web/lib/compare.ts` (12 unit tests); dashboard only, no API change.
+  Limits: steps are paired by position (no re-alignment after an inserted
+  step), the model's text is not compared, and it is two single runs, not a
+  statistic.
 - **Remaining:** component tests
   (React Testing Library once the npm/vitest resolver issue is resolved —
   `npm install vitest` currently crashes npm 10.9 with "Cannot read properties
-  of null (reading 'edgesOut')"); YAML import in the agent form; run
-  comparison view (two runs side by side); cost/time charts over time.
+  of null (reading 'edgesOut')"); YAML import in the agent form; cost/time
+  charts over time.
 - **Tech debt:** ESLint pinned to 9.x because `eslint-plugin-react` (via
   `eslint-config-next` 16.3) fails on ESLint 10.
 

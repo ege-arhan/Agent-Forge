@@ -34,7 +34,8 @@ pooled baselines). A third, the rule-based trace-level failure diagnosis
 (T-020), is implemented in PR #42, stacked on those. A fourth, streaming
 model output with a live preview in the CLI and the dashboard (T-003b, and
 the SSE part of T-011b), is implemented in PR #43 and reviewed, fixed and
-stacked on the others in PR #44. `docs/STATUS.md` lists the
+stacked on the others in PR #44. The dashboard's run comparison view (another
+part of T-011b) is implemented in a pull request stacked on #44. `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
 ## Next up (owner)
@@ -53,4 +54,4 @@ open pull requests and the order to merge them in.
   improvement cycle on an unconstrained failure; needs a budget (T-009c).
 - Also planned: vector memory (T-006b), distributed execution (T-015), the
   remaining dashboard enhancements (T-011b: component tests, YAML import,
-  run comparison, charts over time).
+  charts over time).

@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCcw, Square } from "lucide-react";
+import { GitCompareArrows, RotateCcw, Square } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -13,6 +13,7 @@ import { Pre, Trace } from "@/components/trace";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { api } from "@/lib/api";
+import { compareHref } from "@/lib/compare";
 import {
   formatCost,
   formatDuration,
@@ -141,6 +142,11 @@ export default function RunDetailPage() {
             {active ? (
               <Button variant="danger" disabled={busy} onClick={() => act(() => api.cancelRun(r.id), false)}>
                 <Square aria-hidden className="size-3.5" /> Cancel
+              </Button>
+            ) : null}
+            {r.parent_run_id ? (
+              <Button variant="outline" onClick={() => router.push(compareHref(r.parent_run_id ?? "", r.id))}>
+                <GitCompareArrows aria-hidden className="size-3.5" /> Compare with original
               </Button>
             ) : null}
             <Button variant="outline" disabled={busy} onClick={() => act(() => api.rerun(r.id), true)}>

@@ -67,6 +67,12 @@ def test_seed_creates_the_demo_data_the_pictures_need(shots: ModuleType, tmp_pat
     history = cli_json(shots, data, "improve", "history", "dogfood-demo-coder", "--json")
     assert sorted(b["agent_version"] for b in history["benchmarks"]) == [1, 2]
     assert len(history["improvements"]) == 1
+    # The run comparison picture needs one task that version 1 failed and version 2 passed.
+    passed = {
+        b["agent_version"]: {t["task_id"]: t["passed"] == t["runs"] for t in b["summary"]["tasks"]}
+        for b in history["benchmarks"]
+    }
+    assert any(not ok and passed[2].get(task) for task, ok in passed[1].items())
     # The starter benchmark and the experiment's runs are stored too.
     listed = subprocess.run(
         [*shots.CLI, "runs", "list", "-n", "100"],

@@ -23,6 +23,21 @@ function need(value, what) {
   return value;
 }
 
+// Two runs of the same task by the tour agent: version 1 failed it, version 2
+// (after the improvement cycle) passed it.
+function comparePair(benches) {
+  const mine = benches.filter((b) => b.agent_name === "dogfood-demo-coder");
+  for (const before of mine) {
+    for (const failed of before.results.filter((r) => !r.passed)) {
+      for (const after of mine) {
+        const passed = after.results.find((r) => r.task_id === failed.task_id && r.passed);
+        if (passed) return { a: failed.run_id, b: passed.run_id };
+      }
+    }
+  }
+  return null;
+}
+
 async function targets() {
   const agents = await api("/agents");
   const demoCoder = need(agents.find((a) => a.name === "dogfood-demo-coder"), "the tour agent");
@@ -35,10 +50,12 @@ async function targets() {
     runs.items.find((r) => r.status === "succeeded" && /test_calc/.test(r.goal || "")),
     "a succeeded bug-fix run",
   );
+  const pair = need(comparePair(benches), "a failed and a passed run of the same tour task");
   return [
     { file: "dashboard-light.png", url: "/", theme: "light" },
     { file: "runs-light.png", url: "/runs", theme: "light" },
     { file: "run-detail-dark.png", url: `/runs/${fixRun.id}`, theme: "dark" },
+    { file: "run-compare-light.png", url: `/runs/compare?a=${pair.a}&b=${pair.b}`, theme: "light", wait: "Steps side by side" },
     { file: "run-approval-light.png", url: `/runs/${need(APPROVAL_RUN, "AF_APPROVAL_RUN")}`, theme: "light", wait: "Pending approval" },
     { file: "benchmark-detail-light.png", url: `/benchmarks/${starter.id}`, theme: "light" },
     { file: "experiment-light.png", url: `/experiments/${experiment.id}`, theme: "light" },
