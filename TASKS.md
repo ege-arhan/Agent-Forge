@@ -103,7 +103,7 @@ _None open. Continue with P1 in roadmap order._
   *Compare with original* on a re-run): metrics with differences, evaluator
   results by name, differing configuration settings, tool calls paired step
   by step with the first divergence, both final answers. Logic in
-  `web/lib/compare.ts` (12 unit tests); dashboard only, no API change.
+  `web/lib/compare.ts` (13 unit tests); dashboard only, no API change.
   Limits: steps are paired by position (no re-alignment after an inserted
   step), the model's text is not compared, and it is two single runs, not a
   statistic.

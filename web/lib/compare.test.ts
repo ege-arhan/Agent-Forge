@@ -156,6 +156,26 @@ test("checkRows unions evaluator results by name and marks changes", () => {
   assert.deepEqual(checkRows(null, null), []);
 });
 
+test("checkRows keeps evaluators that share a name apart", () => {
+  const results = (...passed: boolean[]): EvaluationResult => ({
+    ...evaluation({}),
+    results: passed.map((ok) => ({
+      name: "file_contains",
+      passed: ok,
+      score: ok ? 1 : 0,
+      weight: 1,
+      required: true,
+      details: "",
+      metrics: {},
+    })),
+  });
+  // A's first check failed and its second passed; B fixed the first.
+  assert.deepEqual(checkRows(results(false, true), results(true, true)), [
+    { name: "file_contains", a: false, b: true, changed: true },
+    { name: "file_contains #2", a: true, b: true, changed: false },
+  ]);
+});
+
 test("stableJson ignores key order", () => {
   assert.equal(stableJson({ b: 1, a: [{ d: 2, c: 1 }] }), stableJson({ a: [{ c: 1, d: 2 }], b: 1 }));
   assert.equal(stableJson({ a: undefined, b: null }), '{"b":null}');

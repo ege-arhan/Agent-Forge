@@ -34,10 +34,15 @@ PRs #40–#44 were unchanged: green CI, no unresolved review findings.
   are known. The page states that two single runs are not a measured effect
   and warns when the runs have different goals or checks. It has been used
   on OFFLINE (scripted) runs only.
+- From the automated (Codex) review of PR #45, verified and fixed: evaluators
+  that share a name in one run (unnamed evaluators are named after their
+  type) were collapsed into one row showing only the last result. They are
+  now listed separately (`file_contains`, `file_contains #2`, matched by
+  order); regression test added.
 - Verification on this branch: ruff, ruff format, mypy --strict: clean.
   `pytest`: 501 passed, 8 skipped (the Docker-sandbox tests: no
   `python:3.12-slim` image here). PostgreSQL tests not run locally; CI runs
-  both. Dashboard: lint, typecheck, 38 unit tests (12 new) and production
+  both. Dashboard: lint, typecheck, 39 unit tests (13 new) and production
   build pass. Checked in a browser against a running API with the demo data:
   selecting runs (a third tick replaces the oldest), Compare, Swap,
   *Compare with original*, the empty and not-found states, 1440 px and

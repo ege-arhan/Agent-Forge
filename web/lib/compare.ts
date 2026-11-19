@@ -60,10 +60,26 @@ export interface CheckRow {
   changed: boolean;
 }
 
+/**
+ * Results keyed by evaluator name. Names can repeat within a run (an unnamed
+ * evaluator is named after its type), so the second `file_contains` is keyed
+ * `file_contains #2`: repeated checks are matched by order, never merged.
+ */
+function byName(evaluation: EvaluationResult | null): Map<string, boolean> {
+  const seen = new Map<string, number>();
+  const out = new Map<string, boolean>();
+  for (const result of evaluation?.results ?? []) {
+    const n = (seen.get(result.name) ?? 0) + 1;
+    seen.set(result.name, n);
+    out.set(n === 1 ? result.name : `${result.name} #${n}`, result.passed);
+  }
+  return out;
+}
+
 /** Evaluator results by name: A's order first, then checks only B has. */
 export function checkRows(a: EvaluationResult | null, b: EvaluationResult | null): CheckRow[] {
-  const inA = new Map((a?.results ?? []).map((r) => [r.name, r.passed]));
-  const inB = new Map((b?.results ?? []).map((r) => [r.name, r.passed]));
+  const inA = byName(a);
+  const inB = byName(b);
   const names = [...inA.keys(), ...[...inB.keys()].filter((name) => !inA.has(name))];
   return names.map((name) => {
     const pa = inA.get(name) ?? null;
