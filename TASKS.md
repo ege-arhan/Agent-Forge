@@ -98,7 +98,7 @@ _None open. Continue with P1 in roadmap order._
   `GET /runs/{id}/events`, shows streamed model output live and refreshes on
   record-changing events; its poll remains as a fallback when the stream
   cannot be opened.
-- **Done (2026-11-19, PR from `claude/stoic-gates-6vxbc1`; depends on #44):**
+- **Done (2026-11-19, PR #45; depends on #44):**
   run comparison — `/runs/compare?a=…&b=…` (tick two runs in the run list, or
   *Compare with original* on a re-run): metrics with differences, evaluator
   results by name, differing configuration settings, tool calls paired step
