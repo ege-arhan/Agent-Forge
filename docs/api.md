@@ -8,6 +8,7 @@ endpoint except `/health` requires `Authorization: Bearer <key>`.
 |---|---|
 | `GET /health` | status, version, database connectivity (public) |
 | `GET /stats?days=N` | run counts by status, active runs, completion and evaluation pass rates, mean score, tool call counts, known cost and number of runs with unknown cost, token totals |
+| `GET /stats/timeseries?days=N` | per-day activity for the last `N` UTC days (1–90, default 30), today included and empty days present: runs, succeeded, failed, evaluated, passed, input/output tokens, `known_cost_usd` (`null` when no run that day has known pricing), runs with unknown cost, mean duration and the number of runs it covers. Tokens, cost and duration count finished runs |
 | `GET /providers`, `GET /tools`, `GET /evaluators` | capabilities (tool schemas and permissions, evaluator parameter schemas) |
 | `GET/POST /agents`, `GET/PUT/DELETE /agents/{id}` | stored agent configs; `PUT ?change_summary=` stores a new version (a no-op when the config is unchanged) |
 | `GET /agents/{id}/versions[/{version}]` | immutable version history, newest first (source, change summary, parent version, improvement id, config) |

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import builtins
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import case, delete, func, select
@@ -399,6 +399,104 @@ class RunRepository:
             "runs_with_unknown_cost": int(unknown_cost or 0),
             "input_tokens": int(input_tokens or 0),
             "output_tokens": int(output_tokens or 0),
+        }
+
+    async def timeseries(self, *, days: int, now: datetime | None = None) -> dict[str, Any]:
+        """Per-day run activity for the last ``days`` UTC days, today included.
+
+        Days are UTC calendar days of ``created_at``; days without runs are
+        present with zero counts. Tokens, cost and duration cover terminal runs
+        only, as in :meth:`stats`. ``known_cost_usd`` is ``None`` for a day
+        with no priced run (never zero for unknown pricing) and
+        ``mean_duration_seconds`` is ``None`` without a recorded duration.
+
+        Rows are bucketed in Python rather than with SQL date functions so the
+        day boundaries are identical on SQLite and PostgreSQL.
+        """
+        if days < 1:
+            raise ValueError("days must be at least 1")
+        today = (now or utcnow()).astimezone(UTC).date()
+        first = today - timedelta(days=days - 1)
+        start = datetime(first.year, first.month, first.day, tzinfo=UTC)
+        end = datetime(today.year, today.month, today.day, tzinfo=UTC) + timedelta(days=1)
+        async with self.db.session() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        RunRow.created_at,
+                        RunRow.status,
+                        RunRow.passed,
+                        RunRow.cost_usd,
+                        RunRow.duration_seconds,
+                        RunRow.input_tokens,
+                        RunRow.output_tokens,
+                    ).where(RunRow.created_at >= start, RunRow.created_at < end)
+                )
+            ).all()
+
+        terminal = {s.value for s in TERMINAL_STATUSES}
+        buckets: dict[date, dict[str, Any]] = {
+            first + timedelta(days=i): {
+                "runs": 0,
+                "succeeded": 0,
+                "failed": 0,
+                "evaluated": 0,
+                "passed": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost": 0.0,
+                "priced": 0,
+                "runs_with_unknown_cost": 0,
+                "duration": 0.0,
+                "timed": 0,
+            }
+            for i in range(days)
+        }
+        for created_at, status, passed, cost, duration, tokens_in, tokens_out in rows:
+            bucket = buckets[created_at.astimezone(UTC).date()]
+            bucket["runs"] += 1
+            if status == RunStatus.SUCCEEDED.value:
+                bucket["succeeded"] += 1
+            elif status in (RunStatus.FAILED.value, RunStatus.TIMED_OUT.value):
+                bucket["failed"] += 1
+            if passed is not None:
+                bucket["evaluated"] += 1
+                bucket["passed"] += 1 if passed else 0
+            if status not in terminal:
+                continue
+            bucket["input_tokens"] += int(tokens_in or 0)
+            bucket["output_tokens"] += int(tokens_out or 0)
+            if cost is None:
+                bucket["runs_with_unknown_cost"] += 1
+            else:
+                bucket["cost"] += float(cost)
+                bucket["priced"] += 1
+            if duration is not None:
+                bucket["duration"] += float(duration)
+                bucket["timed"] += 1
+
+        return {
+            "days": days,
+            "timezone": "UTC",
+            "series": [
+                {
+                    "date": day.isoformat(),
+                    "runs": b["runs"],
+                    "succeeded": b["succeeded"],
+                    "failed": b["failed"],
+                    "evaluated": b["evaluated"],
+                    "passed": b["passed"],
+                    "input_tokens": b["input_tokens"],
+                    "output_tokens": b["output_tokens"],
+                    "known_cost_usd": round(b["cost"], 6) if b["priced"] else None,
+                    "runs_with_unknown_cost": b["runs_with_unknown_cost"],
+                    "mean_duration_seconds": (
+                        round(b["duration"] / b["timed"], 3) if b["timed"] else None
+                    ),
+                    "timed_runs": b["timed"],
+                }
+                for day, b in buckets.items()
+            ],
         }
 
 

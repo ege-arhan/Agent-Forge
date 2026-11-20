@@ -107,11 +107,20 @@ _None open. Continue with P1 in roadmap order._
   Limits: steps are paired by position (no re-alignment after an inserted
   step), the model's text is not compared, and it is two single runs, not a
   statistic.
+- **Done (2026-11-20, PR from `claude/stoic-gates-8bmzax`; depends on #45):**
+  charts over time — `GET /stats/timeseries?days=N` (per UTC day: runs,
+  succeeded/failed, tokens, known cost, runs with unknown pricing, mean
+  duration) and an *Activity over time* card on the dashboard home page with
+  four per-day charts, a 7/14/30/90-day range, hover figures and a table
+  view. Helpers in `web/lib/timeseries.ts` (8 unit tests); storage and API
+  tests. Limits: UTC days only (no local-timezone or weekly buckets), runs
+  are bucketed by creation time, the rows of the range are aggregated in
+  Python (capped at 90 days), and the charts are not broken down by agent
+  or model.
 - **Remaining:** component tests
   (React Testing Library once the npm/vitest resolver issue is resolved —
   `npm install vitest` currently crashes npm 10.9 with "Cannot read properties
-  of null (reading 'edgesOut')"); YAML import in the agent form; cost/time
-  charts over time.
+  of null (reading 'edgesOut')"); YAML import in the agent form.
 - **Tech debt:** ESLint pinned to 9.x because `eslint-plugin-react` (via
   `eslint-config-next` 16.3) fails on ESLint 10.
 

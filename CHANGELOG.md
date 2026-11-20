@@ -8,6 +8,16 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Dashboard activity charts (T-011b, part): the home page has an *Activity
+  over time* card with four small per-day charts — runs, tokens, known cost
+  and mean run duration — for the last 7, 14, 30 or 90 days, exact figures
+  on hover and the same numbers as a table (*Show as table*). Backed by the
+  new `GET /stats/timeseries?days=N` (1–90, default 30). Days are UTC
+  calendar days of a run's creation; tokens, cost and duration count
+  finished runs, as `/stats` does. A day whose runs have no known pricing
+  has no cost bar and `known_cost_usd: null` — unknown pricing is counted
+  separately and never drawn or summed as zero. No schema change.
+  `docs/screenshots/dashboard-light.png` regenerated (OFFLINE demo data).
 - Dashboard run comparison (T-011b, part): `/runs/compare?a=RUN&b=RUN` shows
   two runs side by side — metrics with the difference B − A (no difference
   is shown when either value is unknown, e.g. cost), evaluator results by

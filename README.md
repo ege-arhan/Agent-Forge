@@ -360,6 +360,7 @@ follow shadcn/ui conventions):
 | Dashboard | runs, active runs, evaluation pass rate, completion rate, known cost, recent runs, tool reliability, recent benchmarks |
 | Agents / agent detail | stored configs, start a run with evaluators, the agent's runs |
 | Runs / run detail | filterable run list; trace of every step (model turn, tool calls with arguments and outputs, evaluations, errors), metrics, config snapshot, cancel and re-run; live updates while running |
+| Activity over time | on the dashboard home page: runs, tokens, known cost and mean run duration per UTC day for the last 7–90 days, with exact figures on hover and as a table. Runs with unknown pricing are counted separately, never as zero cost |
 | Run comparison | tick two runs in the run list (or *Compare with original* on a re-run): metrics with differences, evaluator results by name, the settings that differ between the two config snapshots, and the tool calls step by step with the first point where the runs diverge. Two single runs, not a statistic — benchmarks and experiments give rates |
 | Benchmarks / benchmark detail | suites and tasks, start a benchmark, history, per-task pass rates, results linked to runs, environment |
 | Experiments / experiment detail | start an experiment, variant comparison with 95% intervals and deltas, per-task matrix |

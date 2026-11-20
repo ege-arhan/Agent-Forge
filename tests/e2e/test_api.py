@@ -85,6 +85,13 @@ def test_agent_lifecycle_and_run(client: TestClient) -> None:
     stats = client.get(f"{API}/stats").json()
     assert stats["total_runs"] == 1 and stats["evaluation_pass_rate"] == 1.0
 
+    series = client.get(f"{API}/stats/timeseries", params={"days": 7}).json()
+    assert series["days"] == 7 and len(series["series"]) == 7
+    today = series["series"][-1]
+    assert today["runs"] == 1 and today["succeeded"] == 1 and today["passed"] == 1
+    assert sum(day["runs"] for day in series["series"][:-1]) == 0
+    assert client.get(f"{API}/stats/timeseries", params={"days": 91}).status_code == 422
+
     rerun = client.post(f"{API}/runs/{run_id}/rerun")
     assert rerun.status_code == 202
     rerun_body = wait_for(client, f"{API}/runs/{rerun.json()['id']}", terminal)

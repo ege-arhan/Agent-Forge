@@ -1,19 +1,59 @@
 # AgentForge Development Status
 
-Date: 2026-11-19
+Date: 2026-11-20
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
 merged. Milestone 16 (documentation and demo) and four future-work items are
 implemented in pull requests that await the owner's review; nothing has been
-merged into `main` since 2026-11-01 (checked 2026-11-19). Earlier dated session reports are in
+merged into `main` since 2026-11-01 (checked 2026-11-20). Earlier dated session reports are in
 this file's git history.
 
-## State of `main` (2026-11-19)
+## State of `main` (2026-11-20)
 
 - `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
   of 2026-11-16 succeeded.
 
-## This session (2026-11-19)
+## This session (2026-11-20)
+
+**Pull request from branch `claude/stoic-gates-8bmzax`, stacked on PR #45**
+(merge #40 → #41 → #42 → #44 → #45 first; this branch contains them).
+PRs #40–#45 were unchanged: green CI, no unresolved review findings.
+
+- Implemented the charts-over-time part of T-011b. New endpoint
+  `GET /stats/timeseries?days=N` (1–90, default 30) returns one entry per
+  UTC day — runs, succeeded, failed, evaluated, passed, tokens, known cost,
+  runs with unknown pricing, mean duration — with empty days present. The
+  dashboard home page shows them in an *Activity over time* card: four
+  single-measure charts (runs, tokens, known cost, mean run duration), a
+  7/14/30/90-day range, exact figures on hover and a table view. No schema
+  change.
+- Cost stays honest: a day whose runs have no known pricing has
+  `known_cost_usd: null` and no bar; such runs are counted separately and
+  never summed as zero (storage test and unit test cover this).
+- Scope, stated plainly: days are UTC calendar days of a run's creation
+  time (no local-timezone or weekly buckets); tokens, cost and duration
+  count finished runs only; the rows of the range are aggregated in Python
+  rather than in SQL (so SQLite and PostgreSQL agree on day boundaries),
+  which is why the range is capped at 90 days; there is no breakdown by
+  agent or model. The charts have been seen with OFFLINE (scripted) data
+  only, whose tokens and cost are zero.
+- Verification on this branch: ruff, ruff format, mypy --strict,
+  `ruff --select S`: clean. `pytest`: 502 passed, 8 skipped (the
+  Docker-sandbox tests: no `python:3.12-slim` image here). PostgreSQL tests
+  not run locally; CI runs both. Dashboard: lint, typecheck, 47 unit tests
+  (8 new) and production build pass. Checked in a browser against a running
+  API: with the demo data, and with a scratch copy of it whose runs were
+  spread over two weeks and given made-up costs and durations to exercise
+  the bars, the hover figures and the unknown-pricing wording (that copy was
+  discarded; nothing from it is committed). 1440 px, 1700 px and 420 px
+  widths, light and dark, all four ranges; no console errors, no horizontal
+  overflow. `scripts/screenshots.py` ran end to end;
+  `docs/screenshots/dashboard-light.png` was regenerated from it and the
+  other pictures were left as committed.
+- T-011b now has two parts left: component tests (blocked on the npm/vitest
+  resolver issue recorded in TASKS.md) and YAML import in the agent form.
+
+## Session of 2026-11-19
 
 **PR #45** (branch `claude/stoic-gates-6vxbc1`), **stacked on
 PR #44** (merge #40 → #41 → #42 → #44 first; this branch contains them).
@@ -181,11 +221,11 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 ## Pull requests awaiting the owner
 
-Merge order for everything open: **#40 → #41 → #42 → #44 → #45** (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
+Merge order for everything open: **#40 → #41 → #42 → #44 → #45 → the 2026-11-20 pull request** (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not
 merge #43 by itself: it lacks the fixes above and conflicts with the stack.
 
-Agent work is spread over eleven pull requests. The two oldest stacks could
+Agent work is spread over thirteen pull requests. The two oldest stacks could
 not both be merged until PR #40 combined them (2026-11-14):
 
 - **Milestone 16 stack** — #37 (offline tour) → #38 (screenshots, docs index,

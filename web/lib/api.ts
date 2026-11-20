@@ -21,6 +21,7 @@ import type {
   Run,
   RunSummary,
   Stats,
+  Timeseries,
   Suite,
   ToolInfo,
 } from "./types.ts";
@@ -118,6 +119,7 @@ export async function request<T>(
 export const api = {
   health: () => request<Health>("/health"),
   stats: () => request<Stats>("/stats"),
+  timeseries: (days: number) => request<Timeseries>(`/stats/timeseries?days=${days}`),
   providers: () => request<ProviderInfo[]>("/providers"),
   tools: () => request<{ tools: ToolInfo[]; toolsets: Record<string, string[]> }>("/tools"),
   evaluators: () => request<EvaluatorInfo[]>("/evaluators"),

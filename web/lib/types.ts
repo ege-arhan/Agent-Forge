@@ -213,6 +213,29 @@ export interface Stats {
   output_tokens: number;
 }
 
+/** One UTC calendar day of `GET /stats/timeseries`. */
+export interface DailyPoint {
+  date: string;
+  runs: number;
+  succeeded: number;
+  failed: number;
+  evaluated: number;
+  passed: number;
+  input_tokens: number;
+  output_tokens: number;
+  /** null when no run that day has known pricing. */
+  known_cost_usd: number | null;
+  runs_with_unknown_cost: number;
+  mean_duration_seconds: number | null;
+  timed_runs: number;
+}
+
+export interface Timeseries {
+  days: number;
+  timezone: string;
+  series: DailyPoint[];
+}
+
 export interface SuiteTask {
   id: string;
   goal: string;
