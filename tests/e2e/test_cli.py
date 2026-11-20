@@ -164,7 +164,9 @@ def test_improvement_loop_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]
 
     baseline = _history(capsys)["benchmarks"][0]["id"]
     assert main(["improve", "analyze", baseline]) == 0
-    assert "step_limit" in capsys.readouterr().out
+    analysis_out = capsys.readouterr().out
+    assert "step_limit" in analysis_out
+    assert "failure stages (trace diagnosis):" in analysis_out and "stage: " in analysis_out
 
     assert main(["improve", "propose", baseline, "--json"]) == 0
     cycle = json.loads(capsys.readouterr().out)

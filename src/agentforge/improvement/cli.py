@@ -93,8 +93,15 @@ def print_analysis(analysis: FailureAnalysis) -> None:
         print("failure categories:")
         for category, count in analysis.categories.items():
             print(f"  {category:<22} {count}")
+    if analysis.stages:
+        print("failure stages (trace diagnosis):")
+        for stage, count in analysis.stages.items():
+            print(f"  {stage:<22} {count}")
     for failure in analysis.failures:
         print(f"- {failure.task_id} #{failure.repeat} [{failure.category.value}] {failure.run_id}")
+        if failure.diagnosis is not None:
+            signals = ", ".join(s.value for s in failure.diagnosis.signals) or "no signals"
+            print(f"    stage: {failure.diagnosis.stage.value} ({signals})")
         for line in failure.evidence[:3]:
             print(f"    {line.splitlines()[0][:150]}")
     if analysis.tool_issues:

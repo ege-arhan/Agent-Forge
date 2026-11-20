@@ -174,3 +174,116 @@ def test_historical_report_without_new_fields_still_works(
     code, out = gate(capsys, "--baseline", str(old), "--candidate", str(baseline))
     assert code == 0, out
     assert "predates suite digests" in out
+
+
+def test_opt_in_policies_from_the_command_line(
+    baseline: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    candidate = bench(REFERENCE, capsys)
+    # One run per task on both sides: asking for two cannot be decided.
+    code, out = gate(
+        capsys, "--baseline", str(baseline), "--candidate", candidate, "--min-repeats", "2"
+    )
+    assert code == 2, out
+    assert "min repeats 2 not met: baseline has fewer runs for" in out
+    assert "min repeats 2 not met: candidate has fewer runs for" in out
+    code, out = gate(
+        capsys,
+        "--baseline",
+        str(baseline),
+        "--candidate",
+        candidate,
+        "--min-repeats",
+        "1",
+        "--max-check-pass-rate-drop",
+        "0",
+        "--fail-on-category",
+        "timeout",
+        "--fail-on-category",
+        "step_limit",
+    )
+    assert code == 0, out
+    assert (
+        "policies: min repeats 1, max check pass-rate drop 0.0000, "
+        "fail on categories step_limit, timeout"
+    ) in out
+    code, out = gate(
+        capsys, "--baseline", str(baseline), "--candidate", candidate, "--fail-on-category", "nope"
+    )
+    assert code == 2 and "unknown failure categories: nope" in out
+
+
+def test_failing_checks_and_categories_are_reported(
+    baseline: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """With every drop allowed, the opt-in policies alone turn the failing agent away."""
+    candidate = bench(DEMO_V1, capsys)
+    loose = ["--max-pass-rate-drop", "1", "--max-task-pass-rate-drop", "1"]
+    loose += ["--max-mean-score-drop", "1", "--baseline", str(baseline), "--candidate", candidate]
+    code, out = gate(capsys, *loose, "--json")
+    assert code == 0, out
+    categories = {
+        run["failure_category"]
+        for run in json.loads(
+            _report_json(candidate, capsys),
+        )["runs"]
+    }
+    assert categories and None not in categories
+    code, out = gate(capsys, *loose, "--fail-on-category", sorted(categories)[0])
+    assert code == 1, out
+    assert "which is not tolerated" in out
+    code, out = gate(capsys, *loose, "--max-check-pass-rate-drop", "0.5")
+    assert code == 1, out
+    assert "pass rate dropped by 1.0000 (1.0000 -> 0.0000; allowed 0.5000)" in out
+    assert "task implement-slugify: check " in out
+
+
+def _report_json(bench_id: str, capsys: pytest.CaptureFixture[str]) -> str:
+    assert main(["bench", "report", bench_id, "--json"]) == 0
+    return capsys.readouterr().out
+
+
+def test_several_baselines_are_pooled(
+    baseline: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    second = bench(REFERENCE, capsys)  # a stored run, pooled with the report file
+    candidate = bench(REFERENCE, capsys)
+    code, out = gate(
+        capsys,
+        "--baseline",
+        str(baseline),
+        "--baseline",
+        second,
+        "--candidate",
+        candidate,
+        "--min-repeats",
+        "1",
+        "--json",
+    )
+    assert code == 0, out
+    result = json.loads(out)
+    assert result["baseline"]["runs"] == 4 and result["candidate"]["runs"] == 2
+    assert len(result["baseline"]["benchmark_run_ids"]) == 2
+    assert result["baseline"]["benchmark_run_ids"][1] == second
+    assert any("pooled from 2 reports (4 runs)" in note for note in result["notes"])
+    # The pool gives the baseline two runs per task; the candidate still has one.
+    code, out = gate(
+        capsys,
+        "--baseline",
+        str(baseline),
+        "--baseline",
+        second,
+        "--candidate",
+        candidate,
+        "--min-repeats",
+        "2",
+    )
+    assert code == 2 and "candidate has fewer runs" in out and "baseline has fewer" not in out
+    code, out = gate(
+        capsys, "--baseline", str(baseline), "--baseline", str(baseline), "--candidate", candidate
+    )
+    assert code == 2 and "the same baseline was given more than once" in out
+    code, out = gate(
+        capsys, "--baseline", str(baseline), "--baseline", "nope.json", "--candidate", candidate
+    )
+    assert code == 2 and "baseline #2 report file not found: nope.json" in out

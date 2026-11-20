@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from agentforge.benchmarks.runner import BenchmarkRun, ResultClass
 from agentforge.core.models import EvaluatorResult, Run, RunStatus, ToolCallStatus
+from agentforge.improvement.diagnosis import TraceDiagnosis, diagnose_run
 
 
 class FailureCategory(StrEnum):
@@ -109,6 +110,10 @@ class TaskFailure(BaseModel):
     secondary: list[FailureCategory] = Field(default_factory=list)
     summary: str
     evidence: list[str] = Field(default_factory=list)
+    diagnosis: TraceDiagnosis | None = Field(
+        default=None,
+        description="Trace-level diagnosis; None when the trace cannot explain the failure.",
+    )
 
 
 class TaskAnalysis(BaseModel):
@@ -131,6 +136,13 @@ class FailureAnalysis(BaseModel):
     failed: int
     categories: dict[str, int] = Field(
         default_factory=dict, description="Primary failure category -> number of failed runs."
+    )
+    stages: dict[str, int] = Field(
+        default_factory=dict,
+        description="Diagnosed failure stage -> number of failed runs (undiagnosed runs omitted).",
+    )
+    signals: dict[str, int] = Field(
+        default_factory=dict, description="Trace signal -> number of failed runs showing it."
     )
     tool_issues: dict[str, dict[str, int]] = Field(
         default_factory=dict,
@@ -252,6 +264,7 @@ def classify_run(run: Run) -> TaskFailure | None:
         secondary=secondary,
         summary=summary,
         evidence=evidence,
+        diagnosis=None if category in NON_AGENT_CATEGORIES else diagnose_run(run),
     )
 
 
@@ -294,6 +307,9 @@ def analyze(bench: BenchmarkRun, runs: dict[str, Run]) -> FailureAnalysis:
         task.categories[failure.category.value] = task.categories.get(failure.category.value, 0) + 1
 
     categories = Counter(f.category.value for f in failures)
+    diagnoses = [f.diagnosis for f in failures if f.diagnosis is not None]
+    stages = Counter(d.stage.value for d in diagnoses)
+    signals = Counter(s.value for d in diagnoses for s in d.signals)
     return FailureAnalysis(
         benchmark_run_id=bench.id,
         suite_id=bench.suite_id,
@@ -306,6 +322,8 @@ def analyze(bench: BenchmarkRun, runs: dict[str, Run]) -> FailureAnalysis:
         passed=len(bench.results) - len(failures),
         failed=len(failures),
         categories=dict(categories.most_common()),
+        stages=dict(stages.most_common()),
+        signals=dict(signals.most_common()),
         tool_issues={tool: dict(c) for tool, c in sorted(tool_issues.items())},
         tasks=list(per_task.values()),
         failures=failures,
