@@ -107,7 +107,7 @@ _None open. Continue with P1 in roadmap order._
   Limits: steps are paired by position (no re-alignment after an inserted
   step), the model's text is not compared, and it is two single runs, not a
   statistic.
-- **Done (2026-11-20, PR from `claude/stoic-gates-8bmzax`; depends on #45):**
+- **Done (2026-11-20, PR #46; depends on #45):**
   charts over time — `GET /stats/timeseries?days=N` (per UTC day: runs,
   succeeded/failed, tokens, known cost, runs with unknown pricing, mean
   duration) and an *Activity over time* card on the dashboard home page with

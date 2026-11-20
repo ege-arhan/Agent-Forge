@@ -36,7 +36,7 @@ model output with a live preview in the CLI and the dashboard (T-003b, and
 the SSE part of T-011b), is implemented in PR #43 and reviewed, fixed and
 stacked on the others in PR #44. The dashboard's run comparison view (another
 part of T-011b) is implemented in PR #45, stacked on #44, and the per-day
-activity charts (also T-011b) in the pull request stacked on #45. `docs/STATUS.md` lists the
+activity charts (also T-011b) in PR #46, stacked on #45. `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
 ## Next up (owner)

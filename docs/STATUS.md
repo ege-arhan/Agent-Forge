@@ -15,7 +15,7 @@ this file's git history.
 
 ## This session (2026-11-20)
 
-**Pull request from branch `claude/stoic-gates-8bmzax`, stacked on PR #45**
+**PR #46** (branch `claude/stoic-gates-8bmzax`), **stacked on PR #45**
 (merge #40 → #41 → #42 → #44 → #45 first; this branch contains them).
 PRs #40–#45 were unchanged: green CI, no unresolved review findings.
 
@@ -221,7 +221,7 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 ## Pull requests awaiting the owner
 
-Merge order for everything open: **#40 → #41 → #42 → #44 → #45 → the 2026-11-20 pull request** (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
+Merge order for everything open: **#40 → #41 → #42 → #44 → #45 → #46** (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not
 merge #43 by itself: it lacks the fixes above and conflicts with the stack.
 
