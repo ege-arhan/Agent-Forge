@@ -64,3 +64,12 @@ async def stats(
 ) -> dict[str, Any]:
     since = utcnow() - timedelta(days=days) if days else None
     return await service.runs.stats(since=since)
+
+
+@router.get("/stats/timeseries")
+async def stats_timeseries(
+    service: ServiceDep,
+    days: Annotated[int, Query(ge=1, le=90)] = 30,
+) -> dict[str, Any]:
+    """Per-day run counts, tokens, known cost and mean duration (UTC days)."""
+    return await service.runs.timeseries(days=days)

@@ -18,6 +18,8 @@ export interface ModelConfig {
   max_tokens: number;
   base_url: string | null;
   api_key_env: string | null;
+  /** Stream model output as `llm.delta` events (live preview on the run page). */
+  stream?: boolean;
   options: Record<string, unknown>;
 }
 
@@ -211,6 +213,29 @@ export interface Stats {
   output_tokens: number;
 }
 
+/** One UTC calendar day of `GET /stats/timeseries`. */
+export interface DailyPoint {
+  date: string;
+  runs: number;
+  succeeded: number;
+  failed: number;
+  evaluated: number;
+  passed: number;
+  input_tokens: number;
+  output_tokens: number;
+  /** null when no run that day has known pricing. */
+  known_cost_usd: number | null;
+  runs_with_unknown_cost: number;
+  mean_duration_seconds: number | null;
+  timed_runs: number;
+}
+
+export interface Timeseries {
+  days: number;
+  timezone: string;
+  series: DailyPoint[];
+}
+
 export interface SuiteTask {
   id: string;
   goal: string;
@@ -394,6 +419,15 @@ export interface AgentVersion {
   created_at: string;
 }
 
+/** Trace-level diagnosis of a failed run (rule-based; a heuristic, not a proven cause). */
+export interface TraceDiagnosis {
+  stage: string;
+  signals: string[];
+  summary: string;
+  details: string[];
+  phases: Record<string, number>;
+}
+
 export interface TaskFailure {
   task_id: string;
   repeat: number;
@@ -402,6 +436,8 @@ export interface TaskFailure {
   secondary: string[];
   summary: string;
   evidence: string[];
+  /** Absent on cycles stored before the diagnosis existed; null when the trace cannot explain the failure. */
+  diagnosis?: TraceDiagnosis | null;
 }
 
 export interface FailureAnalysis {
@@ -416,6 +452,9 @@ export interface FailureAnalysis {
   passed: number;
   failed: number;
   categories: Record<string, number>;
+  /** Diagnosed stage -> failed runs. Absent on cycles stored before the diagnosis existed. */
+  stages?: Record<string, number>;
+  signals?: Record<string, number>;
   tool_issues: Record<string, Record<string, number>>;
   tasks: { task_id: string; runs: number; passed: number; categories: Record<string, number> }[];
   failures: TaskFailure[];
@@ -454,6 +493,11 @@ export interface GateResult {
     max_task_pass_rate_drop: number;
     max_mean_score_drop: number;
     min_pass_rate: number | null;
+    max_token_increase?: number | null;
+    max_duration_increase?: number | null;
+    min_repeats?: number | null;
+    max_check_pass_rate_drop?: number | null;
+    fail_on_categories?: string[];
   };
   tasks: {
     task_id: string;

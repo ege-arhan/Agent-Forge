@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -84,6 +85,13 @@ def test_agent_lifecycle_and_run(client: TestClient) -> None:
 
     stats = client.get(f"{API}/stats").json()
     assert stats["total_runs"] == 1 and stats["evaluation_pass_rate"] == 1.0
+
+    series = client.get(f"{API}/stats/timeseries", params={"days": 7}).json()
+    assert series["days"] == 7 and len(series["series"]) == 7
+    today = series["series"][-1]
+    assert today["runs"] == 1 and today["succeeded"] == 1 and today["passed"] == 1
+    assert sum(day["runs"] for day in series["series"][:-1]) == 0
+    assert client.get(f"{API}/stats/timeseries", params={"days": 91}).status_code == 422
 
     rerun = client.post(f"{API}/runs/{run_id}/rerun")
     assert rerun.status_code == 202
@@ -283,3 +291,99 @@ def test_cancel_orphaned_run_sets_finished_at(client: TestClient) -> None:
     body = client.post(f"{API}/runs/{run.id}/cancel").json()
     assert body["status"] == "cancelled"
     assert body["finished_at"] is not None
+
+
+def test_event_stream_carries_streamed_model_output(client: TestClient) -> None:
+    """model.stream: token deltas reach SSE clients; the stored run has the whole text."""
+    import json
+
+    thought = "I will write the greeting file and then report back to the user in one line."
+    config = demo_config()
+    config["model"]["stream"] = True
+    config["model"]["options"] = {
+        "stream_delay_seconds": 0.05,  # keeps the run alive while the test subscribes
+        "turns": [
+            {
+                "text": thought,
+                "tool_calls": [
+                    {"name": "write_file", "arguments": {"path": "hello.txt", "content": "hi\n"}}
+                ],
+            },
+            {"text": "Done."},
+        ],
+    }
+    run_id = client.post(f"{API}/runs", json={"goal": "Create hello.txt", "config": config}).json()[
+        "id"
+    ]
+    with client.stream("GET", f"{API}/runs/{run_id}/events") as stream:
+        body = "".join(stream.iter_text())
+
+    events = [
+        json.loads(block.split("data: ", 1)[1])
+        for block in body.split("\n\n")
+        if block.startswith("event: llm.delta")
+    ]
+    first_step = "".join(e["data"]["text"] for e in events if e["data"]["step"] == 0)
+    # The subscription may begin after the first words; what arrives is in order.
+    assert first_step and thought.endswith(first_step)
+    assert "event: step.finished" in body
+
+    run = wait_for(client, f"{API}/runs/{run_id}", terminal)
+    assert run["status"] == "succeeded", run
+    assert run["steps"][0]["thought"] == thought
+    assert run["result"] == "Done."
+
+
+# ------------------------------------------------------- YAML import (parse)
+def test_parse_agent_yaml_then_create(client: TestClient) -> None:
+    text = (EXAMPLES / "agents" / "scripted-demo.yaml").read_text()
+    parsed = client.post(f"{API}/agents/parse", json={"content": text})
+    assert parsed.status_code == 200, parsed.text
+    config = parsed.json()
+    assert config["name"] == "scripted-demo"
+    assert config["limits"]["max_steps"] == 15
+    # Parsing stores nothing ...
+    assert client.get(f"{API}/agents").json() == []
+    # ... and what it returns is accepted by the create endpoint unchanged.
+    created = client.post(f"{API}/agents", json=config)
+    assert created.status_code == 201, created.text
+    assert created.json()["config"] == config
+
+
+def test_parse_agent_accepts_json_text(client: TestClient) -> None:
+    parsed = client.post(f"{API}/agents/parse", json={"content": json.dumps(demo_config())})
+    assert parsed.status_code == 200, parsed.text
+    assert parsed.json()["name"] == "scripted-demo"
+
+
+@pytest.mark.parametrize(
+    ("content", "fragment"),
+    [
+        ("name: [unclosed", "cannot parse agent config"),
+        ("- just\n- a list\n", "expected a mapping"),
+        ("just a sentence", "expected a mapping"),
+        ("name: x\nmodel: {provider: scripted}\nno_such_field: 1\n", "no_such_field"),
+        ("description: no name\n", "name"),
+        # a "billion laughs" document: tiny text, exponentially large once walked
+        (
+            "a: &a [x, x, x, x, x, x, x, x, x]\n"
+            + "".join(
+                f"{c}: &{c} [*{p}, *{p}, *{p}, *{p}, *{p}, *{p}, *{p}, *{p}, *{p}]\n"
+                for p, c in zip("abcdefgh", "bcdefghi", strict=True)
+            )
+            + "name: bomb\nmodel: {provider: scripted, options: {x: *i}}\n",
+            "aliases",
+        ),
+        # python object tags must never be constructed
+        ("name: !!python/object/apply:os.system ['true']\n", "cannot parse agent config"),
+    ],
+)
+def test_parse_agent_rejects_bad_text(client: TestClient, content: str, fragment: str) -> None:
+    response = client.post(f"{API}/agents/parse", json={"content": content})
+    assert response.status_code == 400, response.text
+    assert fragment in response.json()["detail"]
+
+
+def test_parse_agent_requires_content(client: TestClient) -> None:
+    assert client.post(f"{API}/agents/parse", json={"content": ""}).status_code == 422
+    assert client.post(f"{API}/agents/parse", json={}).status_code == 422
