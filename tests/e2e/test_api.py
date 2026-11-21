@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -331,3 +332,58 @@ def test_event_stream_carries_streamed_model_output(client: TestClient) -> None:
     assert run["status"] == "succeeded", run
     assert run["steps"][0]["thought"] == thought
     assert run["result"] == "Done."
+
+
+# ------------------------------------------------------- YAML import (parse)
+def test_parse_agent_yaml_then_create(client: TestClient) -> None:
+    text = (EXAMPLES / "agents" / "scripted-demo.yaml").read_text()
+    parsed = client.post(f"{API}/agents/parse", json={"content": text})
+    assert parsed.status_code == 200, parsed.text
+    config = parsed.json()
+    assert config["name"] == "scripted-demo"
+    assert config["limits"]["max_steps"] == 15
+    # Parsing stores nothing ...
+    assert client.get(f"{API}/agents").json() == []
+    # ... and what it returns is accepted by the create endpoint unchanged.
+    created = client.post(f"{API}/agents", json=config)
+    assert created.status_code == 201, created.text
+    assert created.json()["config"] == config
+
+
+def test_parse_agent_accepts_json_text(client: TestClient) -> None:
+    parsed = client.post(f"{API}/agents/parse", json={"content": json.dumps(demo_config())})
+    assert parsed.status_code == 200, parsed.text
+    assert parsed.json()["name"] == "scripted-demo"
+
+
+@pytest.mark.parametrize(
+    ("content", "fragment"),
+    [
+        ("name: [unclosed", "cannot parse agent config"),
+        ("- just\n- a list\n", "expected a mapping"),
+        ("just a sentence", "expected a mapping"),
+        ("name: x\nmodel: {provider: scripted}\nno_such_field: 1\n", "no_such_field"),
+        ("description: no name\n", "name"),
+        # a "billion laughs" document: tiny text, exponentially large once walked
+        (
+            "a: &a [x, x, x, x, x, x, x, x, x]\n"
+            + "".join(
+                f"{c}: &{c} [*{p}, *{p}, *{p}, *{p}, *{p}, *{p}, *{p}, *{p}, *{p}]\n"
+                for p, c in zip("abcdefgh", "bcdefghi", strict=True)
+            )
+            + "name: bomb\nmodel: {provider: scripted, options: {x: *i}}\n",
+            "aliases",
+        ),
+        # python object tags must never be constructed
+        ("name: !!python/object/apply:os.system ['true']\n", "cannot parse agent config"),
+    ],
+)
+def test_parse_agent_rejects_bad_text(client: TestClient, content: str, fragment: str) -> None:
+    response = client.post(f"{API}/agents/parse", json={"content": content})
+    assert response.status_code == 400, response.text
+    assert fragment in response.json()["detail"]
+
+
+def test_parse_agent_requires_content(client: TestClient) -> None:
+    assert client.post(f"{API}/agents/parse", json={"content": ""}).status_code == 422
+    assert client.post(f"{API}/agents/parse", json={}).status_code == 422

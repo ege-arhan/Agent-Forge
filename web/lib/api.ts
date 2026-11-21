@@ -127,6 +127,8 @@ export const api = {
   agents: () => request<Agent[]>("/agents"),
   agent: (id: string) => request<Agent>(`/agents/${id}`),
   createAgent: (config: AgentConfig) => request<Agent>("/agents", { method: "POST", body: config }),
+  parseAgentConfig: (content: string) =>
+    request<AgentConfig>("/agents/parse", { method: "POST", body: { content } }),
   deleteAgent: (id: string) => request<void>(`/agents/${id}`, { method: "DELETE" }),
   agentVersions: (id: string) => request<AgentVersion[]>(`/agents/${id}/versions`),
 
