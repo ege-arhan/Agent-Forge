@@ -1,19 +1,72 @@
 # AgentForge Development Status
 
-Date: 2026-11-20
+Date: 2026-11-21
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
 merged. Milestone 16 (documentation and demo) and four future-work items are
 implemented in pull requests that await the owner's review; nothing has been
-merged into `main` since 2026-11-01 (checked 2026-11-20). Earlier dated session reports are in
+merged into `main` since 2026-11-01 (checked 2026-11-21). Earlier dated session reports are in
 this file's git history.
 
-## State of `main` (2026-11-20)
+## State of `main` (2026-11-21)
 
 - `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
   of 2026-11-16 succeeded.
 
-## This session (2026-11-20)
+## This session (2026-11-21)
+
+Two pull requests, on two branches, because the first is a security fix that
+should not wait behind the stack.
+
+**PR #47** (branch `claude/stoic-gates-op93zt`, **from `main`, independent of
+every other PR — merge it first**). `npm audit` on `web/package-lock.json`
+reported 11 advisories (1 critical, 3 high, 7 moderate), most in Next.js
+16.3.6. No CI job audited npm packages and Dependabot did not watch `web/`,
+so nothing had reported them. The PR upgrades Next.js to 16.4.6 and the
+affected transitive packages (`npm audit`: 0), adds an `npm audit` job to the
+Security workflow, adds `web/` to Dependabot and sets `agentRules: false`
+(Next.js 16.4 otherwise writes `AGENTS.md`/`CLAUDE.md` into `web/`). Whether
+each advisory was reachable in this dashboard was not assessed. Its own
+`docs/STATUS.md` has the verification. **This branch and the rest of the
+stack still carry the old lockfile.** The stack does not change
+`web/package.json` or the lockfile, so merging it after #47 keeps the fix; a
+trial merge of the two branches (2026-11-21) conflicted only in
+`docs/STATUS.md`, where this file's version is the one to keep.
+
+**YAML import PR** (branch `feature/agent-yaml-import`), **stacked on
+PR #46** (merge #40 → #41 → #42 → #44 → #45 → #46 first; this branch
+contains them). PRs #40–#46 were unchanged: green CI, no unresolved review
+findings.
+
+- Implemented the YAML-import part of T-011b. The dashboard's *New agent*
+  form accepts YAML as well as JSON and can load a `.yaml`, `.yml` or
+  `.json` file. JSON is parsed in the browser. YAML is sent to the new
+  `POST /agents/parse`, which reads it with `yaml.safe_load` (as the CLI
+  does), validates it against the agent schema and the server policy and
+  returns it as JSON; nothing is stored until *Create agent*. No schema
+  change.
+- Security: the endpoint rejects YAML aliases. A "billion laughs" document
+  of a few hundred bytes loads cheaply (aliases share one object) but is
+  exponentially large once the response is serialised; a test sends one and
+  expects a 400. Python object tags are refused by the safe loader (tested).
+  The endpoint is behind the API key, the request-size limit and the rate
+  limit like every other route (the API-key case is tested).
+- Scope, stated plainly: comments and formatting of an imported file are not
+  kept; only the agent form gained YAML (the experiment-variant and
+  evaluator fields still take JSON); the CLI still accepts aliases.
+- Verification on this branch: ruff, ruff format, mypy --strict: clean.
+  `pytest -m "not docker"`: 514 passed (12 new). Docker-sandbox and
+  PostgreSQL tests not run locally; CI runs both. Dashboard: lint,
+  typecheck, 54 unit tests (7 new). Checked in a browser against a running
+  API (dev server), 1440 px light and 420 px dark: importing
+  `examples/agents/scripted-demo.yaml` and creating the agent; the messages
+  for a wrong file type, broken YAML, a YAML alias, broken JSON and a
+  duplicate name; no horizontal overflow; the only console errors were the
+  expected 400 responses. No screenshot was added or regenerated.
+- T-011b has one part left: component tests. Its recorded blocker (the
+  `npm install vitest` crash) no longer reproduces — see TASKS.md.
+
+## Session of 2026-11-20
 
 **PR #46** (branch `claude/stoic-gates-8bmzax`), **stacked on PR #45**
 (merge #40 → #41 → #42 → #44 → #45 first; this branch contains them).
@@ -221,11 +274,13 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 ## Pull requests awaiting the owner
 
-Merge order for everything open: **#40 → #41 → #42 → #44 → #45 → #46** (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
+**Merge #47 first** (the dashboard security fix; from `main`, independent).
+Merge order for the rest: **#40 → #41 → #42 → #44 → #45 → #46 → the
+YAML-import PR** (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not
 merge #43 by itself: it lacks the fixes above and conflicts with the stack.
 
-Agent work is spread over thirteen pull requests. The two oldest stacks could
+Agent work is spread over fifteen pull requests. The two oldest stacks could
 not both be merged until PR #40 combined them (2026-11-14):
 
 - **Milestone 16 stack** — #37 (offline tour) → #38 (screenshots, docs index,

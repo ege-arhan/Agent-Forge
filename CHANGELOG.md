@@ -8,6 +8,17 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- YAML import in the dashboard's agent form (T-011b, part): *New agent*
+  accepts YAML as well as JSON, and *Import file…* loads a `.yaml`, `.yml`
+  or `.json` file (up to 512 KB) into the editor — the same files
+  `agentforge agents create` reads. JSON is parsed in the browser; YAML is
+  sent to the new `POST /agents/parse`, which reads it with the parser the
+  CLI uses, validates it against the agent schema and the server policy and
+  returns it as JSON without storing anything. That endpoint rejects YAML
+  aliases (`*name`): a few hundred bytes of nested aliases describe a
+  structure that is exponentially large once serialised. The CLI still
+  accepts them. Comments and formatting of an imported YAML file are not
+  kept: the agent is stored as the parsed configuration.
 - Dashboard activity charts (T-011b, part): the home page has an *Activity
   over time* card with four small per-day charts — runs, tokens, known cost
   and mean run duration — for the last 7, 14, 30 or 90 days, exact figures

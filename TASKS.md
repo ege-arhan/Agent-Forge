@@ -117,10 +117,22 @@ _None open. Continue with P1 in roadmap order._
   are bucketed by creation time, the rows of the range are aggregated in
   Python (capped at 90 days), and the charts are not broken down by agent
   or model.
-- **Remaining:** component tests
-  (React Testing Library once the npm/vitest resolver issue is resolved —
-  `npm install vitest` currently crashes npm 10.9 with "Cannot read properties
-  of null (reading 'edgesOut')"); YAML import in the agent form.
+- **Done (2026-11-21, PR from `feature/agent-yaml-import`; depends on #46):**
+  YAML import — the *New agent* form accepts YAML or JSON and has an
+  *Import file…* button (`.yaml`, `.yml`, `.json`, up to 512 KB). YAML is
+  parsed by the new `POST /agents/parse` (validates, applies the server
+  policy, stores nothing, rejects YAML aliases). Helpers in
+  `web/lib/agent-import.ts` (7 unit tests); 12 API tests. Limits: an
+  imported file's comments and formatting are not kept; the experiment and
+  evaluator forms still take JSON only; no drag-and-drop.
+- **Remaining:** component tests with React Testing Library. The blocker
+  recorded here earlier (`npm install vitest` crashing npm 10.9 with "Cannot
+  read properties of null (reading 'edgesOut')") **no longer reproduces**:
+  on 2026-11-21, in a scratch copy of `web/`, `npm install --save-dev vitest
+  @testing-library/react @testing-library/user-event jsdom` and a clean
+  `npm ci` afterwards both succeeded (npm 10.9.9, vitest 5.1.1). No
+  component test has been written yet; do this after the Next.js upgrade PR
+  (below) is merged, since both change `web/package-lock.json`.
 - **Tech debt:** ESLint pinned to 9.x because `eslint-plugin-react` (via
   `eslint-config-next` 16.3) fails on ESLint 10.
 

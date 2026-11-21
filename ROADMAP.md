@@ -36,7 +36,9 @@ model output with a live preview in the CLI and the dashboard (T-003b, and
 the SSE part of T-011b), is implemented in PR #43 and reviewed, fixed and
 stacked on the others in PR #44. The dashboard's run comparison view (another
 part of T-011b) is implemented in PR #45, stacked on #44, and the per-day
-activity charts (also T-011b) in PR #46, stacked on #45. `docs/STATUS.md` lists the
+activity charts (also T-011b) in PR #46, stacked on #45; YAML import in the
+agent form (also T-011b) is in a PR from `feature/agent-yaml-import`, stacked
+on #46. `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
 ## Next up (owner)
@@ -54,4 +56,4 @@ open pull requests and the order to merge them in.
 - Broader model evaluations: more tasks, repeats and models, and a real
   improvement cycle on an unconstrained failure; needs a budget (T-009c).
 - Also planned: vector memory (T-006b), distributed execution (T-015), the
-  remaining dashboard enhancements (T-011b: component tests, YAML import).
+  remaining dashboard enhancement (T-011b: component tests).

@@ -11,6 +11,7 @@ endpoint except `/health` requires `Authorization: Bearer <key>`.
 | `GET /stats/timeseries?days=N` | per-day activity for the last `N` UTC days (1–90, default 30), today included and empty days present: runs, succeeded, failed, evaluated, passed, input/output tokens, `known_cost_usd` (`null` when no run that day has known pricing), runs with unknown cost, mean duration and the number of runs it covers. Tokens, cost and duration count finished runs |
 | `GET /providers`, `GET /tools`, `GET /evaluators` | capabilities (tool schemas and permissions, evaluator parameter schemas) |
 | `GET/POST /agents`, `GET/PUT/DELETE /agents/{id}` | stored agent configs; `PUT ?change_summary=` stores a new version (a no-op when the config is unchanged) |
+| `POST /agents/parse` | body `{"content": "<YAML or JSON text>"}` → the validated agent config as JSON; nothing is stored. Used by the dashboard to import the YAML files the CLI reads. Applies the server policy; rejects YAML aliases (`*name`), which can describe exponentially large structures; 400 with the parser's or validator's message otherwise |
 | `GET /agents/{id}/versions[/{version}]` | immutable version history, newest first (source, change summary, parent version, improvement id, config) |
 | `POST /runs` | start a run: `{goal, agent_id or config, evaluators?, labels?}` → 202 with the pending run |
 | `GET /runs?status&agent_id&benchmark_run_id&limit&offset` | run summaries + total |
