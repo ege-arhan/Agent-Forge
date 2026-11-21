@@ -1,10 +1,45 @@
 # AgentForge Development Status
 
-Date: 2026-10-31
+Date: 2026-11-21
 
 Version: **0.2.0** (release prepared; not tagged). Milestones 0–15 complete in
 the release branch; the project is in **feature freeze** until the owner
 starts milestone 16 or a future-work item (see ROADMAP.md).
+
+## Update 2026-11-21
+
+- **Dashboard dependency advisories, fixed on branch
+  `claude/stoic-gates-op93zt` (PR against `main`, independent of every other
+  open PR).** `npm audit` on `main`'s `web/package-lock.json` reported 11
+  advisories (1 critical, 3 high, 7 moderate): Next.js 16.3.6 (among them
+  remote code execution and request forgery in the image optimizer, and
+  cache poisoning in self-hosted deployments), `sharp`, `zod`,
+  `source-map-js`, and `minimatch` under the lint tooling. No CI job audited
+  npm packages — the Security workflow covered Python only — and Dependabot
+  did not watch `web/`, so nothing reported them. Whether each advisory can
+  be reached in this dashboard was not assessed.
+- The fix: Next.js and `eslint-config-next` 16.3.6 → 16.4.6, `npm audit fix`
+  for the rest (lockfile only); a new Security job
+  *Dashboard dependency vulnerabilities (npm audit)*; `web/` added to
+  Dependabot; `agentRules: false` in `web/next.config.ts`, because Next.js
+  16.4 writes `AGENTS.md`/`CLAUDE.md` into the project on each build.
+- Verified locally on that branch: `npm audit` reports 0 advisories (the new
+  job's two commands exit 1 on the old lockfile and 0 on the new one); clean
+  `npm ci`, lint, typecheck, 17 unit tests and the production build pass;
+  the built dashboard was opened in a browser against a running API (all
+  nine top-level pages and an agent page render, no console errors).
+  Python code untouched: ruff and the 347 non-Docker tests pass (mypy, the
+  Docker-sandbox and PostgreSQL tests were not run here). The dashboard
+  image is built by CI, not here.
+- `main` is still at `9a0f8fb`; CI on it and the scheduled Security run of
+  2026-11-16 were green. Nothing has been merged since 2026-11-01. Agent PRs
+  awaiting review: #40 → #41 → #42 → #44 → #45 → #46 (a stack; each contains
+  the ones before it, and #40 contains #13, #32–#34 and #37–#39), plus a
+  YAML-import PR from `feature/agent-yaml-import` stacked on #46. The stack's
+  own `docs/STATUS.md` describes them. Those branches carry the same
+  vulnerable lockfile until this fix is merged into them.
+- Dependabot PRs #15–#19, #27–#31 and #36 are open (the owner's to merge;
+  their CI was not checked this session).
 
 ## Update 2026-10-31
 
