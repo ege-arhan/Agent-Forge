@@ -163,6 +163,21 @@ All notable changes are documented here. The format follows
 - `.gitignore`: `web/AGENTS.md` and `web/CLAUDE.md`, which `next dev` writes.
 ### Security
 
+- Dashboard dependencies: Next.js 16.3.6 → 16.4.6 (with `eslint-config-next`)
+  and patched transitive packages (`sharp`, `zod`, `source-map-js`,
+  `minimatch` and the `typescript-eslint` packages). `npm audit` reported
+  11 advisories against `web/package-lock.json` (1 critical, 3 high,
+  7 moderate), including remote code execution and request forgery in the
+  Next.js image optimizer and cache poisoning in self-hosted deployments; it
+  now reports none. Whether each advisory was reachable in this dashboard
+  was not assessed — the fix is the upgrade.
+- The Security workflow audits the dashboard's lockfile (`npm audit`): any
+  advisory in packages shipped in the image fails the job, as do high and
+  critical advisories in development tooling. Until now only the Python
+  dependencies were audited, which is how the above went unnoticed.
+  Dependabot also watches `web/` (monthly, at most three open PRs).
+- `web/next.config.ts` sets `agentRules: false`: Next.js 16.4 otherwise
+  writes `AGENTS.md` and `CLAUDE.md` into `web/` on every build.
 - Lockfile: `certifi` 2026.7.22 → 2026.10.23 (PYSEC-2026-4320) and
   `opentelemetry-api`/`-sdk` 1.45.0 → 1.45.2 (CVE-2026-114603) to fix the
   failing scheduled `pip-audit` job on `main`.
