@@ -432,7 +432,7 @@ transport. CI runs on every pull request:
 | Docker sandbox tests | the hardened container sandbox against a real Docker daemon |
 | Model/migration drift test | Alembic migrations match the SQLAlchemy models |
 | Documentation checks | the [tour](docs/tour.md) runs and matches its page; the screenshots match the script that produces them |
-| Dashboard | ESLint, TypeScript, unit tests, production build |
+| Dashboard | ESLint, TypeScript, unit tests, component tests (React Testing Library), production build |
 | Static checks | ruff, `mypy --strict` |
 | Security | pip-audit, ruff security rules, gitleaks, CodeQL |
 | Images | API, dashboard and sandbox images build; the API container is smoke-tested |

@@ -8,6 +8,15 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Dashboard component tests (T-011b, last part): 21 tests in `web/tests/`
+  render the agents page, the runs page, the run page and the *Activity over
+  time* card with Vitest, React Testing Library and jsdom, the API client
+  mocked. They cover creating an agent from JSON and YAML and importing a
+  file, picking runs to compare, the approval gate's Approve and Deny, the
+  live preview of streamed output, and unknown pricing shown as "unknown"
+  rather than zero. `npm test` runs them after the existing unit tests
+  (`npm run test:unit`, `npm run test:components`). Development
+  dependencies only; no change to the dashboard itself.
 - YAML import in the dashboard's agent form (T-011b, part): *New agent*
   accepts YAML as well as JSON, and *Import file…* loads a `.yaml`, `.yml`
   or `.json` file (up to 512 KB) into the editor — the same files

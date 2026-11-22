@@ -93,7 +93,7 @@ _None open. Continue with P1 in roadmap order._
 
 
 ### T-011b Dashboard enhancements
-- **Status:** in-progress — two parts are done and await merge; the rest is todo.
+- **Status:** done (awaiting merge) — every part is implemented in open pull requests (#44, #45, #46, #48 and the component-test PR).
 - **Done (PR #44):** the SSE part — the run page follows
   `GET /runs/{id}/events`, shows streamed model output live and refreshes on
   record-changing events; its poll remains as a fallback when the stream
@@ -125,14 +125,17 @@ _None open. Continue with P1 in roadmap order._
   `web/lib/agent-import.ts` (7 unit tests); 12 API tests. Limits: an
   imported file's comments and formatting are not kept; the experiment and
   evaluator forms still take JSON only; no drag-and-drop.
-- **Remaining:** component tests with React Testing Library. The blocker
-  recorded here earlier (`npm install vitest` crashing npm 10.9 with "Cannot
-  read properties of null (reading 'edgesOut')") **no longer reproduces**:
-  on 2026-11-21, in a scratch copy of `web/`, `npm install --save-dev vitest
-  @testing-library/react @testing-library/user-event jsdom` and a clean
-  `npm ci` afterwards both succeeded (npm 10.9.9, vitest 5.1.1). No
-  component test has been written yet; do this after the Next.js upgrade PR
-  (below) is merged, since both change `web/package-lock.json`.
+- **Done (2026-11-22, PR from `claude/stoic-gates-mx0wbn`; depends on #48
+  and contains #47):** component tests — Vitest + React Testing Library +
+  jsdom; 21 tests in `web/tests/` for the agents page, the runs page, the
+  run page (approval gate, live preview, re-run) and the activity card, with
+  the API client mocked. `npm test` runs them after the `web/lib` unit
+  tests. The npm/vitest crash recorded here earlier did not occur
+  (npm 10.9.9, vitest 5.1.1). Limits: the run comparison, benchmark,
+  experiment, improvement, repositories, GitHub and settings pages and the
+  navigation have no component tests; nothing visual is tested.
+- **Remaining:** nothing planned. Component tests for the pages listed
+  above would be further coverage, not a missing feature.
 - **Tech debt:** ESLint pinned to 9.x because `eslint-plugin-react` (via
   `eslint-config-next` 16.3) fails on ESLint 10.
 

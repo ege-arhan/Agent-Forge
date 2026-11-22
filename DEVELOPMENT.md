@@ -64,6 +64,11 @@ pass, and disallow force pushes and deletions.
   experiments, the GitHub workflow against a local bare repository, Docker
   sandbox (marker `docker`).
 - `tests/e2e` — through the HTTP API (FastAPI TestClient) and the CLI.
+- `web/lib/*.test.ts` — the dashboard's pure helpers (`node:test`;
+  `npm run test:unit` in `web/`).
+- `web/tests/*.test.tsx` — dashboard pages and components rendered in jsdom
+  with Vitest and React Testing Library, the API client mocked
+  (`npm run test:components`). `npm test` runs both.
 
 All tests are offline. The scripted provider stands in for models.
 

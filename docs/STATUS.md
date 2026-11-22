@@ -1,19 +1,63 @@
 # AgentForge Development Status
 
-Date: 2026-11-21
+Date: 2026-11-22
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
 merged. Milestone 16 (documentation and demo) and four future-work items are
 implemented in pull requests that await the owner's review; nothing has been
-merged into `main` since 2026-11-01 (checked 2026-11-21). Earlier dated session reports are in
+merged into `main` since 2026-11-01 (checked 2026-11-22). Earlier dated session reports are in
 this file's git history.
 
-## State of `main` (2026-11-21)
+## State of `main` (2026-11-22)
 
 - `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
   of 2026-11-16 succeeded.
 
-## This session (2026-11-21)
+## This session (2026-11-22)
+
+**Component-test PR** (branch `claude/stoic-gates-mx0wbn`), **stacked on
+PR #48 and containing PR #47**: the branch is the head of #48 (the YAML
+import, which contains #40–#46) with the head of #47 (the Next.js security
+upgrade) merged in, because both this work and #47 change
+`web/package-lock.json`. The merge conflicted only in this file; the stack's
+version was kept. So this one branch holds every open agent change, with the
+upgraded lockfile. PRs #40–#48 were unchanged: green CI, no unresolved
+review findings (checked for #47 and #48 this session; the others as
+recorded below).
+
+- Implemented the last part of T-011b: component tests for the dashboard.
+  Vitest 5 + React Testing Library + jsdom are new dev dependencies; 21
+  tests in `web/tests/` render four pieces with the API client mocked:
+  the agents page (list, empty and error states, creating from JSON and from
+  YAML, broken and empty drafts, a rejected configuration, importing a file,
+  a wrong file type), the runs page (ticking two runs to compare, the third
+  tick replacing the oldest, the status filter, paging, unknown cost), the
+  run page (a finished run, Approve and Deny at the approval gate, the live
+  preview of streamed output and its reload on a recorded step, Re-run and
+  *Compare with original*) and the *Activity over time* card (range buttons,
+  unknown pricing, the error state).
+- `npm test` now runs both suites: the 54 `node:test` unit tests of
+  `web/lib` (`npm run test:unit`) and the component tests
+  (`npm run test:components`). CI's dashboard job calls `npm test`, so it
+  runs them without a workflow change.
+- Scope, stated plainly: the tests mock the API client and `next/navigation`,
+  so they check what a page renders and which API call a click makes, not
+  the API itself or routing. Not covered: the run comparison page, the
+  benchmark, experiment, improvement, repositories, GitHub and settings
+  pages, the navigation, and anything visual (layout, themes). The tests
+  found no bug in the dashboard; no application code changed.
+- Verification on this branch: ruff, ruff format, mypy --strict: clean.
+  `pytest -m "not docker"`: 514 passed. Docker-sandbox and PostgreSQL tests
+  not run locally; CI runs both. Dashboard: lint, typecheck, 54 unit tests,
+  21 component tests (run five times in a row, all passing), production
+  build; a clean `npm ci` followed by `npm test` passes; `npm audit`: 0
+  vulnerabilities with the new packages. Three deliberate breakages of the
+  pages (parsing JSON through the API, Deny sending an approval, dropping
+  the reload on a recorded step) each failed a test, then were reverted.
+  The dashboard image build (`node:22-alpine`) was not run locally; CI
+  builds it.
+
+## Session of 2026-11-21
 
 Two pull requests, on two branches, because the first is a security fix that
 should not wait behind the stack.
@@ -275,12 +319,13 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 ## Pull requests awaiting the owner
 
 **Merge #47 first** (the dashboard security fix; from `main`, independent).
-Merge order for the rest: **#40 → #41 → #42 → #44 → #45 → #46 → the
-YAML-import PR** (each contains the previous one), then close #13, #32, #33, #34, #37, #38 and
+Merge order for the rest: **#40 → #41 → #42 → #44 → #45 → #46 → #48 (YAML
+import) → the component-test PR** (each contains the previous one; the last
+also contains #47, so merging it alone brings in everything). Then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not
 merge #43 by itself: it lacks the fixes above and conflicts with the stack.
 
-Agent work is spread over fifteen pull requests. The two oldest stacks could
+Agent work is spread over seventeen pull requests. The two oldest stacks could
 not both be merged until PR #40 combined them (2026-11-14):
 
 - **Milestone 16 stack** — #37 (offline tour) → #38 (screenshots, docs index,
