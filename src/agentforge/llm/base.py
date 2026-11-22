@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from agentforge.llm.types import CompletionRequest, CompletionResponse
+from agentforge.llm.types import CompletionRequest, CompletionResponse, CompletionStream
 
 
 class LLMProvider(ABC):
@@ -27,6 +27,15 @@ class LLMProvider(ABC):
     @abstractmethod
     async def complete(self, request: CompletionRequest) -> CompletionResponse:
         """Run a single completion."""
+
+    async def stream(self, request: CompletionRequest) -> CompletionStream:
+        """Stream a completion, yielding text deltas.
+
+        The default implementation wraps :meth:`complete` — subclasses override
+        to stream from their SDK.
+        """
+        response = await self.complete(request)
+        return CompletionStream(response)
 
     async def aclose(self) -> None:  # noqa: B027 - optional hook
         """Release network resources held by the provider."""

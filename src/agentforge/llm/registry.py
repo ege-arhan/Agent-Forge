@@ -39,6 +39,17 @@ def _anthropic(config: ModelConfig, env: Mapping[str, str]) -> LLMProvider:
     )
 
 
+def _gemini(config: ModelConfig, env: Mapping[str, str]) -> LLMProvider:
+    from agentforge.llm.gemini import GeminiProvider
+
+    key = env.get(config.api_key_env or "GEMINI_API_KEY")
+    return GeminiProvider(
+        api_key=key,
+        base_url=config.base_url,
+        extra_params=config.options.get("extra_params"),
+    )
+
+
 def _openai_compat(preset_name: str) -> ProviderFactory:
     def factory(config: ModelConfig, env: Mapping[str, str]) -> LLMProvider:
         from agentforge.llm.openai_compat import PRESETS, OpenAICompatibleProvider
@@ -64,7 +75,7 @@ _FACTORIES: dict[str, ProviderFactory] = {
     "anthropic": _anthropic,
     "openai": _openai_compat("openai"),
     "openrouter": _openai_compat("openrouter"),
-    "gemini": _openai_compat("gemini"),
+    "gemini": _gemini,
     "opencode-go": _openai_compat("opencode-go"),
     "local": _openai_compat("local"),
 }
@@ -81,7 +92,7 @@ _INFO: dict[str, ProviderInfo] = {
         "openrouter", "OpenRouter (OpenAI-compatible gateway).", "OPENROUTER_API_KEY", True
     ),
     "gemini": ProviderInfo(
-        "gemini", "Google Gemini via its OpenAI-compatible endpoint.", "GEMINI_API_KEY", True
+        "gemini", "Google Gemini native API (generateContent).", "GEMINI_API_KEY", True
     ),
     "opencode-go": ProviderInfo(
         "opencode-go",

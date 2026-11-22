@@ -10,15 +10,17 @@ _None open. Continue with P1 in roadmap order._
 ## P1 — Important
 
 ### T-015b Public beta readiness / v0.2.0
-- **Status:** in-progress — everything but the owner's GitHub actions is done.
+- **Status:** done — verified 2026-09-28: PRs #8–#12 are merged into `main`
+  (`918f3bf`), `main` is the repository's default branch, and `v0.2.0` is
+  tagged on that commit and published as a GitHub release (not a draft).
 - **Done:** CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates,
   clean-clone walkthrough of the README quick start, stable `main` and the
   PR-based workflow, versions bumped to 0.2.0 everywhere
   (`scripts/release_notes.py check 0.2.0` passes), CHANGELOG `[0.2.0]` section,
   release readiness checklist (`docs/RELEASE_CHECKLIST.md`).
-- **Remaining (owner, GitHub UI):** merge PRs #8 → #9 → #10 → #11; set `main`
-  as default branch and protect it; push the `v0.2.0` tag on `main` (this
-  builds artifacts, publishes GHCR images and drafts the release).
+- **Not verified from a coding session:** branch protection rules on `main`
+  (the GitHub API denies reading them to this session's token), Dependabot
+  PRs against `main` (none open as of 2026-09-28), OpenCode Go key rotation.
 
 ### T-018 Scheduled routine can access the repository
 - **Status:** blocked (owner action in the routines UI)
@@ -36,6 +38,51 @@ _None open. Continue with P1 in roadmap order._
   of "AgentForge daily development"
   (https://claude.ai/code/routines/trig_01PkiuJ7LQqCzv7ZiFigY2DS).
 
+### T-021 Portfolio-quality release (milestone 16)
+- **Status:** in-progress — the agent work is finished; what remains is the
+  owner's review and merges (#37 → #38 → #39, or the combined PR #40; see `docs/STATUS.md`).
+- **Done (2026-11-11, PR from `claude/stoic-gates-773dp5`):** offline
+  five-minute tour — `scripts/tour.py` (runs the documented CLI commands and
+  checks each exit code; `--keep DIR` for the dashboard), `docs/tour.md`
+  (annotated real transcript, OFFLINE label), README link,
+  `tests/e2e/test_tour.py` (tour passes, an unexpected exit fails it, docs
+  name the commands and files the tour uses).
+- **Done (2026-11-12, PR from `claude/stoic-gates-za4zoq`; depends on the
+  tour PR #37):** reproducible screenshots — `scripts/screenshots.py` +
+  `scripts/screenshots.cjs` seed OFFLINE demo data, run the API and the
+  dashboard and capture 8 pages (new: a run paused at the approval gate; the
+  agent improvement page now shows the tour's cycle with its gate verdict);
+  `docs/screenshots/` regenerated from the current dashboard; docs index
+  `docs/README.md`; README pass (link bar, shorter positioning text, "What is
+  tested", current roadmap note, approval and benchmark pictures);
+  `tests/e2e/test_screenshots.py` and a Markdown link/anchor checker
+  `tests/unit/test_docs_links.py`.
+- **Done (2026-11-13, PR #39; depends on #38):**
+  walk-through recording `docs/screenshots/tour.gif` (23 s, 2.2 MB, OFFLINE
+  demo data) produced by `scripts/screenshots.py --record` +
+  `scripts/recording.cjs` (Playwright video → `ffmpeg` GIF), shown in the
+  README and `docs/tour.md`; dashboard fix — the *Improvement history* table
+  no longer clips "Δ pass rate" (the cycle's age moved under the agent name,
+  the two history cards sit side by side only from 1536 px); screenshots are
+  captured with the viewport grown to the page, so the sidebar spans the
+  picture (it is sticky, which is correct in a browser; only the stitched
+  full-page capture cut it short); all pictures regenerated; 6 new tests. Also fixed after a review
+  finding: the tour and the screenshot tooling now set their demo database
+  URL explicitly, so an `AGENTFORGE_DATABASE_URL` in `.env` no longer
+  redirects their data (2 regression tests).
+- **Remaining (owner):** review the README wording and the recording; merge
+  the three PRs in order. Milestone 16 is complete once they are merged.
+
+### T-002c Live smoke test of the native Gemini adapter
+- **Status:** blocked — needs `GEMINI_API_KEY` and the owner's approval for a
+  real-model call. The adapter (T-002b) is unit-tested against a mocked
+  transport only; no session has had credentials, and `ai.google.dev` is not
+  reachable from the cloud sessions, so its wire format (in particular
+  `parametersJsonSchema` for tool schemas, thought signatures and the usage
+  fields) is unconfirmed.
+- **To do:** one run of `examples/agents/gemini.yaml` with a tool call and a
+  tool result; record the outcome as REAL, fix what the API rejects.
+
 ## P2 — Enhancements (future work, not started)
 
 ### T-009c Broader real-model evaluations
@@ -44,26 +91,51 @@ _None open. Continue with P1 in roadmap order._
   estimates; a real improvement cycle on an unconstrained failure. The limited
   validation (T-009b) is the baseline for this.
 
-### T-019b More regression policies
-- **Status:** todo — e.g. per-check or per-category thresholds, token/latency
-  budgets as gate criteria, trend baselines over several accepted runs,
-  required repeats before a gate may pass.
-
-### T-020 Richer failure analysis
-- **Status:** todo — trace-level diagnosis (e.g. distinguishing planning from
-  reasoning failures, which today needs a human reading the trace).
-
-
-### T-002b Native Gemini adapter
-- **Status:** todo — currently served by the OpenAI-compatible endpoint.
 
 ### T-011b Dashboard enhancements
-- **Status:** todo
-- **Description:** live trace via SSE instead of polling; component tests
-  (React Testing Library once the npm/vitest resolver issue is resolved —
-  `npm install vitest` currently crashes npm 10.9 with "Cannot read properties
-  of null (reading 'edgesOut')"); YAML import in the agent form; run
-  comparison view (two runs side by side); cost/time charts over time.
+- **Status:** done (awaiting merge) — every part is implemented in open pull requests (#44, #45, #46, #48 and #49).
+- **Done (PR #44):** the SSE part — the run page follows
+  `GET /runs/{id}/events`, shows streamed model output live and refreshes on
+  record-changing events; its poll remains as a fallback when the stream
+  cannot be opened.
+- **Done (2026-11-19, PR #45; depends on #44):**
+  run comparison — `/runs/compare?a=…&b=…` (tick two runs in the run list, or
+  *Compare with original* on a re-run): metrics with differences, evaluator
+  results by name, differing configuration settings, tool calls paired step
+  by step with the first divergence, both final answers. Logic in
+  `web/lib/compare.ts` (13 unit tests); dashboard only, no API change.
+  Limits: steps are paired by position (no re-alignment after an inserted
+  step), the model's text is not compared, and it is two single runs, not a
+  statistic.
+- **Done (2026-11-20, PR #46; depends on #45):**
+  charts over time — `GET /stats/timeseries?days=N` (per UTC day: runs,
+  succeeded/failed, tokens, known cost, runs with unknown pricing, mean
+  duration) and an *Activity over time* card on the dashboard home page with
+  four per-day charts, a 7/14/30/90-day range, hover figures and a table
+  view. Helpers in `web/lib/timeseries.ts` (8 unit tests); storage and API
+  tests. Limits: UTC days only (no local-timezone or weekly buckets), runs
+  are bucketed by creation time, the rows of the range are aggregated in
+  Python (capped at 90 days), and the charts are not broken down by agent
+  or model.
+- **Done (2026-11-21, PR from `feature/agent-yaml-import`; depends on #46):**
+  YAML import — the *New agent* form accepts YAML or JSON and has an
+  *Import file…* button (`.yaml`, `.yml`, `.json`, up to 512 KB). YAML is
+  parsed by the new `POST /agents/parse` (validates, applies the server
+  policy, stores nothing, rejects YAML aliases). Helpers in
+  `web/lib/agent-import.ts` (7 unit tests); 12 API tests. Limits: an
+  imported file's comments and formatting are not kept; the experiment and
+  evaluator forms still take JSON only; no drag-and-drop.
+- **Done (2026-11-22, PR #49; depends on #48
+  and contains #47):** component tests — Vitest + React Testing Library +
+  jsdom; 21 tests in `web/tests/` for the agents page, the runs page, the
+  run page (approval gate, live preview, re-run) and the activity card, with
+  the API client mocked. `npm test` runs them after the `web/lib` unit
+  tests. The npm/vitest crash recorded here earlier did not occur
+  (npm 10.9.9, vitest 5.1.1). Limits: the run comparison, benchmark,
+  experiment, improvement, repositories, GitHub and settings pages and the
+  navigation have no component tests; nothing visual is tested.
+- **Remaining:** nothing planned. Component tests for the pages listed
+  above would be further coverage, not a missing feature.
 - **Tech debt:** ESLint pinned to 9.x because `eslint-plugin-react` (via
   `eslint-config-next` 16.3) fails on ESLint 10.
 
@@ -84,7 +156,12 @@ _None open. Continue with P1 in roadmap order._
   proposals' limits.
 
 ### T-003b Streaming model output
-- **Status:** todo — stream tokens to the SSE channel for live thoughts.
+- **Status:** done (awaiting merge) — implemented in PR #43, then reviewed,
+  fixed and extended in PR #44 (see the Done table). Not verified
+  against a live model: no session has had credentials. Not included: native
+  streaming for the Gemini adapter and Responses-API models (they answer
+  without deltas), streamed thinking or tool-call arguments, and replay of
+  text streamed before a client subscribed.
 
 ### T-015 Distributed execution
 - **Status:** todo — Redis-backed queue + worker process when multi-node
@@ -96,7 +173,9 @@ _None open. Continue with P1 in roadmap order._
 |---|---|---|
 | T-000 | Repository foundation | pyproject (uv, ruff, mypy strict, pytest), layout, .gitignore |
 | T-001 | Core domain models | `core/config.py`, `core/models.py`, errors, IDs |
-| T-002 | Provider abstraction | Anthropic + OpenAI-compatible (OpenAI/OpenRouter/Gemini/local) + scripted; pricing; plugin registry; tested with SDKs over mock transports |
+| T-002 | Provider abstraction | Anthropic + OpenAI-compatible (OpenAI/OpenRouter/local) + scripted; pricing; plugin registry; tested with SDKs over mock transports |
+| T-020 | Trace-level failure diagnosis | `improvement/diagnosis.py`: tool calls get a phase from the tool's permissions (explore/modify/execute/other); seven trace signals; a stage per failed run (planning, execution, verification, reasoning, reporting, undetermined) by ordered rules. Rule-based heuristics over the recorded tool calls — it does not read the model's text, `reasoning` is a residual, and shell commands are opaque to it (see `docs/improvement.md`). In the analysis (`stages`, `signals`, `failures[].diagnosis`), `improve analyze`, `GET /improvements/diagnosis`, the dashboard and proposal notes. Exercised on OFFLINE (scripted) runs only; not yet checked against real-model failure traces. Awaiting review (PR #42, stacked on #41). |
+| T-002b | Native Gemini adapter | `llm/gemini.py` speaks `generateContent` directly over `httpx` (no SDK, no optional extra); id-less function calls resolved by name; opaque "thought" parts echoed back; tool schemas sent as `parametersJsonSchema`; unit-tested with a mocked transport **only — not yet run against the live API (T-002c)**. Replaces the OpenAI-compatible `gemini` preset. |
 | T-003 | Agent runtime | retries/backoff, timeouts, cancellation, max steps/tool calls, consecutive-error cap, refusal/max_tokens handling, plan_execute, evaluation retries, events |
 | T-004 | Tool system | registry/toolsets/entry points, executor, filesystem/terminal/git/http/github/memory tools |
 | T-005 | Sandbox | workspace confinement, local sandbox (scrubbed env, process-group kill, output caps), Docker sandbox (hardened, tested against a real daemon) |
@@ -122,3 +201,5 @@ _None open. Continue with P1 in roadmap order._
 | T-004b | Human approval for sensitive tools | Opt-in per agent (`AgentConfig.approval.require_for`/`timeout_seconds`); runtime pauses (`RunStatus.AWAITING_APPROVAL`) before a tool call needing one of the listed permissions and blocks on an in-process `ApprovalGate` until decided, cancelled or timed out (then denied); denial fails only that call, not the run. `GET/POST /runs/{id}/approvals[/{call_id}]`; dashboard run page shows a Pending approval card with Approve/Deny; `agentforge run` prompts on a TTY and auto-denies without one. Migration 0003 (written as 0002 on its branch; renumbered after the stack's 0002) widens `runs.status` (`String(16)` → `String(24)`, "awaiting_approval" didn't fit — caught by testing against real PostgreSQL, not just SQLite). Unit + e2e (API, real Postgres) + a regression test for a synchronous-decide race found during manual dashboard verification (screenshots: paused run + Approve card, and the resumed/succeeded run) |
 | T-009b | Limited real-model validation | OpenCode Go provider fixes (`x-opencode-session`, Responses API routing, proxy-injected credentials); 5 models × 2 dogfood tasks (10 executions, all passed); hard suite `dogfood-hard` v1 (4 tasks, offline-validated; 2 run with `deepseek-v4.1-flash`, both passed); controlled improvement-loop demonstration (step limit 8 → failed, proposal `max_steps` 25 → v2 passed; verdict inconclusive). REAL results in `dogfood/results/real/`, write-up in `docs/REAL_MODEL_BENCHMARK.md`. Small samples: no rankings; not evidence of model learning |
 | T-019 | CI regression gate | `agentforge bench gate` (exit 0 pass / 1 regression / 2 cannot decide), thresholds, report `suite_digest` + `failure_category`, `GET /benchmarks/gate`, dashboard verdict on evaluated cycles, GitHub Actions example with a committed offline baseline, `docs/regression-gate.md`; unit, CLI e2e and API tests |
+| T-019b | More regression policies | All opt-in, on `agentforge bench gate` and `GET /benchmarks/gate`: token and latency budgets (`--max-token-increase`, `--max-duration-increase`; usage averaged per task so different repeat counts compare fairly), required repeats (`--min-repeats`, exit 2 when not met), per-check threshold (`--max-check-pass-rate-drop`), failure categories that are never tolerated (`--fail-on-category`), pooled baselines (repeat `--baseline`). Unit, CLI e2e and API tests; `docs/regression-gate.md`. Not included: stored baseline history, age weighting, drift detection or significance tests — the pooled baseline is a plain rate over the reports the caller passes. In PR #40 (budgets) and PR #41 (the rest; depends on #40); not merged yet |
+| T-003b | Streaming model output | Opt-in `model.stream`; `LLMProvider.stream()` → `CompletionStream` (default wraps `complete()`), native for Anthropic and OpenAI-compatible chat completions, word-by-word replay in the scripted provider; runtime emits coalesced `llm.delta` events (≤ 1 per 50 ms), retries a stream that fails midway, closes it on error/cancel; deltas reach the CLI, SSE and the dashboard run page and are never logged or persisted. Tests: both SDKs over mock transports (incl. the real Anthropic SSE parser), runtime failure/cancel/coalescing, API SSE e2e, dashboard parser/reducer; live preview checked in a browser with the scripted provider. In PR #44 (which contains #43); not merged yet; never run against a live model |

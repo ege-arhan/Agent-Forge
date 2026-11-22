@@ -156,6 +156,7 @@ recommended for multi-user deployments.
 
 ## Supply chain
 
-CI runs `pip-audit` on the locked dependency set, ruff's bandit-derived `S`
+CI runs `pip-audit` on the locked Python dependency set, `npm audit` on the
+dashboard's lockfile, ruff's bandit-derived `S`
 rules, gitleaks secret scanning and CodeQL. Dependencies are pinned in
 `uv.lock`; Dependabot proposes updates.

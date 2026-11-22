@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
+from pydantic import ValidationError
 
 from agentforge.api.deps import ServiceDep, audit, resolve_config
 from agentforge.api.schemas import BenchmarkRunCreate, ExperimentCreate, SuiteInfo
@@ -128,27 +129,45 @@ async def benchmark_report(bench_id: str, service: ServiceDep) -> BenchmarkRepor
 @router.get("/benchmarks/gate", response_model=GateResult)
 async def benchmark_gate(
     *,
-    baseline: str,
+    baseline: Annotated[list[str], Query(min_length=1, max_length=20)],
     candidate: str,
     service: ServiceDep,
     max_pass_rate_drop: Annotated[float, Query(ge=0.0, le=1.0)] = 0.0,
     max_task_pass_rate_drop: Annotated[float, Query(ge=0.0, le=1.0)] = 0.0,
     max_mean_score_drop: Annotated[float, Query(ge=0.0, le=1.0)] = 0.0,
     min_pass_rate: Annotated[float | None, Query(ge=0.0, le=1.0)] = None,
+    max_token_increase: Annotated[float | None, Query(ge=0.0)] = None,
+    max_duration_increase: Annotated[float | None, Query(ge=0.0)] = None,
+    min_repeats: Annotated[int | None, Query(ge=1)] = None,
+    max_check_pass_rate_drop: Annotated[float | None, Query(ge=0.0, le=1.0)] = None,
+    fail_on_category: Annotated[list[str] | None, Query(max_length=30)] = None,
 ) -> GateResult:
-    """CI regression gate between two stored runs (same rules as `agentforge bench gate`)."""
+    """CI regression gate between stored runs (same rules as `agentforge bench gate`).
+
+    Repeat ``baseline`` to pool several accepted runs into one baseline.
+    """
+    try:
+        thresholds = GateThresholds(
+            max_pass_rate_drop=max_pass_rate_drop,
+            max_task_pass_rate_drop=max_task_pass_rate_drop,
+            max_mean_score_drop=max_mean_score_drop,
+            min_pass_rate=min_pass_rate,
+            max_token_increase=max_token_increase,
+            max_duration_increase=max_duration_increase,
+            min_repeats=min_repeats,
+            max_check_pass_rate_drop=max_check_pass_rate_drop,
+            fail_on_categories=fail_on_category or [],
+        )
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422, detail="; ".join(str(e["msg"]) for e in exc.errors())
+        ) from exc
     reports = []
-    for bench_id in (baseline, candidate):
+    for bench_id in (*baseline, candidate):
         bench = await service.recorder.benchmarks.get(bench_id)
         page = await service.runs.list(benchmark_run_id=bench.id, limit=len(bench.results) + 50)
         reports.append(build_report(bench, {run.id: run for run in page.items}))
-    thresholds = GateThresholds(
-        max_pass_rate_drop=max_pass_rate_drop,
-        max_task_pass_rate_drop=max_task_pass_rate_drop,
-        max_mean_score_drop=max_mean_score_drop,
-        min_pass_rate=min_pass_rate,
-    )
-    return evaluate_gate(reports[0], reports[1], thresholds)
+    return evaluate_gate(reports[:-1], reports[-1], thresholds)
 
 
 @router.get("/benchmarks/compare", response_model=BenchmarkComparison)

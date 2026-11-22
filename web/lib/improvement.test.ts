@@ -11,6 +11,8 @@ import {
   gateDisplay,
   resultClassOf,
   splitByResultClass,
+  stageLabel,
+  stageSummary,
 } from "./improvement.ts";
 import type { AgentConfig } from "./types.ts";
 
@@ -19,6 +21,14 @@ const config = (provider: string) => ({ model: { provider, model: "m" } }) as un
 test("category labels fall back to readable text", () => {
   assert.equal(categoryLabel("step_limit"), "Step limit reached");
   assert.equal(categoryLabel("brand_new"), "brand new");
+});
+
+test("stage summary lists diagnosed stages, largest first", () => {
+  assert.equal(stageLabel("planning"), "Planning");
+  assert.equal(stageLabel("brand_new"), "brand new");
+  assert.equal(stageSummary({ execution: 1, planning: 2, reasoning: 0 }), "Planning 2 · Execution 1");
+  // Cycles stored before the diagnosis existed carry no stages.
+  assert.equal(stageSummary(undefined), "");
 });
 
 test("category rows are sorted by count and carry shares", () => {
