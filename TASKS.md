@@ -93,7 +93,7 @@ _None open. Continue with P1 in roadmap order._
 
 
 ### T-011b Dashboard enhancements
-- **Status:** done (awaiting merge) — every part is implemented in open pull requests (#44, #45, #46, #48 and the component-test PR).
+- **Status:** done (awaiting merge) — every part is implemented in open pull requests (#44, #45, #46, #48 and #49).
 - **Done (PR #44):** the SSE part — the run page follows
   `GET /runs/{id}/events`, shows streamed model output live and refreshes on
   record-changing events; its poll remains as a fallback when the stream
@@ -125,7 +125,7 @@ _None open. Continue with P1 in roadmap order._
   `web/lib/agent-import.ts` (7 unit tests); 12 API tests. Limits: an
   imported file's comments and formatting are not kept; the experiment and
   evaluator forms still take JSON only; no drag-and-drop.
-- **Done (2026-11-22, PR from `claude/stoic-gates-mx0wbn`; depends on #48
+- **Done (2026-11-22, PR #49; depends on #48
   and contains #47):** component tests — Vitest + React Testing Library +
   jsdom; 21 tests in `web/tests/` for the agents page, the runs page, the
   run page (approval gate, live preview, re-run) and the activity card, with

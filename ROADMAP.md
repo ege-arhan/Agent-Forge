@@ -38,8 +38,7 @@ stacked on the others in PR #44. The dashboard's run comparison view (another
 part of T-011b) is implemented in PR #45, stacked on #44, and the per-day
 activity charts (also T-011b) in PR #46, stacked on #45; YAML import in the
 agent form (also T-011b) is in PR #48, stacked on #46, and the dashboard's
-component tests (the last part of T-011b) are in a PR from
-`claude/stoic-gates-mx0wbn`, stacked on #48. `docs/STATUS.md` lists the
+component tests (the last part of T-011b) are in PR #49, stacked on #48. `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
 ## Next up (owner)

@@ -15,7 +15,7 @@ this file's git history.
 
 ## This session (2026-11-22)
 
-**Component-test PR** (branch `claude/stoic-gates-mx0wbn`), **stacked on
+**PR #49** (branch `claude/stoic-gates-mx0wbn`), **stacked on
 PR #48 and containing PR #47**: the branch is the head of #48 (the YAML
 import, which contains #40–#46) with the head of #47 (the Next.js security
 upgrade) merged in, because both this work and #47 change
@@ -320,7 +320,7 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 **Merge #47 first** (the dashboard security fix; from `main`, independent).
 Merge order for the rest: **#40 → #41 → #42 → #44 → #45 → #46 → #48 (YAML
-import) → the component-test PR** (each contains the previous one; the last
+import) → #49 (component tests)** (each contains the previous one; the last
 also contains #47, so merging it alone brings in everything). Then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not
 merge #43 by itself: it lacks the fixes above and conflicts with the stack.
