@@ -38,6 +38,10 @@ class ModelConfig(_Strict):
         description="Name of the environment variable holding the API key. The key itself is "
         "never stored in configs or runs.",
     )
+    stream: bool = Field(
+        default=False,
+        description="Stream model output for live token display (SSE llm.delta events).",
+    )
     options: dict[str, Any] = Field(
         default_factory=dict, description="Provider-specific extra options."
     )
@@ -84,12 +88,34 @@ class PlannerConfig(_Strict):
     max_plan_steps: int = Field(default=10, ge=1, le=50)
 
 
+class MemorySearchMode(StrEnum):
+    """How persistent memory is searched (see ``agentforge.memory.base``)."""
+
+    LEXICAL = "lexical"
+    VECTOR = "vector"
+    HYBRID = "hybrid"
+
+
 class MemoryConfig(_Strict):
     enabled: bool = True
     persist: bool = Field(
         default=False, description="Store a summary of each run in persistent agent memory."
     )
     recall_limit: int = Field(default=5, ge=0, le=50)
+    search: MemorySearchMode = Field(
+        default=MemorySearchMode.LEXICAL,
+        description="lexical (BM25-style), vector (cosine similarity of embeddings) or hybrid "
+        "(both rankings fused). vector and hybrid need an embedder configured on the server "
+        "(AGENTFORGE_MEMORY_EMBEDDER); without one they fall back to lexical.",
+    )
+    min_similarity: float = Field(
+        default=0.0,
+        ge=-1.0,
+        le=1.0,
+        description="Vector and hybrid search: memories whose cosine similarity to the query "
+        "is not above this are not recalled by the vector ranking. The useful value depends "
+        "on the embedding model.",
+    )
     keep_recent_messages: int = Field(
         default=40,
         ge=4,

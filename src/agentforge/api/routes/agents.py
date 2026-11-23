@@ -5,9 +5,11 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response, status
+from pydantic import BaseModel, Field
 
 from agentforge.api.deps import ServiceDep, audit
 from agentforge.api.schemas import AgentOut
+from agentforge.config_files import parse_agent_config_text
 from agentforge.core.config import AgentConfig
 from agentforge.core.models import AgentVersion
 from agentforge.storage import AgentRepository
@@ -26,6 +28,23 @@ async def create_agent(config: AgentConfig, service: ServiceDep, request: Reques
     agent = await AgentRepository(service.db).create(config)
     audit(request, "agent.create", agent_id=agent.id, name=agent.name)
     return AgentOut.of(agent)
+
+
+class AgentConfigText(BaseModel):
+    content: str = Field(min_length=1, max_length=1_000_000)
+
+
+@router.post("/parse", response_model=AgentConfig)
+async def parse_agent_config(body: AgentConfigText, service: ServiceDep) -> AgentConfig:
+    """Validate a YAML (or JSON) agent configuration and return it as JSON.
+
+    Nothing is stored; the dashboard uses this to import the YAML files the CLI
+    reads. YAML aliases are rejected (see ``parse_agent_config_text``), and the
+    server policy is checked so a config that could not be created fails here.
+    """
+    config = parse_agent_config_text(body.content, allow_aliases=False)
+    service.policy.check_agent(config)
+    return config
 
 
 @router.get("/{agent_id}", response_model=AgentOut)

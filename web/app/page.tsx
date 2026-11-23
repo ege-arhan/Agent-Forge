@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { Activity } from "@/components/activity";
 import { InlineBar } from "@/components/bars";
 import { PageHeader } from "@/components/page-header";
 import { RunsTable } from "@/components/runs-table";
@@ -64,6 +65,8 @@ export default function DashboardPage() {
           />
         </div>
       )}
+
+      <Activity />
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
         <Card className="min-w-0 xl:col-span-2">

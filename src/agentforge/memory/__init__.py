@@ -7,5 +7,15 @@ from agentforge.memory.base import (
     MemoryStore,
     ScoredMemory,
 )
+from agentforge.memory.embeddings import Embedder, EmbeddingError, HashingEmbedder
 
-__all__ = ["InMemoryMemoryStore", "MemoryRecord", "MemoryScope", "MemoryStore", "ScoredMemory"]
+__all__ = [
+    "Embedder",
+    "EmbeddingError",
+    "HashingEmbedder",
+    "InMemoryMemoryStore",
+    "MemoryRecord",
+    "MemoryScope",
+    "MemoryStore",
+    "ScoredMemory",
+]
