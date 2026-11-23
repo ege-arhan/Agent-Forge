@@ -15,7 +15,7 @@ this file's git history.
 
 ## This session (2026-11-23)
 
-**Vector memory PR** (branch `claude/stoic-gates-yzktkz`), **stacked on
+**PR #50** (branch `claude/stoic-gates-yzktkz`), **stacked on
 PR #49** (the branch is #49's head plus this work, so it holds every open
 agent change). PRs #40–#49 were unchanged: #49's CI was green and it has no
 review threads (its automated Codex review did not run: the reviewer reported
@@ -368,7 +368,7 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 **Merge #47 first** (the dashboard security fix; from `main`, independent).
 Merge order for the rest: **#40 → #41 → #42 → #44 → #45 → #46 → #48 (YAML
-import) → #49 (component tests) → the vector memory PR** (each contains the
+import) → #49 (component tests) → #50 (vector memory)** (each contains the
 previous one; the last two also contain #47, so merging the last alone brings
 in everything). Then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not
