@@ -359,7 +359,7 @@ async def test_http_embedder_request_and_response(monkeypatch: pytest.MonkeyPatc
         transport=embedding_server(seen, shuffle=True),
     )
     assert isinstance(embedder, HttpEmbedder)
-    assert embedder.name == "openai-compatible:text-embed-test"
+    assert embedder.name == "openai-compatible:text-embed-test@embeddings.example/v1"
     vectors = await embedder.embed(["a", "abc", ""])
     await embedder.aclose()
     assert vectors == [[1.0, 1.0], [3.0, 1.0], [1.0, 1.0]]  # by index, not arrival order
@@ -457,6 +457,51 @@ def test_http_embedder_validates_the_model_name() -> None:
         HttpEmbedder(" ")
     with pytest.raises(ConfigurationError, match="too long"):
         HttpEmbedder("m" * 200)
+    with pytest.raises(ConfigurationError, match="not a valid URL"):
+        HttpEmbedder("m", base_url="not a url")
+
+
+def test_http_embedder_name_identifies_the_endpoint() -> None:
+    def name(base_url: str) -> str:
+        return HttpEmbedder("m", base_url=base_url).name
+
+    assert name("https://api.openai.com/v1") == "openai-compatible:m@api.openai.com/v1"
+    # The same endpoint written differently is the same vector space ...
+    assert name("https://API.OpenAI.com/v1/") == name("https://api.openai.com/v1")
+    assert name("http://localhost:11434/v1") == "openai-compatible:m@localhost:11434/v1"
+    # ... another server is not, even under the same model name ...
+    assert name("http://localhost:11434/v1") != name("http://localhost:8000/v1")
+    # ... and credentials in the URL never reach the stored name.
+    assert name("https://user:s3cret@host.example/v1") == "openai-compatible:m@host.example/v1"
+
+
+async def test_vectors_from_another_endpoint_are_not_reused() -> None:
+    """Two servers with one model name: the second must not search the first's vectors."""
+
+    def server(vector: list[float], seen: list[int]) -> httpx.MockTransport:
+        def handler(request: httpx.Request) -> httpx.Response:
+            texts = json.loads(request.content)["input"]
+            seen.append(len(texts))
+            return httpx.Response(
+                200, json={"data": [{"index": i, "embedding": vector} for i in range(len(texts))]}
+            )
+
+        return httpx.MockTransport(handler)
+
+    first_calls: list[int] = []
+    second_calls: list[int] = []
+    store = InMemoryMemoryStore(
+        HttpEmbedder("m", base_url="http://a.example/v1", transport=server([1.0, 0.0], first_calls))
+    )
+    await store.add(rec("alpha note"))
+    await store.search(AGENT, "a", "alpha", mode="vector")
+    assert first_calls == [1, 1]  # the query, then the record
+    store.embedder = HttpEmbedder(
+        "m", base_url="http://b.example/v1", transport=server([0.0, 1.0], second_calls)
+    )
+    hits = await store.search(AGENT, "a", "alpha", mode="vector")
+    assert second_calls == [1, 1]  # same dimensions, yet the record is embedded again
+    assert hits[0].score == pytest.approx(1.0)
 
 
 # ------------------------------------------------------------ runtime + tools

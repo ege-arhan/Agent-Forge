@@ -45,9 +45,14 @@ class HttpEmbedder(Embedder):
     ) -> None:
         if not model.strip():
             raise ConfigurationError("an embedding model name is required")
-        name = f"openai-compatible:{model}"
+        # The endpoint is part of the vector space's identity: two servers may
+        # serve different models under one name, and their vectors must not mix.
+        name = f"openai-compatible:{model}@{_endpoint_id(base_url)}"
         if len(name) > MAX_EMBEDDER_NAME:
-            raise ConfigurationError("the embedding model name is too long")
+            raise ConfigurationError(
+                "the embedding model name and endpoint are too long together "
+                f"(over {MAX_EMBEDDER_NAME - len('openai-compatible:@')} characters)"
+            )
         self.model = model
         self.name = name
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
@@ -106,6 +111,18 @@ class HttpEmbedder(Embedder):
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+
+def _endpoint_id(base_url: str) -> str:
+    """Host, port and path of the endpoint (no scheme, no credentials), lower-cased host."""
+    try:
+        url = httpx.URL(base_url)
+    except httpx.InvalidURL as exc:
+        raise ConfigurationError("the embedding base URL is not a valid URL") from exc
+    if not url.host:
+        raise ConfigurationError("the embedding base URL is not a valid URL")
+    port = f":{url.port}" if url.port is not None else ""
+    return f"{url.host.lower()}{port}{url.path.rstrip('/')}"
 
 
 def _error_detail(response: httpx.Response) -> str:

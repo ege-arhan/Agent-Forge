@@ -47,6 +47,12 @@ a usage limit); the others as recorded below.
   embedder are not cleaned up. Memories cannot be browsed through the API or
   the dashboard. No recall-quality measurement was made: there is no
   benchmark here that depends on memory.
+- From the automated (Codex) review of PR #50, verified and fixed: the
+  cached vectors of the `openai-compatible` embedder were keyed by model name
+  only, so pointing the server at another endpoint that serves a different
+  model under the same name would have compared new queries with the old
+  endpoint's vectors (when the dimensions matched). The endpoint's host, port
+  and path are now part of the embedder name; 2 tests added (566 passed).
 - Verification on this branch: ruff, ruff format, mypy --strict,
   `ruff --select S`: clean. `pytest -m "not docker"`: 564 passed (50 new:
   42 unit, 5 storage, 1 CLI, 1 API, and the link check that runs for each

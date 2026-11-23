@@ -120,8 +120,11 @@ redacted like everything else that is stored, but they do leave the server.
   memories embeds them all (in batches of 64); later searches embed only the
   query and any new memories.
 - Vectors are kept per embedder name (`hashing-v1:256`,
-  `openai-compatible:<model>`). Changing the model or the dimensions makes the
-  old vectors unused, not wrong: they are never compared with the new ones.
+  `openai-compatible:<model>@<host/path>`). Changing the model, the endpoint
+  or the dimensions makes the old vectors unused, not wrong: they are never
+  compared with the new ones. (The endpoint is part of the name because two
+  servers can serve different models under one model name; the cost is that
+  moving the same model to another host embeds the memories again.)
   Old rows are not cleaned up automatically; they go when the memory is
   deleted.
 - Search is **brute force**: the 1 000 most recent memories of the agent are
