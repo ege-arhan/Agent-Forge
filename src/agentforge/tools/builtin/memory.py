@@ -62,7 +62,14 @@ class Recall(Tool[RecallInput]):
         if ctx.memory is None:
             raise ToolError("memory is not enabled for this agent")
         scope, namespace = _namespace(ctx)
-        hits = await ctx.memory.search(scope, namespace, args.query, limit=args.limit)
+        hits = await ctx.memory.search(
+            scope,
+            namespace,
+            args.query,
+            limit=args.limit,
+            mode=ctx.memory_search,
+            min_similarity=ctx.memory_min_similarity,
+        )
         if not hits:
             return ToolOutput(content="no relevant memories")
         return ToolOutput(content="\n".join(f"- ({h.score:.2f}) {h.record.content}" for h in hits))

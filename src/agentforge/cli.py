@@ -174,6 +174,7 @@ async def _open_db(settings: Any) -> Any:
 # ------------------------------------------------------------------ commands
 async def cmd_run(args: argparse.Namespace) -> int:
     from agentforge.config_files import load_agent_config
+    from agentforge.memory.embeddings import build_embedder
     from agentforge.runtime.factory import prepare_run
     from agentforge.settings import get_settings
     from agentforge.storage import (
@@ -195,9 +196,10 @@ async def cmd_run(args: argparse.Namespace) -> int:
     memory = None
     agent_id = None
     if not args.no_db:
+        embedder = build_embedder(settings)  # before the database: may reject the settings
         db = await _open_db(settings)
         observers.append(PersistenceObserver(RunRepository(db)))
-        memory = SqlMemoryStore(db)
+        memory = SqlMemoryStore(db, embedder)
         agent = await AgentRepository(db).get_by_name(config.name)
         agent_id = agent.id if agent else None
     try:
@@ -214,6 +216,8 @@ async def cmd_run(args: argparse.Namespace) -> int:
             prepared.runtime.deps.observers.append(ConsoleApprovalObserver(prepared.runtime))
         run = await prepared.execute(evaluators)
     finally:
+        if memory is not None and memory.embedder is not None:
+            await memory.embedder.aclose()
         if db is not None:
             await db.dispose()
         if settings.otel_enabled:
@@ -567,6 +571,83 @@ async def cmd_agents_list(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+async def cmd_memory(args: argparse.Namespace) -> int:
+    """``agentforge memory list|search|add`` for a stored agent's persistent memory."""
+    import os
+
+    from agentforge.memory.base import MemoryRecord, MemoryScope
+    from agentforge.memory.embeddings import build_embedder
+    from agentforge.observability.redaction import Redactor
+    from agentforge.settings import get_settings
+    from agentforge.storage import AgentRepository, SqlMemoryStore
+
+    settings = get_settings()
+    db = await _open_db(settings)
+    store = SqlMemoryStore(db)
+    try:
+        agent = await AgentRepository(db).get_by_name(args.agent)
+        if agent is None:
+            print(f"error: no stored agent named {args.agent!r}", file=sys.stderr)
+            return EXIT_USAGE
+        if args.memory_cmd == "add":
+            record = await store.add(
+                MemoryRecord(
+                    scope=MemoryScope.AGENT,
+                    namespace=agent.id,
+                    content=Redactor.from_environment(dict(os.environ)).redact_text(args.content),
+                    tags=args.tag or [],
+                    metadata={"source": "cli"},
+                )
+            )
+            print(f"saved memory {record.id}")
+            return EXIT_OK
+        if args.memory_cmd == "list":
+            records = await store.list_records(MemoryScope.AGENT, agent.id, limit=args.limit)
+            rows = [{"score": None, **record.model_dump(mode="json")} for record in records]
+            mode = None
+        else:
+            mode = args.mode or agent.config.memory.search.value
+            store.embedder = build_embedder(settings) if mode != "lexical" else None
+            if mode != "lexical" and store.embedder is None:
+                print(
+                    f"error: --mode {mode} needs an embedder (AGENTFORGE_MEMORY_EMBEDDER)",
+                    file=sys.stderr,
+                )
+                return EXIT_USAGE
+            min_similarity = (
+                args.min_similarity
+                if args.min_similarity is not None
+                else agent.config.memory.min_similarity
+            )
+            hits = await store.search(
+                MemoryScope.AGENT,
+                agent.id,
+                args.query,
+                limit=args.limit,
+                mode=mode,
+                min_similarity=min_similarity,
+            )
+            rows = [{"score": hit.score, **hit.record.model_dump(mode="json")} for hit in hits]
+        if args.json:
+            _print_json({"mode": mode, "memories": rows})
+            return EXIT_OK
+        if mode is not None:
+            embedder = store.embedder.name if store.embedder is not None else "-"
+            print(f"mode: {mode}  embedder: {embedder}")
+        if not rows:
+            print("no memories")
+        for row in rows:
+            score = f"{row['score']:>8.4f}  " if row["score"] is not None else ""
+            text = " ".join(str(row["content"]).split())
+            tags = f"  [{', '.join(row['tags'])}]" if row["tags"] else ""
+            print(f"{score}{row['id']}  {str(row['created_at'])[:19]}  {text[:100]}{tags}")
+        return EXIT_OK
+    finally:
+        if store.embedder is not None:
+            await store.embedder.aclose()
+        await db.dispose()
+
+
 def cmd_tools(args: argparse.Namespace) -> int:
     from agentforge.tools.registry import default_registry
 
@@ -773,6 +854,34 @@ def build_parser() -> argparse.ArgumentParser:
     agents_create.add_argument("file")
     agents_create.set_defaults(handler=cmd_agents_create)
     agents.add_parser("list").set_defaults(handler=cmd_agents_list)
+
+    memory = sub.add_parser(
+        "memory", help="inspect and search an agent's persistent memory"
+    ).add_subparsers(dest="memory_cmd", required=True)
+    memory_list = memory.add_parser("list", help="most recent memories of an agent")
+    memory_list.add_argument("agent", help="stored agent name")
+    memory_list.add_argument("--limit", type=int, default=20)
+    memory_search = memory.add_parser("search", help="search an agent's memories")
+    memory_search.add_argument("agent", help="stored agent name")
+    memory_search.add_argument("query")
+    memory_search.add_argument(
+        "--mode",
+        choices=["lexical", "vector", "hybrid"],
+        help="default: the agent's memory.search setting",
+    )
+    memory_search.add_argument("--limit", type=int, default=5)
+    memory_search.add_argument(
+        "--min-similarity",
+        type=float,
+        help="vector/hybrid: default is the agent's memory.min_similarity",
+    )
+    memory_add = memory.add_parser("add", help="save a note to an agent's memory")
+    memory_add.add_argument("agent", help="stored agent name")
+    memory_add.add_argument("content")
+    memory_add.add_argument("--tag", action="append")
+    for parser_ in (memory_list, memory_search, memory_add):
+        parser_.add_argument("--json", action="store_true")
+        parser_.set_defaults(handler=cmd_memory)
 
     sub.add_parser("tools", help="list available tools").set_defaults(handler=cmd_tools)
     sub.add_parser("providers", help="list LLM providers").set_defaults(handler=cmd_providers)

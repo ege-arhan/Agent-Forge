@@ -1,19 +1,67 @@
 # AgentForge Development Status
 
-Date: 2026-11-22
+Date: 2026-11-23
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
-merged. Milestone 16 (documentation and demo) and four future-work items are
+merged. Milestone 16 (documentation and demo) and five future-work items are
 implemented in pull requests that await the owner's review; nothing has been
-merged into `main` since 2026-11-01 (checked 2026-11-22). Earlier dated session reports are in
+merged into `main` since 2026-11-01 (checked 2026-11-23). Earlier dated session reports are in
 this file's git history.
 
-## State of `main` (2026-11-22)
+## State of `main` (2026-11-23)
 
 - `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
   of 2026-11-16 succeeded.
 
-## This session (2026-11-22)
+## This session (2026-11-23)
+
+**Vector memory PR** (branch `claude/stoic-gates-yzktkz`), **stacked on
+PR #49** (the branch is #49's head plus this work, so it holds every open
+agent change). PRs #40–#49 were unchanged: #49's CI was green and it has no
+review threads (its automated Codex review did not run: the reviewer reported
+a usage limit); the others as recorded below.
+
+- Implemented T-006b, vector memory search. An agent's `memory.search` is
+  `lexical` (default, unchanged), `vector` (cosine similarity of embeddings)
+  or `hybrid` (both rankings fused by reciprocal rank fusion), with
+  `memory.min_similarity` as the threshold of the vector ranking; the run's
+  automatic recall and the `recall` tool both use them. The embedder is a
+  server setting (`AGENTFORGE_MEMORY_EMBEDDER`): `none`, `hashing` (built in,
+  offline) or `openai-compatible` (an `/embeddings` endpoint over `httpx`; no
+  new dependency). Vectors are cached per memory and embedder in the new
+  `memory_embeddings` table (**migration 0004**), computed the first time a
+  vector search sees a memory. New `agentforge memory list|search|add`.
+  Guide: `docs/memory.md`.
+- Decisions worth the owner's eye: the embedder is deliberately not part of
+  an agent configuration, so a config submitted through the API cannot send
+  memories or a key to an endpoint of its choosing; a missing or failing
+  embedder makes the search fall back to lexical instead of failing the run;
+  the two new settings are on the improvement loop's allowlist.
+- Scope, stated plainly: the search is brute force in Python over an agent's
+  1 000 most recent memories — no approximate index, no pgvector. The
+  hashing embedder matches word forms ("configuring" / "configuration"), not
+  meaning. **The `openai-compatible` embedder has never been run against a
+  live endpoint** (mocked transport only; T-006c). `min_similarity` defaults
+  to 0.0 and is not calibrated for any model, so vector search with the
+  default returns weakly related memories too. Vectors left by a previous
+  embedder are not cleaned up. Memories cannot be browsed through the API or
+  the dashboard. No recall-quality measurement was made: there is no
+  benchmark here that depends on memory.
+- Verification on this branch: ruff, ruff format, mypy --strict,
+  `ruff --select S`: clean. `pytest -m "not docker"`: 564 passed (50 new:
+  42 unit, 5 storage, 1 CLI, 1 API, and the link check that runs for each
+  documentation file now also runs for `docs/memory.md`; the allowlist
+  assertions were added to an existing test). Integration and e2e tests against a local PostgreSQL 16:
+  163 passed, including the migration/model drift check and a concurrent
+  search test whose insert conflict was confirmed to occur on PostgreSQL.
+  Docker-sandbox tests not run locally; CI runs them. Dashboard untouched
+  (not rebuilt). The `agentforge memory` transcript in `docs/memory.md` is a
+  real run with the hashing embedder (OFFLINE). Five deliberate breakages
+  (threshold ignored, no lexical fallback, `recall` ignoring the mode, a
+  resized stored vector reused, and one more that showed a redundant line,
+  which was removed) were each tried against the new tests.
+
+## Session of 2026-11-22
 
 **PR #49** (branch `claude/stoic-gates-mx0wbn`), **stacked on
 PR #48 and containing PR #47**: the branch is the head of #48 (the YAML
@@ -320,12 +368,13 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 **Merge #47 first** (the dashboard security fix; from `main`, independent).
 Merge order for the rest: **#40 → #41 → #42 → #44 → #45 → #46 → #48 (YAML
-import) → #49 (component tests)** (each contains the previous one; the last
-also contains #47, so merging it alone brings in everything). Then close #13, #32, #33, #34, #37, #38 and
+import) → #49 (component tests) → the vector memory PR** (each contains the
+previous one; the last two also contain #47, so merging the last alone brings
+in everything). Then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not
 merge #43 by itself: it lacks the fixes above and conflicts with the stack.
 
-Agent work is spread over seventeen pull requests. The two oldest stacks could
+Agent work is spread over eighteen pull requests. The two oldest stacks could
 not both be merged until PR #40 combined them (2026-11-14):
 
 - **Milestone 16 stack** — #37 (offline tour) → #38 (screenshots, docs index,

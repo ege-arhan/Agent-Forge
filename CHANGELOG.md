@@ -8,6 +8,30 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Vector memory search (T-006b). `memory.search` in an agent configuration
+  is `lexical` (default, unchanged), `vector` (cosine similarity of
+  embeddings) or `hybrid` (both rankings combined by reciprocal rank
+  fusion); `memory.min_similarity` sets the similarity a memory must exceed
+  in the vector ranking. Both are used by the run's automatic recall and by
+  the `recall` tool, and both are on the improvement loop's allowlist.
+  The embedder is a server setting, `AGENTFORGE_MEMORY_EMBEDDER`: `none`
+  (default; `vector` and `hybrid` then fall back to lexical search with a
+  warning), `hashing` (built in, offline: hashes words and character
+  trigrams, so it matches word forms and not meaning) or `openai-compatible`
+  (an `/embeddings` endpoint, configured with `AGENTFORGE_EMBEDDING_MODEL`,
+  `_BASE_URL` and `_API_KEY_ENV`; spoken over `httpx`, no new dependency).
+  Vectors are cached per memory and embedder in the new `memory_embeddings`
+  table (migration `0004`), computed the first time a vector search sees a
+  memory, so existing memories need no backfill and writing a memory never
+  depends on the embedding endpoint. If the embedder fails, the search
+  falls back to the lexical ranking. New commands
+  `agentforge memory list|search|add`. Guide: `docs/memory.md`.
+  Limits: the search is brute force over an agent's 1 000 most recent
+  memories (no approximate index, no pgvector); the `openai-compatible`
+  embedder is tested against a mocked transport only and has not been run
+  against a live endpoint; `min_similarity` defaults to 0.0 and is not
+  calibrated for any model; memories cannot be browsed through the API or
+  the dashboard.
 - Dashboard component tests (T-011b, last part): 21 tests in `web/tests/`
   render the agents page, the runs page, the run page and the *Activity over
   time* card with Vitest, React Testing Library and jsdom, the API client

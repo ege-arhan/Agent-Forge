@@ -550,7 +550,12 @@ class AgentRuntime:
         ):
             return []
         hits = await store.search(
-            MemoryScope.AGENT, run.agent_id, run.goal, limit=memory_cfg.recall_limit
+            MemoryScope.AGENT,
+            run.agent_id,
+            run.goal,
+            limit=memory_cfg.recall_limit,
+            mode=memory_cfg.search,
+            min_similarity=memory_cfg.min_similarity,
         )
         return [hit.record.content for hit in hits]
 

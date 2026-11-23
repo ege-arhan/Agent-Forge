@@ -17,6 +17,7 @@ Everything here describes what is implemented; planned work is listed in
 | Topic | Page | Covers |
 |---|---|---|
 | Tools | [tools.md](tools.md) | Built-in toolsets, permissions, the executor's guardrails, writing a tool plugin |
+| Memory | [memory.md](memory.md) | Short-term and persistent memory, lexical / vector / hybrid search, embedders and their limits, the `agentforge memory` commands |
 | Evaluation | [evaluation.md](evaluation.md) | Built-in evaluators, custom Python evaluators, the LLM judge, metrics |
 | Benchmarks and experiments | [benchmarks.md](benchmarks.md) | Suite format, setup, repeats, statistics, variant comparison |
 | Agent improvement loop | [improvement.md](improvement.md) | Agent versions, failure analysis, proposals and their allowlist, comparison verdicts |

@@ -12,7 +12,7 @@ latest session report and `TASKS.md` for task-level detail).
 | 3 | Agent runtime (loop, retries, limits, cancellation, planning, events) | ✅ Done |
 | 4 | Tool registry (filesystem, terminal, git, HTTP, GitHub, memory; plugins) | ✅ Done |
 | 5 | Sandbox (workspace confinement, local, hardened Docker) | ✅ Done — stronger isolation options planned |
-| 6 | Memory (context compaction, persistent agent memory, memory tools) | ✅ Done — vector store planned (P2) |
+| 6 | Memory (context compaction, persistent agent memory, memory tools) | ✅ Done — vector and hybrid search (T-006b) implemented, awaiting review |
 | 7 | Evaluation engine (built-in + custom + LLM judge, metrics) | ✅ Done |
 | 8 | Benchmark engine (suites, repeats, statistics, storage) | ✅ Done |
 | 9 | Experiment tracking (variants, comparison, storage) | ✅ Done |
@@ -38,7 +38,9 @@ stacked on the others in PR #44. The dashboard's run comparison view (another
 part of T-011b) is implemented in PR #45, stacked on #44, and the per-day
 activity charts (also T-011b) in PR #46, stacked on #45; YAML import in the
 agent form (also T-011b) is in PR #48, stacked on #46, and the dashboard's
-component tests (the last part of T-011b) are in PR #49, stacked on #48. `docs/STATUS.md` lists the
+component tests (the last part of T-011b) are in PR #49, stacked on #48. A fifth
+future-work item, vector and hybrid memory search (T-006b), is implemented
+in a pull request stacked on #49. `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
 ## Next up (owner)
@@ -55,4 +57,6 @@ open pull requests and the order to merge them in.
   within the same allowlist (T-017b).
 - Broader model evaluations: more tasks, repeats and models, and a real
   improvement cycle on an unconstrained failure; needs a budget (T-009c).
-- Also planned: vector memory (T-006b), distributed execution (T-015).
+- Also planned: distributed execution (T-015). Blocked on credentials: live
+  checks of the Gemini adapter (T-002c) and of the OpenAI-compatible embedder
+  (T-006c).

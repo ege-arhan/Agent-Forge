@@ -336,6 +336,18 @@ def test_apply_changes_enforces_allowlist_and_validation() -> None:
     assert (manual.changes[0].id, manual.changes[0].current) == ("c1", 600.0)
     with pytest.raises(ImprovementError, match="at least one"):
         prepare_manual(base, [])
+    # The memory search settings are tunable: they pick how memories are ranked,
+    # not where they are sent (the embedder is the operator's setting).
+    tuned = apply_changes(
+        base,
+        [
+            ProposedChange(path="memory.search", value="hybrid"),
+            ProposedChange(path="memory.min_similarity", value=0.3),
+        ],
+    )
+    assert (tuned.memory.search.value, tuned.memory.min_similarity) == ("hybrid", 0.3)
+    with pytest.raises(ImprovementError, match="invalid config"):
+        apply_changes(base, [ProposedChange(path="memory.search", value="semantic")])
 
 
 # ------------------------------------------------------------------ compare

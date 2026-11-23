@@ -137,7 +137,8 @@ You can write the proposal yourself (`proposer: manual`): a list of
 `system_prompt`, `tools`, `model.model`, `model.temperature`,
 `model.max_tokens`, `limits.*` (steps, timeout, tool calls, consecutive tool
 errors), `retry.llm_max_attempts`, `retry.evaluation_retries`, `planner.*`,
-`memory.enabled`, `memory.recall_limit`, `memory.keep_recent_messages`.
+`memory.enabled`, `memory.recall_limit`, `memory.keep_recent_messages`,
+`memory.search`, `memory.min_similarity`.
 Credentials, endpoints (`model.base_url`, `api_key_env`), the sandbox and tool
 settings cannot be changed through the loop; the resulting config also passes
 the server policy.

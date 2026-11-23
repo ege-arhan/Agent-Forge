@@ -387,3 +387,49 @@ def test_parse_agent_rejects_bad_text(client: TestClient, content: str, fragment
 def test_parse_agent_requires_content(client: TestClient) -> None:
     assert client.post(f"{API}/agents/parse", json={"content": ""}).status_code == 422
     assert client.post(f"{API}/agents/parse", json={}).status_code == 422
+
+
+def test_vector_memory_recall_through_the_api(settings: Settings) -> None:
+    """A server with an embedder: an agent's vector recall embeds and caches its memories."""
+    import asyncio
+
+    from sqlalchemy import select
+
+    from agentforge.storage.db import Database, MemoryEmbeddingRow, MemoryRow
+
+    async def stored() -> tuple[list[str], list[tuple[str, str, int]]]:
+        db = Database(settings.resolved_database_url)
+        try:
+            async with db.session() as session:
+                memories = list((await session.scalars(select(MemoryRow.id))).all())
+                rows = (await session.scalars(select(MemoryEmbeddingRow))).all()
+                return memories, [(r.memory_id, r.embedder, r.dimensions) for r in rows]
+        finally:
+            await db.dispose()
+
+    config = demo_config() | {
+        "memory": {"persist": True, "search": "vector", "min_similarity": 0.15}
+    }
+    goal = "Create a file named hello.txt containing exactly the text: Hello, AgentForge!"
+    with TestClient(
+        create_app(settings.model_copy(update={"memory_embedder": "hashing"}))
+    ) as client:
+        created = client.post(f"{API}/agents", json=config)
+        assert created.status_code == 201, created.text
+        agent = created.json()
+        assert agent["config"]["memory"]["search"] == "vector"
+        for expected_vectors in (0, 1):
+            # Run 1 has nothing to recall; run 2 recalls run 1's summary by vector search.
+            run = client.post(f"{API}/runs", json={"agent_id": agent["id"], "goal": goal}).json()
+            done = wait_for(client, f"{API}/runs/{run['id']}", terminal)
+            assert done["status"] == "succeeded", done
+            memories, vectors = asyncio.run(stored())
+            assert len(memories) == expected_vectors + 1
+            assert len(vectors) == expected_vectors
+        ((memory_id, embedder, dimensions),) = vectors
+        assert memory_id in memories and (embedder, dimensions) == ("hashing-v1:256", 256)
+
+        rejected = client.post(
+            f"{API}/agents", json=config | {"name": "bad", "memory": {"search": "semantic"}}
+        )
+        assert rejected.status_code == 422

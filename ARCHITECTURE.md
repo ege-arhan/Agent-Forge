@@ -59,7 +59,7 @@ flowchart LR
 | Planner | `runtime/planner.py` | `react` (no upfront plan) and `plan_execute` strategies |
 | Tools | `tools/` | `Tool` interface, registry with toolsets and entry-point plugins, safe executor, built-ins |
 | Sandbox | `sandbox/` | Workspace path confinement; local process and hardened Docker execution |
-| Memory | `memory/` | Short-term context compaction; persistent store interface (in-memory, SQL) |
+| Memory | `memory/` | Short-term context compaction; persistent store interface (in-memory, SQL); lexical, vector and hybrid search; embedders (`memory/embeddings.py` hashing, `llm/embeddings.py` OpenAI-compatible HTTP) |
 | Evaluation | `evaluation/` | Evaluator interface + built-ins, aggregation, objective run metrics |
 | Benchmarks | `benchmarks/` | Suite spec, repeated execution, statistics (Wilson CI, stddev) |
 | Experiments | `experiments/` | Variants over a base config, comparison against a baseline |
@@ -127,7 +127,8 @@ limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · 
 | **Lifecycle events + observers** | Persistence, logs, live SSE and OpenTelemetry export share one mechanism. |
 | **Post-hoc trace export** | Spans are built from the finished run record with recorded timestamps: exact timings, zero overhead and no failure modes in the loop; live progress uses SSE. |
 | **Prometheus text without a client library** | Metrics are derived from the database (survive restarts, include CLI runs); a few lines of formatting avoid a dependency. |
-| **Lexical (BM25-style) memory search** | Dependency-free and deterministic; `MemoryStore.search` is the seam for a vector store. |
+| **Lexical (BM25-style) memory search** | Dependency-free and deterministic; stays the default. |
+| **Vector memory as brute-force cosine over cached embeddings** | Per-agent memories are small (the search window is 1 000 records), so an ANN index or pgvector would add a dependency without a measurable need. Vectors are cached per embedder in `memory_embeddings` and computed lazily at search time, so writes never depend on an embedding endpoint. The embedder is a server setting, never part of an agent config (no new SSRF or credential path through the API). |
 | **Benchmarks as normal runs** | Every benchmark attempt is a fully recorded run, inspectable in the same UI. Task/suite limits act as caps on the agent's own limits. |
 | **Wilson score intervals** | Benchmark samples are small and pass rates near 0/1; comparisons show uncertainty rather than implying rankings. |
 | **Scripted provider** | Deterministic, offline end-to-end tests and demos; explicitly not a model. |

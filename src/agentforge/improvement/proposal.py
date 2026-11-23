@@ -44,6 +44,8 @@ ALLOWED_PATHS = frozenset(
         "memory.enabled",
         "memory.recall_limit",
         "memory.keep_recent_messages",
+        "memory.search",
+        "memory.min_similarity",
     }
 )
 

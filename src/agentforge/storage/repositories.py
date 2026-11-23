@@ -8,16 +8,19 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import case, delete, func, select
+from sqlalchemy.exc import IntegrityError
 
 from agentforge.core.config import AgentConfig
 from agentforge.core.errors import NotFoundError
 from agentforge.core.ids import utcnow
 from agentforge.core.models import Agent, AgentVersion, AgentVersionSource, Run, RunStatus
 from agentforge.memory.base import MemoryRecord, MemoryScope, MemoryStore
+from agentforge.memory.embeddings import Embedder, pack_vector, unpack_vector
 from agentforge.storage.db import (
     AgentRow,
     AgentVersionRow,
     Database,
+    MemoryEmbeddingRow,
     MemoryRow,
     RunRow,
     ToolCallRow,
@@ -559,11 +562,20 @@ def _run(row: RunRow) -> Run:
     )
 
 
-class SqlMemoryStore(MemoryStore):
-    """Persistent memory backed by the ``memories`` table (lexical search)."""
+#: Ids per IN (...) clause (SQLite allows 999 bound parameters in old builds).
+_ID_CHUNK = 500
 
-    def __init__(self, db: Database) -> None:
+
+class SqlMemoryStore(MemoryStore):
+    """Persistent memory backed by the ``memories`` table.
+
+    With an ``embedder``, vector and hybrid search are available and the
+    vectors are cached in ``memory_embeddings``.
+    """
+
+    def __init__(self, db: Database, embedder: Embedder | None = None) -> None:
         self.db = db
+        self.embedder = embedder
 
     async def add(self, record: MemoryRecord) -> MemoryRecord:
         async with self.db.transaction() as session:
@@ -607,5 +619,62 @@ class SqlMemoryStore(MemoryStore):
 
     async def delete(self, record_id: str) -> bool:
         async with self.db.transaction() as session:
+            # The record's vectors go with it (ON DELETE CASCADE; SQLite has
+            # foreign keys switched on in storage/db.py).
             result = await session.execute(delete(MemoryRow).where(MemoryRow.id == record_id))
             return bool(getattr(result, "rowcount", 0))
+
+    async def _load_vectors(self, record_ids: list[str], embedder: str) -> dict[str, list[float]]:
+        vectors: dict[str, list[float]] = {}
+        async with self.db.session() as session:
+            for start in range(0, len(record_ids), _ID_CHUNK):
+                rows = await session.execute(
+                    select(MemoryEmbeddingRow.memory_id, MemoryEmbeddingRow.vector).where(
+                        MemoryEmbeddingRow.embedder == embedder,
+                        MemoryEmbeddingRow.memory_id.in_(record_ids[start : start + _ID_CHUNK]),
+                    )
+                )
+                for memory_id, blob in rows:
+                    try:
+                        vectors[memory_id] = unpack_vector(bytes(blob))
+                    except ValueError:
+                        continue  # unreadable: embedded again by the caller
+        return vectors
+
+    async def _save_vectors(self, vectors: dict[str, list[float]], embedder: str) -> None:
+        if not vectors:
+            return
+        now = utcnow()
+        ids = list(vectors)
+        try:
+            async with self.db.transaction() as session:
+                for start in range(0, len(ids), _ID_CHUNK):
+                    chunk = ids[start : start + _ID_CHUNK]
+                    await session.execute(
+                        delete(MemoryEmbeddingRow).where(
+                            MemoryEmbeddingRow.embedder == embedder,
+                            MemoryEmbeddingRow.memory_id.in_(chunk),
+                        )
+                    )
+                    # A record deleted since it was listed must not get a vector.
+                    alive = set(
+                        (
+                            await session.scalars(
+                                select(MemoryRow.id).where(MemoryRow.id.in_(chunk))
+                            )
+                        ).all()
+                    )
+                    session.add_all(
+                        MemoryEmbeddingRow(
+                            memory_id=memory_id,
+                            embedder=embedder,
+                            dimensions=len(vectors[memory_id]),
+                            vector=pack_vector(vectors[memory_id]),
+                            created_at=now,
+                        )
+                        for memory_id in chunk
+                        if memory_id in alive
+                    )
+        except IntegrityError:
+            # A concurrent search stored the same vectors first; they are equivalent.
+            return

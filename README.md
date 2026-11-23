@@ -259,8 +259,14 @@ else); the run keeps going. Unanswered after `approval.timeout_seconds`
 - **Persistent agent memory**: with `memory.persist: true`, a summary of every
   run is stored; relevant memories are recalled into the system prompt of
   later runs. Agents can also use `remember`/`recall` explicitly.
-- Search is lexical (BM25-style); the `MemoryStore` interface is ready for a
-  vector store.
+- **Search** is lexical (BM25-style) by default. `memory.search: vector` or
+  `hybrid` ranks by embedding similarity instead, once the operator has
+  configured an embedder (`AGENTFORGE_MEMORY_EMBEDDER`): a built-in offline
+  hashing embedder, which matches word forms and not meaning, or an
+  OpenAI-compatible `/embeddings` endpoint, which is tested against a mock
+  only. Vector search is brute force over an agent's most recent 1 000
+  memories; there is no vector index. `agentforge memory list|search|add`
+  inspects an agent's memory. See [docs/memory.md](docs/memory.md).
 
 ## Evaluation
 

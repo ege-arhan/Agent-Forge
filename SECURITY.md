@@ -74,6 +74,16 @@ the agent can read (e.g. by uploading a package).
 - Redaction is defence in depth, not a guarantee: an agent that can read a
   secret can transform it (e.g. base64) before printing it. Do not place
   secrets where the agent can read them.
+- Memory embeddings: the embedder for vector memory search is a server
+  setting (`AGENTFORGE_MEMORY_EMBEDDER`, `AGENTFORGE_EMBEDDING_*`), not part
+  of an agent configuration, so a config submitted through the API cannot
+  choose where memories or the embeddings key are sent. With the
+  `openai-compatible` embedder, the (redacted) text of an agent's memories
+  and of its search queries — run goals and `recall` queries — is sent to the
+  configured endpoint; with `none` or `hashing` nothing leaves the process.
+  An embedding error reports the HTTP status and at most 200 characters of
+  the server's own error message; AgentForge adds neither the request text
+  nor the key to it.
 
 ### Tools and permissions
 
