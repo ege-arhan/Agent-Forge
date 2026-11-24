@@ -157,10 +157,15 @@ _None open. Continue with P1 in roadmap order._
   starting value for `min_similarity` from the observed scores.
 
 ### T-008b More benchmark suites
-- **Status:** todo — e.g. multi-file refactors, larger bug-fix suites, SWE-style
-  tasks from real repositories (license-compatible). The dogfood suites (v1,
-  10 tasks) are small by design; grow them (new suite version) once real-model
-  results show which tasks discriminate.
+- **Status:** done (awaiting merge) for the repository-with-issues suite —
+  implemented 2026-11-24 on `claude/stoic-gates-4w6htq`, stacked on #50 (see
+  the Done table and `dogfood/README.md`).
+- **Not done:** tasks taken from real open-source repositories
+  (license-compatible), multi-file refactoring tasks, and anything larger
+  than a 330-line library. Which tasks separate models is still unknown: no
+  model has run `dogfood-swe`, and only two of `dogfood-hard`'s four tasks
+  were ever run with one (T-009c, needs a budget). Grow or replace tasks
+  only once such results exist.
 
 ### T-017b LLM-assisted improvement proposals
 - **Status:** todo — optional proposer that asks a model for changes, limited to
@@ -215,5 +220,6 @@ _None open. Continue with P1 in roadmap order._
 | T-009b | Limited real-model validation | OpenCode Go provider fixes (`x-opencode-session`, Responses API routing, proxy-injected credentials); 5 models × 2 dogfood tasks (10 executions, all passed); hard suite `dogfood-hard` v1 (4 tasks, offline-validated; 2 run with `deepseek-v4.1-flash`, both passed); controlled improvement-loop demonstration (step limit 8 → failed, proposal `max_steps` 25 → v2 passed; verdict inconclusive). REAL results in `dogfood/results/real/`, write-up in `docs/REAL_MODEL_BENCHMARK.md`. Small samples: no rankings; not evidence of model learning |
 | T-019 | CI regression gate | `agentforge bench gate` (exit 0 pass / 1 regression / 2 cannot decide), thresholds, report `suite_digest` + `failure_category`, `GET /benchmarks/gate`, dashboard verdict on evaluated cycles, GitHub Actions example with a committed offline baseline, `docs/regression-gate.md`; unit, CLI e2e and API tests |
 | T-006b | Vector memory search | `memory.search: lexical \| vector \| hybrid` and `memory.min_similarity` per agent (runtime recall and the `recall` tool); embedders as a server setting (`AGENTFORGE_MEMORY_EMBEDDER`): offline `HashingEmbedder` (word forms, not meaning) and `llm/embeddings.py` for an OpenAI-compatible `/embeddings` endpoint over `httpx`; vectors cached per memory and embedder in `memory_embeddings` (migration 0004), embedded lazily at search time; reciprocal rank fusion for hybrid; lexical fallback when the embedder is missing or fails; `agentforge memory list\|search\|add`; `docs/memory.md`. 42 unit, 5 storage (SQLite and PostgreSQL), 1 CLI and 1 API test. Limits: brute-force search over 1 000 records, no ANN index or pgvector; the HTTP embedder has never been run against a live endpoint (T-006c); `min_similarity` is uncalibrated. Awaiting review (PR #50, stacked on #49) |
+| T-008b | Repository-with-issues suite | `dogfood-swe` v1: three issues (bug at two sites, bug with three causes in two modules, feature across five modules) against one shared synthetic repository (`flowcal`); goal = issue text; checks = hidden fail-to-pass tests, the repository's original tests from the first commit, unchanged data file; offline reference agent `dogfood/agents/offline/swe.yaml`; `swe` role in `scripts/dogfood.py` (real agent: `engineer.yaml`, untuned); 11 integration tests (untouched repository fails every hidden fix check, nine plausible wrong solutions fail exactly the intended checks) plus the reference/idle test. OFFLINE result recorded (3/3). Limits: synthetic, small, never run with a model. Awaiting review (stacked on #50) |
 | T-019b | More regression policies | All opt-in, on `agentforge bench gate` and `GET /benchmarks/gate`: token and latency budgets (`--max-token-increase`, `--max-duration-increase`; usage averaged per task so different repeat counts compare fairly), required repeats (`--min-repeats`, exit 2 when not met), per-check threshold (`--max-check-pass-rate-drop`), failure categories that are never tolerated (`--fail-on-category`), pooled baselines (repeat `--baseline`). Unit, CLI e2e and API tests; `docs/regression-gate.md`. Not included: stored baseline history, age weighting, drift detection or significance tests — the pooled baseline is a plain rate over the reports the caller passes. In PR #40 (budgets) and PR #41 (the rest; depends on #40); not merged yet |
 | T-003b | Streaming model output | Opt-in `model.stream`; `LLMProvider.stream()` → `CompletionStream` (default wraps `complete()`), native for Anthropic and OpenAI-compatible chat completions, word-by-word replay in the scripted provider; runtime emits coalesced `llm.delta` events (≤ 1 per 50 ms), retries a stream that fails midway, closes it on error/cancel; deltas reach the CLI, SSE and the dashboard run page and are never logged or persisted. Tests: both SDKs over mock transports (incl. the real Anthropic SSE parser), runtime failure/cancel/coalescing, API SSE e2e, dashboard parser/reducer; live preview checked in a browser with the scripted provider. In PR #44 (which contains #43); not merged yet; never run against a live model |

@@ -95,8 +95,9 @@ dashboard, not model performance.*
   `null`, never guessed.
 - **Dogfooding**: six agents (coding, debugging, data analysis, security
   analysis, GitHub issue solving, and an engineering agent for the harder
-  `dogfood-hard` suite) with reproducible tasks, hidden checks and offline
-  reference solutions — see [dogfood/README.md](dogfood/README.md).
+  `dogfood-hard` suite and the repository-with-issues suite `dogfood-swe`)
+  with reproducible tasks, hidden checks and offline reference solutions —
+  see [dogfood/README.md](dogfood/README.md).
 - **GitHub**: issue → repository analysis → implementation → tests →
   evaluation → branch → commit → **draft** PR. AgentForge never merges.
 - **Observability**: structured JSON logs with secret redaction, live

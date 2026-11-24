@@ -8,6 +8,20 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Dogfood suite `dogfood-swe` v1 (`dogfood/benchmarks/swe.yaml`, T-008b):
+  three issues (a bug present at two sites, a bug with three causes in two
+  modules, a feature across five modules) against one shared repository,
+  `flowcal`, a small calendar library written for the suite. The goal is the
+  issue text; each task is judged by hidden tests that fail before and pass
+  after, by the repository's original tests read back from the first commit
+  (so removing a test does not hide a regression) and, for the bug tasks, by
+  an unchanged data file. Offline reference solutions in
+  `dogfood/agents/offline/swe.yaml`; `scripts/dogfood.py` has a `swe` role
+  that runs the existing real-model engineering agent on it.
+  `tests/integration/test_swe_suite.py` shows that the untouched repository
+  fails every hidden fix check and that nine plausible wrong solutions fail
+  exactly the intended checks. Limits: the repository is synthetic and
+  small, and the suite has been validated OFFLINE only; no model has run it.
 - Vector memory search (T-006b). `memory.search` in an agent configuration
   is `lexical` (default, unchanged), `vector` (cosine similarity of
   embeddings) or `hybrid` (both rankings combined by reciprocal rank

@@ -1,19 +1,68 @@
 # AgentForge Development Status
 
-Date: 2026-11-23
+Date: 2026-11-24
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
-merged. Milestone 16 (documentation and demo) and five future-work items are
+merged. Milestone 16 (documentation and demo) and six future-work items are
 implemented in pull requests that await the owner's review; nothing has been
-merged into `main` since 2026-11-01 (checked 2026-11-23). Earlier dated session reports are in
+merged into `main` since 2026-11-01 (checked 2026-11-24). Earlier dated session reports are in
 this file's git history.
 
-## State of `main` (2026-11-23)
+## State of `main` (2026-11-24)
 
 - `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
-  of 2026-11-16 succeeded.
+  of 2026-11-23 succeeded.
 
-## This session (2026-11-23)
+## This session (2026-11-24)
+
+**Branch `claude/stoic-gates-4w6htq`, stacked on PR #50** (the branch is
+#50's head plus this work, so it holds every open agent change). PRs #40–#50
+were unchanged: #50's CI was green and its one review thread (the embedding
+endpoint in the vector cache identity) is resolved; the others as recorded
+below.
+
+- Implemented the repository-with-issues part of T-008b: the dogfood suite
+  `dogfood-swe` v1 (`dogfood/benchmarks/swe.yaml`). Three issues against one
+  shared repository, `flowcal`, a calendar library written for the suite
+  (six modules, 329 lines, a command line, a data file, 28 passing tests, a
+  README that states the intended behaviour): `month-end-drift` (a bug whose
+  cause exists at two sites), `conflict-report` (three causes in two
+  modules) and `skip-dates` (a feature across five modules). The goal is the
+  issue text. Checks: hidden tests that fail before and pass after, the
+  repository's original tests read back from the first commit, the tests
+  left in the workspace, and (bug tasks) an unchanged data file. Design and
+  limits: `dogfood/README.md`, "The repository suite".
+- Offline reference solutions: `dogfood/agents/offline/swe.yaml`.
+  `scripts/dogfood.py` has a `swe` role; for real runs it uses the existing
+  `dogfood/agents/engineer.yaml`, unchanged, so the agent is not tuned to
+  the suite. OFFLINE result recorded in
+  `dogfood/results/offline/dogfood-swe-v1/` (3/3; this validates the tasks,
+  not a model).
+- No change to `src/`: the suite uses the existing benchmark format (a YAML
+  anchor shares the repository between the tasks) and the existing
+  evaluators.
+- Scope, stated plainly: **no model has run this suite.** Whether it is
+  harder for a model than `dogfood-hard`, or separates models at all, is
+  unknown, and only a real run can tell (T-009c: needs credentials and the
+  owner's budget approval). The repository is synthetic and small; tasks
+  from real open-source repositories are not done. The real agent's limits
+  (20 steps, 600 s) are tighter than the suite's (30 steps, 900 s) and
+  apply, which may be what decides `skip-dates` rather than the task. The
+  hidden checks hold the behaviour the issue and the README state; a
+  correct solution with a different internal design should pass, but that
+  has only been tried with the reference solutions and their variants.
+- Verification on this branch: ruff, ruff format, mypy --strict: clean.
+  `pytest -m "not docker"`: 580 passed (11 new
+  tests in `tests/integration/test_swe_suite.py`, and the existing
+  reference/idle test now also runs for `swe.yaml`). The new tests show
+  that the untouched repository passes its own tests and fails every hidden
+  fix check, and that nine plausible wrong solutions fail exactly the
+  intended checks (asserted as exact sets of failing checks). Not run: the
+  suite in the Docker sandbox (Docker Hub answered 429 to the pull of
+  `python:3.12`; the checks need `git` and `tar` in the image), PostgreSQL
+  tests (no storage change), the dashboard (untouched).
+
+## Session of 2026-11-23
 
 **PR #50** (branch `claude/stoic-gates-yzktkz`), **stacked on
 PR #49** (the branch is #49's head plus this work, so it holds every open
@@ -374,13 +423,14 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 **Merge #47 first** (the dashboard security fix; from `main`, independent).
 Merge order for the rest: **#40 → #41 → #42 → #44 → #45 → #46 → #48 (YAML
-import) → #49 (component tests) → #50 (vector memory)** (each contains the
-previous one; the last two also contain #47, so merging the last alone brings
+import) → #49 (component tests) → #50 (vector memory) → the `dogfood-swe`
+PR from `claude/stoic-gates-4w6htq`** (each contains the
+previous one; the last three also contain #47, so merging the last alone brings
 in everything). Then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not
 merge #43 by itself: it lacks the fixes above and conflicts with the stack.
 
-Agent work is spread over eighteen pull requests. The two oldest stacks could
+Agent work is spread over nineteen pull requests. The two oldest stacks could
 not both be merged until PR #40 combined them (2026-11-14):
 
 - **Milestone 16 stack** — #37 (offline tour) → #38 (screenshots, docs index,

@@ -40,7 +40,10 @@ activity charts (also T-011b) in PR #46, stacked on #45; YAML import in the
 agent form (also T-011b) is in PR #48, stacked on #46, and the dashboard's
 component tests (the last part of T-011b) are in PR #49, stacked on #48. A fifth
 future-work item, vector and hybrid memory search (T-006b), is implemented
-in PR #50, stacked on #49. `docs/STATUS.md` lists the
+in PR #50, stacked on #49. A sixth, a benchmark suite of issues against a
+shared multi-module repository with hidden tests (`dogfood-swe`, T-008b), is
+implemented on `claude/stoic-gates-4w6htq`, stacked on #50; it is validated
+offline only. `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
 ## Next up (owner)
@@ -51,8 +54,9 @@ open pull requests and the order to merge them in.
 
 ## Future work (not started; not part of v0.2.0)
 
-- Stronger benchmark suites: larger, SWE-style tasks with harder hidden checks
-  (T-008b).
+- Benchmark tasks taken from real open-source repositories, and larger ones
+  (the rest of T-008b; the synthetic repository suite is implemented, see
+  above).
 - More sophisticated improvement proposals: an optional LLM-assisted proposer
   within the same allowlist (T-017b).
 - Broader model evaluations: more tasks, repeats and models, and a real

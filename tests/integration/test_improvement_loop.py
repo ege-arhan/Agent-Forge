@@ -28,13 +28,15 @@ pytestmark = pytest.mark.integration
 
 ROOT = Path(__file__).resolve().parents[2]
 DOGFOOD = ROOT / "dogfood"
+# suite -> (offline reference agent, real-model agent)
 ROLES = {
-    "coding.yaml": "coding.yaml",
-    "debugging.yaml": "debugging.yaml",
-    "data-analysis.yaml": "data-analysis.yaml",
-    "security.yaml": "security-analysis.yaml",
-    "issues.yaml": "github-issue-solver.yaml",
-    "hard.yaml": "engineer.yaml",
+    "coding.yaml": ("coding.yaml", "coding.yaml"),
+    "debugging.yaml": ("debugging.yaml", "debugging.yaml"),
+    "data-analysis.yaml": ("data-analysis.yaml", "data-analysis.yaml"),
+    "security.yaml": ("security-analysis.yaml", "security-analysis.yaml"),
+    "issues.yaml": ("github-issue-solver.yaml", "github-issue-solver.yaml"),
+    "hard.yaml": ("engineer.yaml", "engineer.yaml"),
+    "swe.yaml": ("swe.yaml", "engineer.yaml"),
 }
 
 
@@ -271,7 +273,7 @@ async def test_dogfood_tasks_are_solvable_and_checks_reject_initial_state(
     """Every dogfood task: the reference solution passes, doing nothing fails."""
     suite = load_suite(DOGFOOD / "benchmarks" / suite_file)
     runner = BenchmarkRunner(settings)
-    reference = load_agent_config(DOGFOOD / "agents" / "offline" / ROLES[suite_file])
+    reference = load_agent_config(DOGFOOD / "agents" / "offline" / ROLES[suite_file][0])
     solved = await runner.run(suite, reference)
     assert solved.summary is not None
     failing = [r.task_id for r in solved.results if not r.passed]
@@ -284,7 +286,7 @@ async def test_dogfood_tasks_are_solvable_and_checks_reject_initial_state(
 
 
 def test_dogfood_real_agents_match_suites() -> None:
-    for suite_file, agent_file in ROLES.items():
+    for suite_file, (_, agent_file) in ROLES.items():
         suite = load_suite(DOGFOOD / "benchmarks" / suite_file)
         real = load_agent_config(DOGFOOD / "agents" / agent_file)
         assert real.model.provider != "scripted"
