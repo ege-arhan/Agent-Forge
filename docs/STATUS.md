@@ -15,7 +15,7 @@ this file's git history.
 
 ## This session (2026-11-24)
 
-**Branch `claude/stoic-gates-4w6htq`, stacked on PR #50** (the branch is
+**PR #51** (branch `claude/stoic-gates-4w6htq`), **stacked on PR #50** (the branch is
 #50's head plus this work, so it holds every open agent change). PRs #40–#50
 were unchanged: #50's CI was green and its one review thread (the embedding
 endpoint in the vector cache identity) is resolved; the others as recorded
@@ -423,8 +423,8 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 
 **Merge #47 first** (the dashboard security fix; from `main`, independent).
 Merge order for the rest: **#40 → #41 → #42 → #44 → #45 → #46 → #48 (YAML
-import) → #49 (component tests) → #50 (vector memory) → the `dogfood-swe`
-PR from `claude/stoic-gates-4w6htq`** (each contains the
+import) → #49 (component tests) → #50 (vector memory) → #51
+(`dogfood-swe` suite)** (each contains the
 previous one; the last three also contain #47, so merging the last alone brings
 in everything). Then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not

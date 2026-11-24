@@ -42,7 +42,7 @@ component tests (the last part of T-011b) are in PR #49, stacked on #48. A fifth
 future-work item, vector and hybrid memory search (T-006b), is implemented
 in PR #50, stacked on #49. A sixth, a benchmark suite of issues against a
 shared multi-module repository with hidden tests (`dogfood-swe`, T-008b), is
-implemented on `claude/stoic-gates-4w6htq`, stacked on #50; it is validated
+implemented in PR #51, stacked on #50; it is validated
 offline only. `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
