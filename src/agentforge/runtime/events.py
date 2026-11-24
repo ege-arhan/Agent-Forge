@@ -32,8 +32,15 @@ class RunObserver(Protocol):
     async def on_event(self, event: RunEvent, run: Run) -> None: ...
 
 
+#: Events that carry model output and arrive many times a second. They are for
+#: live display only: never logged, persisted or traced.
+TRANSIENT_EVENTS = frozenset({"llm.delta"})
+
+
 class LoggingObserver:
     async def on_event(self, event: RunEvent, run: Run) -> None:
+        if event.type in TRANSIENT_EVENTS:
+            return
         logger.info(event.type, extra={"run_id": run.id, "event": event.type, **event.data})
 
 

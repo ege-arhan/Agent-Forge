@@ -56,6 +56,7 @@ Results go back to the model as tool results (`is_error` for non-success).
   open a pull request (draft by default). Settings (`tool_settings.github`):
   `repositories` (required allowlist), `token_env`, `api_url`. No merge tool.
 - **memory** — `remember` / `recall` against the agent's persistent memory.
+  `recall` searches with the agent's `memory.search` mode (see [memory.md](memory.md)).
 
 ## Writing a plugin tool
 

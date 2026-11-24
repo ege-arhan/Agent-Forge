@@ -24,6 +24,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     TypeDecorator,
@@ -165,6 +166,20 @@ class MemoryRow(Base):
     tags: Mapped[list[Any]] = mapped_column(JSONType)
     meta: Mapped[dict[str, Any]] = mapped_column("metadata", JSONType)
     created_at: Mapped[datetime] = mapped_column(_tz(), index=True)
+
+
+class MemoryEmbeddingRow(Base):
+    """A memory's vector for one embedder (little-endian float32; see memory/embeddings.py)."""
+
+    __tablename__ = "memory_embeddings"
+
+    memory_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("memories.id", ondelete="CASCADE"), primary_key=True
+    )
+    embedder: Mapped[str] = mapped_column(String(128), primary_key=True)
+    dimensions: Mapped[int] = mapped_column(Integer)
+    vector: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(_tz())
 
 
 class BenchmarkRunRow(Base):

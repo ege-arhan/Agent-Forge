@@ -27,9 +27,15 @@ class ConsoleObserver:
 
     def __init__(self, stream: Any = None) -> None:
         self.stream = stream or sys.stderr
+        self._streaming = False
+        self._streamed_step = False
 
     def _print(self, text: str) -> None:
         print(text, file=self.stream, flush=True)
+
+    def _write(self, text: str) -> None:
+        self.stream.write(text)
+        self.stream.flush()
 
     async def on_event(self, event: Any, run: Run) -> None:
         data = event.data
@@ -43,22 +49,39 @@ class ConsoleObserver:
             self._print("  plan:")
             for i, item in enumerate(run.plan, 1):
                 self._print(f"    {i}. {item}")
+        elif event.type == "llm.delta":
+            if not self._streaming:
+                self._write("  ◇ ")
+                self._streaming = True
+                self._streamed_step = True
+            self._write(data.get("text", ""))
         elif event.type == "llm.retry":
+            self._end_streaming()
             self._print(f"  ↻ LLM retry {data.get('attempt')} after error: {data.get('error')}")
+        elif event.type == "llm.finished":
+            self._end_streaming()
         elif event.type == "step.finished":
+            self._end_streaming()  # a failed call has no llm.finished
             step = run.steps[data["step"]]
-            if step.thought:
+            if not self._streamed_step and step.thought:
                 first = step.thought.strip().splitlines()[0][:160] if step.thought.strip() else ""
                 if first:
                     self._print(f"  [{step.index}] {first}")
             for call in step.tool_calls:
                 args = json.dumps(call.arguments)[:100]
                 self._print(f"      → {call.tool}({args}) {call.status.value} {call.duration_ms}ms")
+            self._streamed_step = False
         elif event.type == "evaluation.finished":
             mark = "✔" if data.get("passed") else "✘"
             self._print(f"  {mark} evaluation score={data.get('score')}")
         elif event.type == "run.finished":
+            self._end_streaming()
             self._print(f"■ {run.status.value}" + (f": {run.error.message}" if run.error else ""))
+
+    def _end_streaming(self) -> None:
+        if self._streaming:
+            self._write("\n")
+            self._streaming = False
 
 
 class ConsoleApprovalObserver:
@@ -151,6 +174,7 @@ async def _open_db(settings: Any) -> Any:
 # ------------------------------------------------------------------ commands
 async def cmd_run(args: argparse.Namespace) -> int:
     from agentforge.config_files import load_agent_config
+    from agentforge.memory.embeddings import build_embedder
     from agentforge.runtime.factory import prepare_run
     from agentforge.settings import get_settings
     from agentforge.storage import (
@@ -172,9 +196,10 @@ async def cmd_run(args: argparse.Namespace) -> int:
     memory = None
     agent_id = None
     if not args.no_db:
+        embedder = build_embedder(settings)  # before the database: may reject the settings
         db = await _open_db(settings)
         observers.append(PersistenceObserver(RunRepository(db)))
-        memory = SqlMemoryStore(db)
+        memory = SqlMemoryStore(db, embedder)
         agent = await AgentRepository(db).get_by_name(config.name)
         agent_id = agent.id if agent else None
     try:
@@ -191,6 +216,8 @@ async def cmd_run(args: argparse.Namespace) -> int:
             prepared.runtime.deps.observers.append(ConsoleApprovalObserver(prepared.runtime))
         run = await prepared.execute(evaluators)
     finally:
+        if memory is not None and memory.embedder is not None:
+            await memory.embedder.aclose()
         if db is not None:
             await db.dispose()
         if settings.otel_enabled:
@@ -380,12 +407,26 @@ def cmd_bench_gate(args: argparse.Namespace) -> int:
             max_task_pass_rate_drop=args.max_task_pass_rate_drop,
             max_mean_score_drop=args.max_mean_score_drop,
             min_pass_rate=args.min_pass_rate,
+            max_token_increase=args.max_token_increase,
+            max_duration_increase=args.max_duration_increase,
+            min_repeats=args.min_repeats,
+            max_check_pass_rate_drop=args.max_check_pass_rate_drop,
+            fail_on_categories=args.fail_on_category or [],
         )
     except ValidationError as exc:
-        result = gate_error(f"invalid thresholds: {str(exc).splitlines()[0]}")
+        detail = "; ".join(
+            f"{'.'.join(str(part) for part in e['loc'])}: {e['msg']}" for e in exc.errors()
+        )
+        result = gate_error(f"invalid thresholds: {detail}")
     else:
         try:
-            refs = {"baseline": args.baseline, "candidate": args.candidate}
+            # Several --baseline values are pooled; keys keep the order they were given in.
+            many = len(args.baseline) > 1
+            refs = {
+                (f"baseline #{i}" if many else "baseline"): ref
+                for i, ref in enumerate(args.baseline, 1)
+            }
+            refs["candidate"] = args.candidate
             reports: dict[str, Any] = {}
             stored: dict[str, str] = {}
             for which, ref in refs.items():
@@ -396,7 +437,11 @@ def cmd_bench_gate(args: argparse.Namespace) -> int:
                     stored[which] = ref
             if stored:
                 reports.update(asyncio.run(_gate_stored_reports(stored)))
-            result = evaluate_gate(reports["baseline"], reports["candidate"], thresholds)
+            result = evaluate_gate(
+                [reports[which] for which in refs if which != "candidate"],
+                reports["candidate"],
+                thresholds,
+            )
         except ValueError as exc:
             result = gate_error(str(exc), thresholds)
     payload = result.model_dump_json(indent=2)
@@ -526,6 +571,83 @@ async def cmd_agents_list(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+async def cmd_memory(args: argparse.Namespace) -> int:
+    """``agentforge memory list|search|add`` for a stored agent's persistent memory."""
+    import os
+
+    from agentforge.memory.base import MemoryRecord, MemoryScope
+    from agentforge.memory.embeddings import build_embedder
+    from agentforge.observability.redaction import Redactor
+    from agentforge.settings import get_settings
+    from agentforge.storage import AgentRepository, SqlMemoryStore
+
+    settings = get_settings()
+    db = await _open_db(settings)
+    store = SqlMemoryStore(db)
+    try:
+        agent = await AgentRepository(db).get_by_name(args.agent)
+        if agent is None:
+            print(f"error: no stored agent named {args.agent!r}", file=sys.stderr)
+            return EXIT_USAGE
+        if args.memory_cmd == "add":
+            record = await store.add(
+                MemoryRecord(
+                    scope=MemoryScope.AGENT,
+                    namespace=agent.id,
+                    content=Redactor.from_environment(dict(os.environ)).redact_text(args.content),
+                    tags=args.tag or [],
+                    metadata={"source": "cli"},
+                )
+            )
+            print(f"saved memory {record.id}")
+            return EXIT_OK
+        if args.memory_cmd == "list":
+            records = await store.list_records(MemoryScope.AGENT, agent.id, limit=args.limit)
+            rows = [{"score": None, **record.model_dump(mode="json")} for record in records]
+            mode = None
+        else:
+            mode = args.mode or agent.config.memory.search.value
+            store.embedder = build_embedder(settings) if mode != "lexical" else None
+            if mode != "lexical" and store.embedder is None:
+                print(
+                    f"error: --mode {mode} needs an embedder (AGENTFORGE_MEMORY_EMBEDDER)",
+                    file=sys.stderr,
+                )
+                return EXIT_USAGE
+            min_similarity = (
+                args.min_similarity
+                if args.min_similarity is not None
+                else agent.config.memory.min_similarity
+            )
+            hits = await store.search(
+                MemoryScope.AGENT,
+                agent.id,
+                args.query,
+                limit=args.limit,
+                mode=mode,
+                min_similarity=min_similarity,
+            )
+            rows = [{"score": hit.score, **hit.record.model_dump(mode="json")} for hit in hits]
+        if args.json:
+            _print_json({"mode": mode, "memories": rows})
+            return EXIT_OK
+        if mode is not None:
+            embedder = store.embedder.name if store.embedder is not None else "-"
+            print(f"mode: {mode}  embedder: {embedder}")
+        if not rows:
+            print("no memories")
+        for row in rows:
+            score = f"{row['score']:>8.4f}  " if row["score"] is not None else ""
+            text = " ".join(str(row["content"]).split())
+            tags = f"  [{', '.join(row['tags'])}]" if row["tags"] else ""
+            print(f"{score}{row['id']}  {str(row['created_at'])[:19]}  {text[:100]}{tags}")
+        return EXIT_OK
+    finally:
+        if store.embedder is not None:
+            await store.embedder.aclose()
+        await db.dispose()
+
+
 def cmd_tools(args: argparse.Namespace) -> int:
     from agentforge.tools.registry import default_registry
 
@@ -644,15 +766,57 @@ def build_parser() -> argparse.ArgumentParser:
         help="CI regression gate: exit 0 pass, 1 regression, 2 error (cannot decide)",
         description="Compare a candidate benchmark with an explicit baseline. Each of "
         "--baseline/--candidate is a report JSON file (agentforge bench report --out) or a "
-        "stored benchmark run id. Defaults allow no drop at all.",
+        "stored benchmark run id. Defaults allow no drop at all. Repeat --baseline to pool "
+        "several accepted runs of the same suite into one baseline.",
     )
-    gate.add_argument("--baseline", required=True, help="report file or benchmark run id")
+    gate.add_argument(
+        "--baseline",
+        required=True,
+        action="append",
+        help="report file or benchmark run id (repeatable: the runs of all are pooled)",
+    )
     gate.add_argument("--candidate", required=True, help="report file or benchmark run id")
     gate.add_argument("--max-pass-rate-drop", type=float, default=0.0, metavar="F")
     gate.add_argument("--max-task-pass-rate-drop", type=float, default=0.0, metavar="F")
     gate.add_argument("--max-mean-score-drop", type=float, default=0.0, metavar="F")
     gate.add_argument(
         "--min-pass-rate", type=float, default=None, metavar="F", help="absolute floor (optional)"
+    )
+    gate.add_argument(
+        "--max-token-increase",
+        type=float,
+        default=None,
+        metavar="F",
+        help="opt-in token budget: allowed relative increase of the tokens one pass over the "
+        "suite uses (0.25 = +25%%)",
+    )
+    gate.add_argument(
+        "--max-duration-increase",
+        type=float,
+        default=None,
+        metavar="F",
+        help="opt-in latency budget: allowed relative increase of mean run duration",
+    )
+    gate.add_argument(
+        "--min-repeats",
+        type=int,
+        default=None,
+        metavar="N",
+        help="opt-in: every task needs at least N runs on both sides, else exit 2",
+    )
+    gate.add_argument(
+        "--max-check-pass-rate-drop",
+        type=float,
+        default=None,
+        metavar="F",
+        help="opt-in: allowed drop of any single check's pass rate within a task",
+    )
+    gate.add_argument(
+        "--fail-on-category",
+        action="append",
+        metavar="CATEGORY",
+        help="opt-in, repeatable: a candidate run failing with this failure category "
+        "(e.g. timeout, llm_refusal) is always a regression",
     )
     gate.add_argument("--json", action="store_true", help="print the result as JSON")
     gate.add_argument("--output", help="also write the JSON result to this file")
@@ -690,6 +854,34 @@ def build_parser() -> argparse.ArgumentParser:
     agents_create.add_argument("file")
     agents_create.set_defaults(handler=cmd_agents_create)
     agents.add_parser("list").set_defaults(handler=cmd_agents_list)
+
+    memory = sub.add_parser(
+        "memory", help="inspect and search an agent's persistent memory"
+    ).add_subparsers(dest="memory_cmd", required=True)
+    memory_list = memory.add_parser("list", help="most recent memories of an agent")
+    memory_list.add_argument("agent", help="stored agent name")
+    memory_list.add_argument("--limit", type=int, default=20)
+    memory_search = memory.add_parser("search", help="search an agent's memories")
+    memory_search.add_argument("agent", help="stored agent name")
+    memory_search.add_argument("query")
+    memory_search.add_argument(
+        "--mode",
+        choices=["lexical", "vector", "hybrid"],
+        help="default: the agent's memory.search setting",
+    )
+    memory_search.add_argument("--limit", type=int, default=5)
+    memory_search.add_argument(
+        "--min-similarity",
+        type=float,
+        help="vector/hybrid: default is the agent's memory.min_similarity",
+    )
+    memory_add = memory.add_parser("add", help="save a note to an agent's memory")
+    memory_add.add_argument("agent", help="stored agent name")
+    memory_add.add_argument("content")
+    memory_add.add_argument("--tag", action="append")
+    for parser_ in (memory_list, memory_search, memory_add):
+        parser_.add_argument("--json", action="store_true")
+        parser_.set_defaults(handler=cmd_memory)
 
     sub.add_parser("tools", help="list available tools").set_defaults(handler=cmd_tools)
     sub.add_parser("providers", help="list LLM providers").set_defaults(handler=cmd_providers)

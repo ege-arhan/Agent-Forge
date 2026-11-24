@@ -6,12 +6,31 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { formatCost, formatDuration, formatNumber, relativeTime, truncate } from "@/lib/format";
 import type { RunSummary } from "@/lib/types";
 
-export function RunsTable({ runs, compact = false }: { runs: RunSummary[]; compact?: boolean }) {
+export interface RunSelection {
+  selected: string[];
+  onToggle: (id: string) => void;
+}
+
+export function RunsTable({
+  runs,
+  compact = false,
+  selection,
+}: {
+  runs: RunSummary[];
+  compact?: boolean;
+  /** When given, each row gets a checkbox (used to pick runs to compare). */
+  selection?: RunSelection;
+}) {
   if (runs.length === 0) return <Empty>No runs yet.</Empty>;
   return (
     <Table>
       <THead>
         <TR>
+          {selection ? (
+            <TH className="w-8">
+              <span className="sr-only">Compare</span>
+            </TH>
+          ) : null}
           <TH>Status</TH>
           <TH>Goal</TH>
           <TH>Agent</TH>
@@ -26,6 +45,17 @@ export function RunsTable({ runs, compact = false }: { runs: RunSummary[]; compa
       <TBody>
         {runs.map((run) => (
           <TR key={run.id} className="hover:bg-surface-2">
+            {selection ? (
+              <TD>
+                <input
+                  type="checkbox"
+                  className="size-3.5 align-middle accent-[var(--color-ink)]"
+                  aria-label={`Select run ${run.id} to compare`}
+                  checked={selection.selected.includes(run.id)}
+                  onChange={() => selection.onToggle(run.id)}
+                />
+              </TD>
+            ) : null}
             <TD>
               <RunStatusBadge status={run.status} />
             </TD>
