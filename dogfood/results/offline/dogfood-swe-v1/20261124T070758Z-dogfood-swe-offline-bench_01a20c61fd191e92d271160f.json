@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "result_class": "offline",
-  "benchmark_run_id": "bench_01a20c582e771c2b35f31e80",
+  "benchmark_run_id": "bench_01a20c61fd191e92d271160f",
   "status": "succeeded",
   "suite_id": "dogfood-swe",
   "suite_name": "Dogfood: issues in a multi-module repository",
   "suite_version": "1",
   "agent_name": "dogfood-swe-offline",
-  "agent_id": "agt_01a20c582e3a6b803d87ed70",
+  "agent_id": "agt_01a20c61fcf2380345c92382",
   "agent_version": 1,
   "provider": "scripted",
   "model": "scripted-reference-v1",
@@ -19,10 +19,10 @@
     "model": "scripted-reference-v1",
     "sandbox": "local"
   },
-  "created_at": "2026-11-24T06:57:15.383178Z",
-  "finished_at": "2026-11-24T06:57:18.526840Z",
+  "created_at": "2026-11-24T07:07:58.105845Z",
+  "finished_at": "2026-11-24T07:08:01.308054Z",
   "repeats": 1,
-  "suite_digest": "327b4f6080155b32017d75a003afdf11d24872c03e93272f1855d1cdeec95202",
+  "suite_digest": "333c145a6889b55152aa1ef1773805c0bb2130ea68891b8868a92a5db5532b7d",
   "summary": {
     "runs": 3,
     "passed": 3,
@@ -31,7 +31,7 @@
       0.4385,
       1.0
     ],
-    "mean_duration_seconds": 0.982,
+    "mean_duration_seconds": 1.008,
     "total_tool_calls": 22,
     "total_llm_retries": 0,
     "total_input_tokens": null,
@@ -43,7 +43,7 @@
     {
       "task_id": "month-end-drift",
       "repeat": 1,
-      "run_id": "run_01a20c582ec933d4c64d7fc1",
+      "run_id": "run_01a20c61fd5c6c43ee9b54d1",
       "status": "succeeded",
       "success": true,
       "score": 1.0,
@@ -115,7 +115,7 @@
       "steps": 7,
       "tool_calls": 6,
       "tool_errors": 0,
-      "duration_seconds": 0.712,
+      "duration_seconds": 0.838,
       "llm_retries": 0,
       "evaluation_retries": 0,
       "input_tokens": null,
@@ -128,7 +128,7 @@
     {
       "task_id": "conflict-report",
       "repeat": 1,
-      "run_id": "run_01a20c5831bb50b660533121",
+      "run_id": "run_01a20c6200cdaec9c195ebe4",
       "status": "succeeded",
       "success": true,
       "score": 1.0,
@@ -200,7 +200,7 @@
       "steps": 7,
       "tool_calls": 6,
       "tool_errors": 0,
-      "duration_seconds": 0.785,
+      "duration_seconds": 0.763,
       "llm_retries": 0,
       "evaluation_retries": 0,
       "input_tokens": null,
@@ -213,7 +213,7 @@
     {
       "task_id": "skip-dates",
       "repeat": 1,
-      "run_id": "run_01a20c5834ef55da8ca1b4e2",
+      "run_id": "run_01a20c6203eacba7ddd941ba",
       "status": "succeeded",
       "success": true,
       "score": 1.0,
@@ -261,6 +261,13 @@
           "details": "exit code 0"
         },
         {
+          "name": "data_untouched",
+          "passed": true,
+          "score": 1.0,
+          "required": true,
+          "details": "exit code 0"
+        },
+        {
           "name": "ran_commands",
           "passed": true,
           "score": 1.0,
@@ -271,7 +278,7 @@
       "steps": 11,
       "tool_calls": 10,
       "tool_errors": 0,
-      "duration_seconds": 1.449,
+      "duration_seconds": 1.422,
       "llm_retries": 0,
       "evaluation_retries": 0,
       "input_tokens": null,

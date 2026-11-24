@@ -237,3 +237,13 @@ async def test_skip_changing_the_file_format_is_caught_even_if_the_agent_drops_t
     result = await checks(settings, db, SKIP, turns)
     assert result["unit_tests"]
     assert failing(result) == {"existing_tests", "hidden_model_store", "hidden_cli"}
+
+
+async def test_skip_tried_out_on_the_shipped_calendar_fails_only_the_data_check(
+    settings: Settings, db: Database
+) -> None:
+    """Regression: the issue says not to change calendar.json, and a check must hold it."""
+    turns = reference_turns(SKIP)
+    # A date outside the window the repository's own tests look at.
+    turns.insert(-1, command("python3 -m flowcal skip standup 2026-03-05"))
+    assert failing(await checks(settings, db, SKIP, turns)) == {"data_untouched"}

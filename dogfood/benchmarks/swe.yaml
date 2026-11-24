@@ -7,7 +7,7 @@
 #   existing_tests  the repository's ORIGINAL tests, taken from the first commit, pass
 #   hidden_*        tests the agent never sees: the issue's behaviour and the
 #                   documented behaviour around it
-#   data_untouched  (bug tasks) calendar.json is as shipped
+#   data_untouched  calendar.json is as shipped
 # The repository is written once (`&flowcal_repo`) and reused by the other tasks.
 # Needs a sandbox image with python3, git and tar (e.g. python:3.12).
 # Offline reference solutions: dogfood/agents/offline/swe.yaml.
@@ -1241,6 +1241,10 @@ tasks:
       test -z "$(flowcal agenda --from 2026-03-10 --to 2026-03-10 | grep Launch || true)"
       rm -rf "$dir"
       echo "hidden cli ok"
+  - type: command
+    name: data_untouched
+    command: |
+      git diff --quiet "$(git rev-list --max-parents=0 HEAD | tail -n1)" -- calendar.json
   - type: tool_used
     name: ran_commands
     tool: run_command

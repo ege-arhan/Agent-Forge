@@ -30,7 +30,7 @@ below.
   modules) and `skip-dates` (a feature across five modules). The goal is the
   issue text. Checks: hidden tests that fail before and pass after, the
   repository's original tests read back from the first commit, the tests
-  left in the workspace, and (bug tasks) an unchanged data file. Design and
+  left in the workspace, and an unchanged data file. Design and
   limits: `dogfood/README.md`, "The repository suite".
 - Offline reference solutions: `dogfood/agents/offline/swe.yaml`.
   `scripts/dogfood.py` has a `swe` role; for real runs it uses the existing
@@ -51,12 +51,19 @@ below.
   hidden checks hold the behaviour the issue and the README state; a
   correct solution with a different internal design should pass, but that
   has only been tried with the reference solutions and their variants.
+- From the automated (Codex) review of PR #51, verified and fixed:
+  `skip-dates` tells the agent not to change the shipped `calendar.json`,
+  but no check held it, so an agent that tried the new command on that file
+  and left the change behind still passed. The task now has the
+  `data_untouched` check the bug tasks have; a regression test replays
+  exactly that run and expects only this check to fail. The OFFLINE
+  reference result was recorded again for the changed suite.
 - Verification on this branch: ruff, ruff format, mypy --strict: clean.
-  `pytest -m "not docker"`: 580 passed (11 new
+  `pytest -m "not docker"`: 581 passed (12 new
   tests in `tests/integration/test_swe_suite.py`, and the existing
   reference/idle test now also runs for `swe.yaml`). The new tests show
   that the untouched repository passes its own tests and fails every hidden
-  fix check, and that nine plausible wrong solutions fail exactly the
+  fix check, and that ten plausible wrong solutions fail exactly the
   intended checks (asserted as exact sets of failing checks). Not run: the
   suite in the Docker sandbox (Docker Hub answered 429 to the pull of
   `python:3.12`; the checks need `git` and `tar` in the image), PostgreSQL

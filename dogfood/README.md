@@ -74,7 +74,7 @@ never sees.
     first commit, must still pass against the agent's code. Deleting or
     rewriting a test in the workspace does not hide a regression.
   - `unit_tests`: whatever is in `tests/` when the agent finishes passes.
-  - `data_untouched` (the two bug tasks): `calendar.json` is as shipped.
+  - `data_untouched`: `calendar.json` is as shipped.
 
 | Task | Kind | Why the obvious fix is not enough |
 |---|---|---|
@@ -83,10 +83,10 @@ never sees.
 | `skip-dates` | feature | Touches the model, the file format, the expansion, the next-occurrence search and the command line; skipped dates still count towards `count`; existing files must be written back unchanged. |
 
 `tests/integration/test_swe_suite.py` checks the checks: the untouched
-repository passes its own tests and fails every hidden fix check, and nine
+repository passes its own tests and fails every hidden fix check, and ten
 plausible wrong solutions (a fix at one of two sites, a fix for months but
 not years, editing the data, a rule that loses reminders, a removed test,
-...) each fail exactly the checks meant to catch them.
+a command tried out on the shipped data file, ...) each fail exactly the checks meant to catch them.
 
 **What this suite is not.** The repository is synthetic and small (about 330
 lines of library code), not a real open-source project, and there are three
