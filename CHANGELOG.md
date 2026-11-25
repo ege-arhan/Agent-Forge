@@ -6,8 +6,240 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Optional model-assisted improvement proposer (T-017b).
+  `agentforge improve propose|run --proposer llm` and `POST /improvements`
+  with `"proposer": "llm"` ask a model for the configuration changes instead
+  of the rules. The model is a server setting
+  (`AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL`, a JSON `ModelConfig`; unset by
+  default, and a request cannot supply one). It is shown the agent's
+  changeable settings and the analysis' categories, stages and signals, but
+  no text written by a run or an evaluator and no task goals. Its answer is
+  validated suggestion by suggestion against a narrower allowlist (no
+  `tools`, `model.model` or `retry.evaluation_retries`; the system prompt is
+  append-only; limits are capped at the suite's); what fails is dropped with
+  a note. The proposal records the call (`proposer_call`: provider, model,
+  usage, cost or `null`). The rule-based proposer remains the default.
+  Limits: run against the scripted provider only — no real model has
+  produced a proposal with it; the dashboard cannot request one.
+- Dogfood suite `dogfood-swe` v1 (`dogfood/benchmarks/swe.yaml`, T-008b):
+  three issues (a bug present at two sites, a bug with three causes in two
+  modules, a feature across five modules) against one shared repository,
+  `flowcal`, a small calendar library written for the suite. The goal is the
+  issue text; each task is judged by hidden tests that fail before and pass
+  after, by the repository's original tests read back from the first commit
+  (so removing a test does not hide a regression) and by an unchanged data
+  file. Offline reference solutions in
+  `dogfood/agents/offline/swe.yaml`; `scripts/dogfood.py` has a `swe` role
+  that runs the existing real-model engineering agent on it.
+  `tests/integration/test_swe_suite.py` shows that the untouched repository
+  fails every hidden fix check and that ten plausible wrong solutions fail
+  exactly the intended checks. Limits: the repository is synthetic and
+  small, and the suite has been validated OFFLINE only; no model has run it.
+- Vector memory search (T-006b). `memory.search` in an agent configuration
+  is `lexical` (default, unchanged), `vector` (cosine similarity of
+  embeddings) or `hybrid` (both rankings combined by reciprocal rank
+  fusion); `memory.min_similarity` sets the similarity a memory must exceed
+  in the vector ranking. Both are used by the run's automatic recall and by
+  the `recall` tool, and both are on the improvement loop's allowlist.
+  The embedder is a server setting, `AGENTFORGE_MEMORY_EMBEDDER`: `none`
+  (default; `vector` and `hybrid` then fall back to lexical search with a
+  warning), `hashing` (built in, offline: hashes words and character
+  trigrams, so it matches word forms and not meaning) or `openai-compatible`
+  (an `/embeddings` endpoint, configured with `AGENTFORGE_EMBEDDING_MODEL`,
+  `_BASE_URL` and `_API_KEY_ENV`; spoken over `httpx`, no new dependency).
+  Vectors are cached per memory and embedder in the new `memory_embeddings`
+  table (migration `0004`), computed the first time a vector search sees a
+  memory, so existing memories need no backfill and writing a memory never
+  depends on the embedding endpoint. If the embedder fails, the search
+  falls back to the lexical ranking. New commands
+  `agentforge memory list|search|add`. Guide: `docs/memory.md`.
+  Limits: the search is brute force over an agent's 1 000 most recent
+  memories (no approximate index, no pgvector); the `openai-compatible`
+  embedder is tested against a mocked transport only and has not been run
+  against a live endpoint; `min_similarity` defaults to 0.0 and is not
+  calibrated for any model; memories cannot be browsed through the API or
+  the dashboard.
+- Dashboard component tests (T-011b, last part): 21 tests in `web/tests/`
+  render the agents page, the runs page, the run page and the *Activity over
+  time* card with Vitest, React Testing Library and jsdom, the API client
+  mocked. They cover creating an agent from JSON and YAML and importing a
+  file, picking runs to compare, the approval gate's Approve and Deny, the
+  live preview of streamed output, and unknown pricing shown as "unknown"
+  rather than zero. `npm test` runs them after the existing unit tests
+  (`npm run test:unit`, `npm run test:components`). Development
+  dependencies only; no change to the dashboard itself.
+- YAML import in the dashboard's agent form (T-011b, part): *New agent*
+  accepts YAML as well as JSON, and *Import file…* loads a `.yaml`, `.yml`
+  or `.json` file (up to 512 KB) into the editor — the same files
+  `agentforge agents create` reads. JSON is parsed in the browser; YAML is
+  sent to the new `POST /agents/parse`, which reads it with the parser the
+  CLI uses, validates it against the agent schema and the server policy and
+  returns it as JSON without storing anything. That endpoint rejects YAML
+  aliases (`*name`): a few hundred bytes of nested aliases describe a
+  structure that is exponentially large once serialised. The CLI still
+  accepts them. Comments and formatting of an imported YAML file are not
+  kept: the agent is stored as the parsed configuration.
+- Dashboard activity charts (T-011b, part): the home page has an *Activity
+  over time* card with four small per-day charts — runs, tokens, known cost
+  and mean run duration — for the last 7, 14, 30 or 90 days, exact figures
+  on hover and the same numbers as a table (*Show as table*). Backed by the
+  new `GET /stats/timeseries?days=N` (1–90, default 30). Days are UTC
+  calendar days of a run's creation; tokens, cost and duration count
+  finished runs, as `/stats` does. A day whose runs have no known pricing
+  has no cost bar and `known_cost_usd: null` — unknown pricing is counted
+  separately and never drawn or summed as zero. No schema change.
+  `docs/screenshots/dashboard-light.png` regenerated (OFFLINE demo data).
+- Dashboard run comparison (T-011b, part): `/runs/compare?a=RUN&b=RUN` shows
+  two runs side by side — metrics with the difference B − A (no difference
+  is shown when either value is unknown, e.g. cost), evaluator results by
+  name, the settings that differ between the two configuration snapshots,
+  the tool calls paired step by step with the first row where the runs
+  diverge, and both final answers. Reached by ticking two runs in the run
+  list or with *Compare with original* on a re-run. It compares recorded
+  tool calls and outcomes, not the model's wording, pairs steps by position
+  only, and says on the page that two single runs are not a measured effect
+  and when the runs have different goals or checks. Dashboard only: no API
+  or schema change. New screenshot `run-compare-light.png` (OFFLINE demo
+  data).
+- Streaming model output (T-003b), opt-in with `model.stream: true`: the
+  runtime reads the provider's stream and emits `llm.delta` events (text
+  only), which reach `agentforge run` (live `◇` line), SSE clients of
+  `GET /runs/{id}/events` and the dashboard's run page (a *Model output
+  (live)* preview under the trace, read over SSE with the API key; the page
+  also refreshes on record-changing events instead of waiting for its poll,
+  which stays as a fallback). Native streaming for Anthropic and
+  OpenAI-compatible chat-completions providers; other providers (native
+  Gemini, Responses-API models, plugins without `stream()`) answer as before
+  with no deltas. The scripted provider replays a turn's text word by word
+  (`stream_delay_seconds` for demos) so the path is testable offline.
+  Deltas are a live view only — never logged, persisted or traced; the
+  stored step text is unchanged. See `docs/observability.md`. Reviewed after
+  PR #43 and fixed before merge: Anthropic stream errors were raised
+  untranslated (so never retried), streams were not closed on error or
+  cancellation, every token was written to the structured log, and
+  streaming was limited to a hard-coded list of provider names; deltas are
+  now coalesced (at most one event per 50 ms per run) and a cancel is
+  honoured mid-stream. From the automated review of PR #44: an
+  OpenAI-compatible stream that ends without a finish reason is a retryable
+  error instead of a partial answer, and only the first choice is read when
+  `n > 1` is passed.
+- Trace-level failure diagnosis (T-020): `agentforge.improvement.diagnosis`
+  reads each failed run's recorded tool calls, plan and evaluator results and
+  reports signals (`no_tool_calls`, `read_only`, `plan_missing`,
+  `repeated_call`, `trailing_tool_errors`, `unverified_change`,
+  `last_command_failed`) and the stage they point to (`planning`,
+  `execution`, `verification`, `reasoning`, `reporting`, `undetermined`).
+  Rule-based and deterministic; a heuristic for where to look first, not a
+  proven cause. Shown by `agentforge improve analyze`, in
+  `GET /benchmarks/runs/{id}/analysis` (`stages`, `signals`,
+  `failures[].diagnosis`), on the dashboard's agent improvement page, and as
+  notes on rule-based proposals; vocabulary at `GET /improvements/diagnosis`.
+  No schema change: analyses stored earlier simply have no diagnosis.
+- More regression-gate policies (completes T-019b), all opt-in:
+  `--min-repeats N` (the gate cannot decide unless every task has at least
+  `N` runs on both sides), `--max-check-pass-rate-drop F` (per-check
+  threshold: catches a check that starts failing while its task still
+  passes), `--fail-on-category CATEGORY` (a candidate run failing with a
+  listed failure category is always a regression) and pooled baselines
+  (repeat `--baseline` to compare against several accepted runs at once).
+  Same options on `GET /benchmarks/gate`; the result's baseline side lists
+  `benchmark_run_ids`.
+- Regression gate budgets (part of T-019b): opt-in `--max-token-increase` and
+  `--max-duration-increase` (and matching API query parameters). Missing usage
+  data makes the gate exit 2 rather than pass.
+- Native Gemini adapter (T-002b): `llm/gemini.py` speaks the Gemini
+  `generateContent` API directly over `httpx` (already a core dependency, so
+  no optional extra is needed). Replaces the `gemini` provider's previous
+  routing through the OpenAI-compatible Chat Completions shim. The API key
+  is sent as the `x-goog-api-key` header, never the `?key=` query string.
+  Unit-tested with a mocked transport (message/tool translation, usage,
+  stop-reason mapping, error classification).
+- Offline five-minute tour (milestone 16, T-021): `scripts/tour.py` runs the
+  documented loop — benchmark a versioned agent, failure analysis, rule-based
+  proposal applied as v2, re-benchmark, comparison, and the regression gate in
+  both directions plus against the committed CI baseline — and checks every
+  exit code; `--keep DIR` keeps the database for the dashboard.
+  `docs/tour.md` is the annotated transcript (linked from the README);
+  `tests/e2e/test_tour.py` runs the tour and checks the page against it.
+- Reproducible dashboard screenshots (T-021): `scripts/screenshots.py` seeds
+  OFFLINE demo data (tour, starter benchmark, step-budget experiment, one run
+  paused at the approval gate), starts the API and the dashboard and captures
+  eight pages with `scripts/screenshots.cjs` (needs Playwright; not a project
+  dependency). New picture: a run waiting for approval.
+- Dashboard walk-through recording (T-021): `scripts/screenshots.py --record`
+  runs `scripts/recording.cjs` on the same OFFLINE demo data (overview → the
+  tour agent's improvement cycle → a run paused at the approval gate is
+  approved and finishes) and converts the video to
+  `docs/screenshots/tour.gif` with `ffmpeg`. Shown in the README and
+  `docs/tour.md`.
+- Documentation index `docs/README.md`; README "What is tested" section and
+  link bar.
+- Tests: `tests/e2e/test_screenshots.py` (demo data, approval demo run,
+  committed pictures match the script and are shown in the docs) and
+  `tests/unit/test_docs_links.py` (relative links and heading anchors in the
+  Markdown docs resolve).
+
+### Fixed
+
+- Regression gate budgets: usage is averaged over each task's repeats before
+  the comparison. Totals were compared before, so a candidate with three
+  repeats looked like +200% tokens against a baseline with one, and a
+  baseline with more repeats could hide a real increase. The token budget's
+  message now says "tokens per suite pass" (identical to the total when every
+  task ran once).
+
+- Gemini adapter: tool schemas are sent as `parametersJsonSchema` (standard
+  JSON Schema) instead of `parameters`, an OpenAPI subset that does not
+  define `exclusiveMinimum` and other keywords the built-in tool schemas
+  use. A success or error body that is not a JSON object is now a classified
+  `LLMError` instead of an unhandled exception. The adapter is still tested
+  with a mocked transport only (T-002c).
+- Gemini adapter: `thoughtSignature` on text parts is preserved (new optional
+  `TextPart.provider_data`); a blocked prompt (no candidates, `blockReason`)
+  is a non-retryable refusal; thinking tokens count toward output usage
+  (review findings on #33).
+- Gemini adapter echoes the provider's function-call `id` and `thoughtSignature`
+  (new optional `ToolUsePart.provider_data`) instead of synthesising ids only
+  (review finding on #13).
+- Gate budgets are no longer evaluated for incomparable reports, so an `error`
+  verdict carries no regressions (review finding on #32).
+- Dashboard: the *Improvement history* table on `/improvement` clipped its
+  last column ("Δ pass rate") at common laptop widths. The cycle's age now
+  sits under the agent name instead of in its own column, and the two history
+  cards are side by side only from 1536 px.
+- `scripts/tour.py` and `scripts/screenshots.py` wrote their demo data to the
+  database configured in the repository's `.env` (`AGENTFORGE_DATABASE_URL`)
+  instead of their own: they only removed the variable from the environment,
+  and Settings also reads `.env`. Both now set the demo database URL
+  explicitly (and the screenshot tooling an empty API key).
+- Screenshots: pages taller than the viewport were stitched with a sidebar
+  that ended after one viewport; the capture now grows the viewport to the
+  page.
+
+### Changed
+
+- `docs/screenshots/` regenerated from the current dashboard; the README's
+  positioning text is shorter and its roadmap note is current.
+- `.gitignore`: `web/AGENTS.md` and `web/CLAUDE.md`, which `next dev` writes.
 ### Security
 
+- Dashboard dependencies: Next.js 16.3.6 → 16.4.6 (with `eslint-config-next`)
+  and patched transitive packages (`sharp`, `zod`, `source-map-js`,
+  `minimatch` and the `typescript-eslint` packages). `npm audit` reported
+  11 advisories against `web/package-lock.json` (1 critical, 3 high,
+  7 moderate), including remote code execution and request forgery in the
+  Next.js image optimizer and cache poisoning in self-hosted deployments; it
+  now reports none. Whether each advisory was reachable in this dashboard
+  was not assessed — the fix is the upgrade.
+- The Security workflow audits the dashboard's lockfile (`npm audit`): any
+  advisory in packages shipped in the image fails the job, as do high and
+  critical advisories in development tooling. Until now only the Python
+  dependencies were audited, which is how the above went unnoticed.
+  Dependabot also watches `web/` (monthly, at most three open PRs).
+- `web/next.config.ts` sets `agentRules: false`: Next.js 16.4 otherwise
+  writes `AGENTS.md` and `CLAUDE.md` into `web/` on every build.
 - Lockfile: `certifi` 2026.7.22 → 2026.10.23 (PYSEC-2026-4320) and
   `opentelemetry-api`/`-sdk` 1.45.0 → 1.45.2 (CVE-2026-114603) to fix the
   failing scheduled `pip-audit` job on `main`.

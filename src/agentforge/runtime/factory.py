@@ -95,6 +95,8 @@ def prepare_run(
         redactor=redactor,
         settings=config.tool_settings,
         memory=memory if config.memory.enabled else None,
+        memory_search=config.memory.search.value,
+        memory_min_similarity=config.memory.min_similarity,
         agent_id=agent_id,
         env=environ,
     )

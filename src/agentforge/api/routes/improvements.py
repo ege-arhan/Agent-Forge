@@ -8,7 +8,12 @@ from fastapi import APIRouter, Query, Request, status
 
 from agentforge.api.deps import ServiceDep, audit
 from agentforge.api.schemas import ImprovementApply, ImprovementCreate, ImprovementReject
-from agentforge.improvement import CATEGORY_DESCRIPTIONS, ImprovementCycle
+from agentforge.improvement import (
+    CATEGORY_DESCRIPTIONS,
+    SIGNAL_DESCRIPTIONS,
+    STAGE_DESCRIPTIONS,
+    ImprovementCycle,
+)
 
 router = APIRouter(prefix="/improvements", tags=["improvements"])
 
@@ -19,13 +24,22 @@ async def failure_categories() -> dict[str, str]:
     return {category.value: text for category, text in CATEGORY_DESCRIPTIONS.items()}
 
 
+@router.get("/diagnosis")
+async def diagnosis_vocabulary() -> dict[str, dict[str, str]]:
+    """Stages and trace signals used by the trace-level diagnosis, with descriptions."""
+    return {
+        "stages": {stage.value: text for stage, text in STAGE_DESCRIPTIONS.items()},
+        "signals": {signal.value: text for signal, text in SIGNAL_DESCRIPTIONS.items()},
+    }
+
+
 @router.post("", response_model=ImprovementCycle, status_code=status.HTTP_201_CREATED)
 async def create_improvement(
     body: ImprovementCreate, service: ServiceDep, request: Request
 ) -> ImprovementCycle:
     """Analyse a finished benchmark of a stored agent version and record a proposal."""
     cycle = await service.improvements.propose(
-        body.benchmark_run_id, changes=body.changes, notes=body.notes
+        body.benchmark_run_id, changes=body.changes, notes=body.notes, proposer=body.proposer
     )
     audit(
         request,
@@ -33,6 +47,7 @@ async def create_improvement(
         improvement_id=cycle.id,
         agent_id=cycle.agent_id,
         benchmark_run_id=body.benchmark_run_id,
+        proposer=cycle.proposal.proposer,
     )
     return cycle
 

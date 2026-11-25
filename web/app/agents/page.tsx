@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Empty, ErrorState, Loading } from "@/components/states";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { draftFormat, importProblem, readDraft } from "@/lib/agent-import";
 import { api } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
 import type { AgentConfig } from "@/lib/types";
@@ -33,24 +34,56 @@ export default function AgentsPage() {
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState(TEMPLATE);
   const [formError, setFormError] = useState<string>();
+  const [notice, setNotice] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const create = async () => {
-    setFormError(undefined);
-    let config: AgentConfig;
-    try {
-      config = JSON.parse(draft) as AgentConfig;
-    } catch {
-      setFormError("The configuration is not valid JSON.");
+  const importFile = async (file: File | undefined) => {
+    if (!file) return;
+    setNotice(undefined);
+    const problem = importProblem(file);
+    if (problem) {
+      setFormError(problem);
       return;
     }
     try {
+      setDraft(await file.text());
+      setFormError(undefined);
+      setNotice(`Loaded ${file.name}. Nothing is stored until you create the agent.`);
+    } catch {
+      setFormError(`${file.name} could not be read.`);
+    }
+  };
+
+  const create = async () => {
+    setFormError(undefined);
+    setNotice(undefined);
+    const parsed = readDraft(draft);
+    if (parsed.kind === "empty") {
+      setFormError("Paste or import a configuration first.");
+      return;
+    }
+    if (parsed.kind === "json-error") {
+      setFormError(parsed.message);
+      return;
+    }
+    setBusy(true);
+    try {
+      // YAML is read by the API (the parser the CLI uses), then stored as usual.
+      const config: AgentConfig =
+        parsed.kind === "json" ? parsed.config : await api.parseAgentConfig(parsed.content);
       await api.createAgent(config);
       setShowForm(false);
+      setDraft(TEMPLATE);
       agents.reload();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
     }
   };
+
+  const format = draftFormat(draft);
 
   return (
     <>
@@ -65,8 +98,8 @@ export default function AgentsPage() {
             title="New agent"
             description={
               <>
-                Paste an agent configuration as JSON. YAML files can be imported with{" "}
-                <code className="font-mono">agentforge agents create FILE.yaml</code>.
+                Paste an agent configuration as JSON or YAML, or import a file — the same files{" "}
+                <code className="font-mono">agentforge agents create FILE.yaml</code> reads.
               </>
             }
           />
@@ -76,11 +109,40 @@ export default function AgentsPage() {
               onChange={(e) => setDraft(e.target.value)}
               className="min-h-72 font-mono text-xs"
               spellCheck={false}
-              aria-label="Agent configuration JSON"
+              aria-label="Agent configuration (JSON or YAML)"
             />
-            {formError ? <p className="mt-2 text-xs text-critical-text">{formError}</p> : null}
-            <div className="mt-3 flex justify-end">
-              <Button onClick={create}>Create agent</Button>
+            {formError ? (
+              <p role="alert" className="mt-2 whitespace-pre-wrap break-words text-xs text-critical-text">
+                {formError}
+              </p>
+            ) : null}
+            {notice ? (
+              <p role="status" className="mt-2 text-xs text-muted">
+                {notice}
+              </p>
+            ) : null}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept=".yaml,.yml,.json,application/json,application/yaml,text/yaml"
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-label="Agent configuration file"
+                  onChange={(e) => {
+                    void importFile(e.target.files?.[0]);
+                    e.target.value = ""; // choosing the same file again must fire a change
+                  }}
+                />
+                <Button variant="outline" onClick={() => fileInput.current?.click()}>
+                  Import file…
+                </Button>
+                {format ? <span className="text-xs text-muted">Read as {format}</span> : null}
+              </div>
+              <Button onClick={create} disabled={busy}>
+                {busy ? "Creating…" : "Create agent"}
+              </Button>
             </div>
           </CardBody>
         </Card>

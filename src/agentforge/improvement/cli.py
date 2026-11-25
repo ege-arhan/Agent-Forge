@@ -37,6 +37,13 @@ def register(sub: Any) -> None:
         help="YAML/JSON list of your own changes ({path, value, operation?, rationale?}) "
         "instead of the rule-based proposal",
     )
+    propose.add_argument(
+        "--proposer",
+        choices=("rules", "llm"),
+        default="rules",
+        help="'llm' asks the model set in AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL (one model "
+        "call) instead of the rule-based proposer",
+    )
     propose.add_argument("--notes", default="")
     propose.add_argument("--json", action="store_true")
     propose.set_defaults(handler=cmd_propose)
@@ -67,6 +74,13 @@ def register(sub: Any) -> None:
     run.add_argument("benchmark_run_id", help="baseline benchmark of a stored agent version")
     run.add_argument("-n", "--cycles", type=int, default=1)
     run.add_argument("-c", "--concurrency", type=int, default=1)
+    run.add_argument(
+        "--proposer",
+        choices=("rules", "llm"),
+        default="rules",
+        help="'llm': each cycle's proposal comes from the configured model and is applied "
+        "without review",
+    )
     run.add_argument("--json", action="store_true")
     run.set_defaults(handler=cmd_run)
 
@@ -93,8 +107,15 @@ def print_analysis(analysis: FailureAnalysis) -> None:
         print("failure categories:")
         for category, count in analysis.categories.items():
             print(f"  {category:<22} {count}")
+    if analysis.stages:
+        print("failure stages (trace diagnosis):")
+        for stage, count in analysis.stages.items():
+            print(f"  {stage:<22} {count}")
     for failure in analysis.failures:
         print(f"- {failure.task_id} #{failure.repeat} [{failure.category.value}] {failure.run_id}")
+        if failure.diagnosis is not None:
+            signals = ", ".join(s.value for s in failure.diagnosis.signals) or "no signals"
+            print(f"    stage: {failure.diagnosis.stage.value} ({signals})")
         for line in failure.evidence[:3]:
             print(f"    {line.splitlines()[0][:150]}")
     if analysis.tool_issues:
@@ -126,6 +147,13 @@ def print_cycle(cycle: ImprovementCycle) -> None:
         print("proposal: no changes")
     for note in proposal.notes:
         print(f"  note: {note}")
+    call = proposal.proposer_call
+    if call is not None:
+        cost = "unknown" if call.cost_usd is None else f"${call.cost_usd:.4f}"
+        print(
+            f"  proposer model: {call.provider}/{call.model}  tokens in/out "
+            f"{call.usage.input_tokens}/{call.usage.output_tokens}  cost {cost}"
+        )
     if cycle.comparison is not None:
         print_comparison(cycle.comparison)
     if cycle.reverted_to_version is not None:
@@ -204,14 +232,20 @@ def _load_changes(path: str) -> list[Any]:
     return [ProposedChange.model_validate(item) for item in items]
 
 
-async def cmd_propose(args: argparse.Namespace) -> int:
+def _loop(db: Any) -> Any:
+    """A loop with the settings' proposer model (needed only where proposals are made)."""
     from agentforge.improvement.loop import ImprovementLoop
+    from agentforge.settings import get_settings
 
+    return ImprovementLoop.from_settings(db, get_settings())
+
+
+async def cmd_propose(args: argparse.Namespace) -> int:
     changes = _load_changes(args.changes) if args.changes else None
     db = await _open()
     try:
-        cycle = await ImprovementLoop(db).propose(
-            args.benchmark_run_id, changes=changes, notes=args.notes
+        cycle = await _loop(db).propose(
+            args.benchmark_run_id, changes=changes, notes=args.notes, proposer=args.proposer
         )
     finally:
         await db.dispose()
@@ -271,7 +305,7 @@ async def cmd_reject(args: argparse.Namespace) -> int:
 
 
 async def run_cycles(
-    db: Any, benchmark_run_id: str, *, cycles: int, runner: Any
+    db: Any, benchmark_run_id: str, *, cycles: int, runner: Any, proposer: str = "rules"
 ) -> list[ImprovementCycle]:
     """Run up to ``cycles`` full improvement cycles starting from a baseline benchmark.
 
@@ -280,13 +314,12 @@ async def run_cycles(
     """
     from agentforge.improvement.comparison import Verdict
     from agentforge.improvement.cycle import CycleStatus
-    from agentforge.improvement.loop import ImprovementLoop
 
-    loop = ImprovementLoop(db)
+    loop = _loop(db)
     done: list[ImprovementCycle] = []
     baseline = benchmark_run_id
     for _ in range(max(1, cycles)):
-        cycle = await loop.propose(baseline)
+        cycle = await loop.propose(baseline, proposer=proposer)
         if not cycle.proposal.changes:
             done.append(cycle)
             break
@@ -317,6 +350,7 @@ async def cmd_run(args: argparse.Namespace) -> int:
             args.benchmark_run_id,
             cycles=args.cycles,
             runner=_runner(db, args.concurrency),
+            proposer=args.proposer,
         )
     finally:
         await db.dispose()

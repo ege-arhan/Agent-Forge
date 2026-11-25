@@ -5,11 +5,12 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from agentforge.core.config import ModelConfig
 from agentforge.tools.base import Permission
 
 
@@ -42,6 +43,35 @@ class Settings(BaseSettings):
         default=False,
         description="Export finished runs as OpenTelemetry traces over OTLP/HTTP "
         "(configure with the standard OTEL_EXPORTER_OTLP_* variables).",
+    )
+    # --- Memory search (see docs/memory.md) ---
+    memory_embedder: Literal["none", "hashing", "openai-compatible"] = Field(
+        default="none",
+        description="Embedder for vector/hybrid memory search: 'none' (lexical only), "
+        "'hashing' (offline, lexical feature hashing) or 'openai-compatible' "
+        "(an /embeddings endpoint).",
+    )
+    embedding_model: str | None = Field(
+        default=None, description="Model name for the 'openai-compatible' embedder."
+    )
+    embedding_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        description="Base URL of the OpenAI-compatible embeddings endpoint.",
+    )
+    embedding_api_key_env: str = Field(
+        default="OPENAI_API_KEY",
+        description="Environment variable holding the embeddings API key "
+        "(empty: send no Authorization header).",
+    )
+    embedding_dimensions: int = Field(
+        default=256, ge=64, le=4096, description="Vector size of the 'hashing' embedder."
+    )
+    # --- Improvement loop (see docs/improvement.md) ---
+    improvement_proposer_model: ModelConfig | None = Field(
+        default=None,
+        description="Model for the optional model-assisted proposer (proposer 'llm'), as a "
+        'JSON ModelConfig, e.g. {"provider": "anthropic", "model": "..."}. Unset: only the '
+        "rule-based and manual proposers are available.",
     )
     # --- API policy (see agentforge/policy.py and SECURITY.md) ---
     allowed_key_envs: list[str] = Field(

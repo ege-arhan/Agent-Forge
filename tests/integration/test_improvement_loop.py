@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -12,12 +13,13 @@ import sqlalchemy as sa
 from agentforge.benchmarks import BenchmarkRunner, load_suite
 from agentforge.benchmarks.runner import ResultClass
 from agentforge.config_files import load_agent_config
+from agentforge.core.config import ModelConfig
 from agentforge.core.errors import ImprovementError, NotFoundError
 from agentforge.core.models import AgentVersionSource
 from agentforge.improvement import CycleStatus, ProposedChange, Verdict
 from agentforge.improvement.cli import run_cycles
 from agentforge.improvement.loop import ImprovementLoop
-from agentforge.settings import Settings
+from agentforge.settings import Settings, get_settings
 from agentforge.storage import AgentRepository, Database
 from agentforge.storage.db import JSONType, UTCDateTime
 from agentforge.storage.migrate import upgrade
@@ -28,13 +30,15 @@ pytestmark = pytest.mark.integration
 
 ROOT = Path(__file__).resolve().parents[2]
 DOGFOOD = ROOT / "dogfood"
+# suite -> (offline reference agent, real-model agent)
 ROLES = {
-    "coding.yaml": "coding.yaml",
-    "debugging.yaml": "debugging.yaml",
-    "data-analysis.yaml": "data-analysis.yaml",
-    "security.yaml": "security-analysis.yaml",
-    "issues.yaml": "github-issue-solver.yaml",
-    "hard.yaml": "engineer.yaml",
+    "coding.yaml": ("coding.yaml", "coding.yaml"),
+    "debugging.yaml": ("debugging.yaml", "debugging.yaml"),
+    "data-analysis.yaml": ("data-analysis.yaml", "data-analysis.yaml"),
+    "security.yaml": ("security-analysis.yaml", "security-analysis.yaml"),
+    "issues.yaml": ("github-issue-solver.yaml", "github-issue-solver.yaml"),
+    "hard.yaml": ("engineer.yaml", "engineer.yaml"),
+    "swe.yaml": ("swe.yaml", "engineer.yaml"),
 }
 
 
@@ -218,6 +222,115 @@ async def test_full_improvement_cycle_preserves_history(db: Database, settings: 
     assert [c.id for c in await loop.cycles.list(agent_id=agent_id)] == [cycle.id]
 
 
+def _proposer_model(answer: dict[str, object]) -> ModelConfig:
+    return ModelConfig(
+        provider="scripted", model="proposer", options={"turns": [{"text": json.dumps(answer)}]}
+    )
+
+
+async def test_model_assisted_cycle(db: Database, settings: Settings) -> None:
+    """proposer="llm": the configured model's suggestions go through the same cycle."""
+    agent_id, bench_id = await _baseline(db, settings)
+    answer = {
+        "changes": [
+            {
+                "path": "limits.max_steps",
+                "value": 500,
+                "rationale": "Every run stopped at the step limit of 3.",
+                "addresses": ["step_limit"],
+            },
+            {"path": "sandbox.kind", "value": "local"},
+            {"path": "tools", "value": ["terminal"]},
+        ],
+        "notes": ["Nothing else stands out."],
+    }
+    configured = settings.model_copy(update={"improvement_proposer_model": _proposer_model(answer)})
+    loop = ImprovementLoop.from_settings(db, configured)
+
+    cycle = await loop.propose(bench_id, proposer="llm")
+    proposal = cycle.proposal
+    assert proposal.proposer == "llm" and cycle.status == CycleStatus.PROPOSED
+    [change] = proposal.changes
+    # 500 is above the suite's cap of 20; the two forbidden paths are dropped.
+    assert (change.id, change.path, change.current, change.value) == (
+        "c1",
+        "limits.max_steps",
+        3,
+        20,
+    )
+    assert len(change.evidence) == 4 and change.addresses == ["step_limit"]
+    assert sum(n.startswith("dropped") for n in proposal.notes) == 2
+    assert proposal.proposer_call is not None and proposal.proposer_call.model == "proposer"
+
+    # Stored and read back unchanged, proposer call included.
+    stored = await loop.cycles.get(cycle.id)
+    assert stored.proposal == proposal
+
+    cycle = await loop.apply(cycle.id)
+    version = await loop.agents.get_version(agent_id, 2)
+    assert version.source == AgentVersionSource.IMPROVEMENT
+    assert version.config.limits.max_steps == 20
+    assert version.config.sandbox == (await loop.agents.get_version(agent_id, 1)).config.sandbox
+    assert version.config.tools == (await loop.agents.get_version(agent_id, 1)).config.tools
+    cycle = await loop.evaluate(cycle.id, _runner(db, settings))
+    assert cycle.comparison is not None and cycle.comparison.verdict == Verdict.IMPROVED
+
+
+async def test_model_assisted_proposer_guards(db: Database, settings: Settings) -> None:
+    _, bench_id = await _baseline(db, settings, repeats=1)
+    # Not configured: refused, and the rule-based proposer is unaffected.
+    plain = ImprovementLoop.from_settings(db, settings)
+    assert plain.proposer_model is None
+    with pytest.raises(ImprovementError, match="AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL"):
+        await plain.propose(bench_id, proposer="llm")
+
+    loop = ImprovementLoop(db, proposer_model=_proposer_model({"changes": []}))
+    with pytest.raises(ImprovementError, match="not both"):
+        await loop.propose(
+            bench_id,
+            proposer="llm",
+            changes=[ProposedChange(path="limits.max_steps", value=9)],
+        )
+    # A model that answers without the JSON object leaves no cycle behind.
+    broken = ImprovementLoop(
+        db,
+        proposer_model=ModelConfig(provider="scripted", options={"turns": [{"text": "Sorry."}]}),
+    )
+    with pytest.raises(ImprovementError, match="did not return"):
+        await broken.propose(bench_id, proposer="llm")
+    assert await loop.cycles.list() == []
+
+    # No changes suggested: a cycle with notes only, which cannot be applied.
+    cycle = await loop.propose(bench_id, proposer="llm")
+    assert cycle.proposal.proposer == "llm" and cycle.proposal.changes == []
+    with pytest.raises(ImprovementError, match="no changes"):
+        await loop.apply(cycle.id)
+    # The default stays rule-based even with a model configured.
+    assert (await loop.propose(bench_id)).proposal.proposer == "rules"
+
+
+async def test_run_cycles_with_the_model_assisted_proposer(
+    db: Database, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, bench_id = await _baseline(db, settings, repeats=1)
+    answer = {"changes": [{"path": "limits.max_steps", "value": 20}]}
+    monkeypatch.setenv(
+        "AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL", _proposer_model(answer).model_dump_json()
+    )
+    monkeypatch.setenv("AGENTFORGE_DATABASE_URL", settings.resolved_database_url)
+    get_settings.cache_clear()
+    try:
+        assert get_settings().improvement_proposer_model == _proposer_model(answer)
+        [cycle] = await run_cycles(
+            db, bench_id, cycles=2, runner=_runner(db, settings), proposer="llm"
+        )
+    finally:
+        get_settings.cache_clear()
+    assert cycle.proposal.proposer == "llm" and cycle.status == CycleStatus.EVALUATED
+    assert cycle.comparison is not None and cycle.comparison.candidate is not None
+    assert cycle.comparison.candidate.pass_rate == 1.0
+
+
 async def test_improvement_guards(db: Database, settings: Settings) -> None:
     agent_id, bench_id = await _baseline(db, settings, repeats=1)
     loop = ImprovementLoop(db)
@@ -271,7 +384,7 @@ async def test_dogfood_tasks_are_solvable_and_checks_reject_initial_state(
     """Every dogfood task: the reference solution passes, doing nothing fails."""
     suite = load_suite(DOGFOOD / "benchmarks" / suite_file)
     runner = BenchmarkRunner(settings)
-    reference = load_agent_config(DOGFOOD / "agents" / "offline" / ROLES[suite_file])
+    reference = load_agent_config(DOGFOOD / "agents" / "offline" / ROLES[suite_file][0])
     solved = await runner.run(suite, reference)
     assert solved.summary is not None
     failing = [r.task_id for r in solved.results if not r.passed]
@@ -284,7 +397,7 @@ async def test_dogfood_tasks_are_solvable_and_checks_reject_initial_state(
 
 
 def test_dogfood_real_agents_match_suites() -> None:
-    for suite_file, agent_file in ROLES.items():
+    for suite_file, (_, agent_file) in ROLES.items():
         suite = load_suite(DOGFOOD / "benchmarks" / suite_file)
         real = load_agent_config(DOGFOOD / "agents" / agent_file)
         assert real.model.provider != "scripted"

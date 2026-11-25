@@ -1,0 +1,699 @@
+# OFFLINE reference agent for the dogfooding program (scripted provider).
+#
+# Replays a known-good solution for every task in dogfood/benchmarks/swe.yaml.
+# Its results validate the benchmark (each task is solvable and its checks
+# accept a correct solution) and the AgentForge pipeline. They say nothing
+# about any model and are reported separately as OFFLINE results.
+name: dogfood-swe-offline
+description: Scripted reference solutions for the dogfood-swe suite.
+model:
+  provider: scripted
+  model: scripted-reference-v1
+  options:
+    turns:
+    - text: No scripted solution matches this task.
+    rules:
+    - when: moves to the 28th
+      turns:
+      - text: Reading README.md.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: README.md
+      - text: Reading flowcal/recurrence.py.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: flowcal/recurrence.py
+      - text: Reading flowcal/agenda.py.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: flowcal/agenda.py
+      - text: Updating flowcal/agenda.py.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: flowcal/agenda.py
+            content: |
+              """Agenda, conflicts and the next occurrence of an event."""
+
+              import datetime as dt
+
+              from flowcal.model import Event, Occurrence
+              from flowcal.recurrence import occurrences, starts
+
+
+              def agenda(
+                  events: list[Event], window_start: dt.datetime, window_end: dt.datetime
+              ) -> list[Occurrence]:
+                  """All occurrences in the window, ordered by start, then title, then id."""
+                  found = [o for event in events for o in occurrences(event, window_start, window_end)]
+                  return sorted(found, key=lambda o: (o.start, o.event.title, o.event.id))
+
+
+              def overlaps(first: Occurrence, second: Occurrence) -> bool:
+                  return first.start <= second.end and second.start <= first.end
+
+
+              def conflicts(
+                  events: list[Event], window_start: dt.datetime, window_end: dt.datetime
+              ) -> list[tuple[Occurrence, Occurrence]]:
+                  """Pairs of conflicting occurrences in the window, earlier occurrence first."""
+                  items = agenda(events, window_start, window_end)
+                  pairs = []
+                  for first, second in zip(items, items[1:]):
+                      if overlaps(first, second):
+                          pairs.append((first, second))
+                  return pairs
+
+
+              def next_occurrence(event: Event, after: dt.datetime) -> Occurrence | None:
+                  """The first occurrence that starts later than `after`, if there is one."""
+                  for start in starts(event):
+                      if start > after:
+                          return Occurrence(event, start)
+                  return None
+      - text: Updating flowcal/recurrence.py.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: flowcal/recurrence.py
+            content: |
+              """Expanding an event's series into occurrences."""
+
+              import datetime as dt
+              from collections.abc import Iterator
+
+              from flowcal.dates import add_months
+              from flowcal.model import Event, Occurrence, Rule
+
+
+              def nth_start(start: dt.datetime, rule: Rule, index: int) -> dt.datetime:
+                  """Start number `index` of a series (0 is the first one).
+
+                  Counted from the first start, not from the previous one: stepping from a
+                  start that was moved to the end of a short month would keep later starts
+                  on that earlier day.
+                  """
+                  step = rule.interval * index
+                  if rule.freq == "daily":
+                      return start + dt.timedelta(days=step)
+                  if rule.freq == "weekly":
+                      return start + dt.timedelta(weeks=step)
+                  if rule.freq == "monthly":
+                      return add_months(start, step)
+                  return add_months(start, 12 * step)
+
+
+              def starts(event: Event) -> Iterator[dt.datetime]:
+                  """Every start of the series, in order. Endless without `count` or `until`."""
+                  yield event.start
+                  rule = event.rule
+                  if rule is None:
+                      return
+                  index = 1
+                  while rule.count is None or index < rule.count:
+                      current = nth_start(event.start, rule, index)
+                      if rule.until is not None and current.date() > rule.until:
+                          return
+                      yield current
+                      index += 1
+
+
+              def occurrences(
+                  event: Event, window_start: dt.datetime, window_end: dt.datetime
+              ) -> list[Occurrence]:
+                  """The occurrences of `event` in the window from `window_start` to `window_end`."""
+                  found = []
+                  for start in starts(event):
+                      if start >= window_end:
+                          break
+                      if start >= window_start:
+                          found.append(Occurrence(event, start))
+                  return found
+      - text: Running the tests.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 -m unittest discover -s tests
+      - text: 'Root cause: every start was computed from the previous start, so a start clamped to the
+          end of a short month moved all later ones. Starts are now computed from the first start (recurrence.nth_start),
+          and next_occurrence uses the same series instead of its own copy of the stepping. Verified with
+          the test suite and the two commands from the issue.'
+    - when: conflict report is wrong
+      turns:
+      - text: Reading README.md.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: README.md
+      - text: Reading flowcal/agenda.py.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: flowcal/agenda.py
+      - text: Reading flowcal/recurrence.py.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: flowcal/recurrence.py
+      - text: Updating flowcal/agenda.py.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: flowcal/agenda.py
+            content: |
+              """Agenda, conflicts and the next occurrence of an event."""
+
+              import datetime as dt
+
+              from flowcal.dates import add_months
+              from flowcal.model import Event, Occurrence
+              from flowcal.recurrence import occurrences
+
+
+              def agenda(
+                  events: list[Event], window_start: dt.datetime, window_end: dt.datetime
+              ) -> list[Occurrence]:
+                  """All occurrences in the window, ordered by start, then title, then id."""
+                  found = [o for event in events for o in occurrences(event, window_start, window_end)]
+                  return sorted(found, key=lambda o: (o.start, o.event.title, o.event.id))
+
+
+              def overlaps(first: Occurrence, second: Occurrence) -> bool:
+                  """Whether two occurrences share some time; touching is not overlapping."""
+                  return first.start < second.end and second.start < first.end
+
+
+              def conflicts(
+                  events: list[Event], window_start: dt.datetime, window_end: dt.datetime
+              ) -> list[tuple[Occurrence, Occurrence]]:
+                  """Pairs of conflicting occurrences in the window, earlier occurrence first."""
+                  items = agenda(events, window_start, window_end)
+                  pairs = []
+                  for index, first in enumerate(items):
+                      for second in items[index + 1 :]:
+                          if second.start >= first.end:
+                              break  # sorted by start: nothing later reaches into `first`
+                          if overlaps(first, second):
+                              pairs.append((first, second))
+                  return pairs
+
+
+              def next_occurrence(event: Event, after: dt.datetime) -> Occurrence | None:
+                  """The first occurrence that starts later than `after`, if there is one.
+
+                  Steps through the series itself instead of expanding it, so asking about
+                  a date far in the future does not build a list.
+                  """
+                  rule = event.rule
+                  current = event.start
+                  produced = 1
+                  while current <= after:
+                      if rule is None or (rule.count is not None and produced >= rule.count):
+                          return None
+                      if rule.freq == "daily":
+                          current += dt.timedelta(days=rule.interval)
+                      elif rule.freq == "weekly":
+                          current += dt.timedelta(weeks=rule.interval)
+                      elif rule.freq == "monthly":
+                          current = add_months(current, rule.interval)
+                      else:
+                          current = add_months(current, 12 * rule.interval)
+                      if rule.until is not None and current.date() > rule.until:
+                          return None
+                      produced += 1
+                  return Occurrence(event, current)
+      - text: Updating flowcal/recurrence.py.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: flowcal/recurrence.py
+            content: |
+              """Expanding an event's series into occurrences."""
+
+              import datetime as dt
+              from collections.abc import Iterator
+
+              from flowcal.dates import add_months
+              from flowcal.model import Event, Occurrence, Rule
+
+
+              def _advance(current: dt.datetime, rule: Rule) -> dt.datetime:
+                  if rule.freq == "daily":
+                      return current + dt.timedelta(days=rule.interval)
+                  if rule.freq == "weekly":
+                      return current + dt.timedelta(weeks=rule.interval)
+                  if rule.freq == "monthly":
+                      return add_months(current, rule.interval)
+                  return add_months(current, 12 * rule.interval)
+
+
+              def starts(event: Event) -> Iterator[dt.datetime]:
+                  """Every start of the series, in order. Endless without `count` or `until`."""
+                  yield event.start
+                  rule = event.rule
+                  if rule is None:
+                      return
+                  current = event.start
+                  produced = 1
+                  while rule.count is None or produced < rule.count:
+                      current = _advance(current, rule)
+                      if rule.until is not None and current.date() > rule.until:
+                          return
+                      yield current
+                      produced += 1
+
+
+              def occurrences(
+                  event: Event, window_start: dt.datetime, window_end: dt.datetime
+              ) -> list[Occurrence]:
+                  """The occurrences of `event` that overlap the window from `window_start` to `window_end`."""
+                  found = []
+                  for start in starts(event):
+                      if start >= window_end:
+                          break
+                      occurrence = Occurrence(event, start)
+                      # Still running when the window opens, or (a reminder) exactly at its start.
+                      if start >= window_start or occurrence.end > window_start:
+                          found.append(occurrence)
+                  return found
+      - text: Running the tests.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 -m unittest discover -s tests
+      - text: 'Three causes: overlaps() counted touching occurrences as overlapping; conflicts() compared
+          only neighbours in the agenda, so a long meeting''s later overlaps were missed; occurrences()
+          dropped an occurrence that began before the window. All three are fixed; verified with the test
+          suite and the conflicts command.'
+    - when: Skip single dates
+      turns:
+      - text: Reading README.md.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: README.md
+      - text: Reading flowcal/model.py.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: flowcal/model.py
+      - text: Reading flowcal/store.py.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: flowcal/store.py
+      - text: Reading flowcal/cli.py.
+        tool_calls:
+        - name: read_file
+          arguments:
+            path: flowcal/cli.py
+      - text: Updating flowcal/agenda.py.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: flowcal/agenda.py
+            content: |
+              """Agenda, conflicts and the next occurrence of an event."""
+
+              import datetime as dt
+
+              from flowcal.dates import add_months
+              from flowcal.model import Event, Occurrence
+              from flowcal.recurrence import occurrences
+
+
+              def agenda(
+                  events: list[Event], window_start: dt.datetime, window_end: dt.datetime
+              ) -> list[Occurrence]:
+                  """All occurrences in the window, ordered by start, then title, then id."""
+                  found = [o for event in events for o in occurrences(event, window_start, window_end)]
+                  return sorted(found, key=lambda o: (o.start, o.event.title, o.event.id))
+
+
+              def overlaps(first: Occurrence, second: Occurrence) -> bool:
+                  return first.start <= second.end and second.start <= first.end
+
+
+              def conflicts(
+                  events: list[Event], window_start: dt.datetime, window_end: dt.datetime
+              ) -> list[tuple[Occurrence, Occurrence]]:
+                  """Pairs of conflicting occurrences in the window, earlier occurrence first."""
+                  items = agenda(events, window_start, window_end)
+                  pairs = []
+                  for first, second in zip(items, items[1:]):
+                      if overlaps(first, second):
+                          pairs.append((first, second))
+                  return pairs
+
+
+              def next_occurrence(event: Event, after: dt.datetime) -> Occurrence | None:
+                  """The first occurrence that starts later than `after` and is not skipped.
+
+                  Steps through the series itself instead of expanding it, so asking about
+                  a date far in the future does not build a list.
+                  """
+                  rule = event.rule
+                  current = event.start
+                  produced = 1
+                  while current <= after or current.date() in event.skip:
+                      if rule is None or (rule.count is not None and produced >= rule.count):
+                          return None
+                      if rule.freq == "daily":
+                          current += dt.timedelta(days=rule.interval)
+                      elif rule.freq == "weekly":
+                          current += dt.timedelta(weeks=rule.interval)
+                      elif rule.freq == "monthly":
+                          current = add_months(current, rule.interval)
+                      else:
+                          current = add_months(current, 12 * rule.interval)
+                      if rule.until is not None and current.date() > rule.until:
+                          return None
+                      produced += 1
+                  return Occurrence(event, current)
+      - text: Updating flowcal/cli.py.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: flowcal/cli.py
+            content: |
+              """Command line: python3 -m flowcal {agenda,next,conflicts,skip} ..."""
+
+              import argparse
+              import dataclasses
+              import datetime as dt
+              import sys
+
+              from flowcal import store
+              from flowcal.agenda import agenda, conflicts, next_occurrence
+              from flowcal.dates import parse_date, parse_datetime
+              from flowcal.model import Event, Occurrence
+              from flowcal.recurrence import starts
+
+              DISPLAY = "%Y-%m-%d %H:%M"
+
+
+              def _window(args: argparse.Namespace) -> tuple[dt.datetime, dt.datetime]:
+                  first, last = parse_date(args.start), parse_date(args.end)
+                  if last < first:
+                      raise ValueError("--to is before --from")
+                  midnight = dt.time(0, 0)
+                  return (
+                      dt.datetime.combine(first, midnight),
+                      dt.datetime.combine(last + dt.timedelta(days=1), midnight),
+                  )
+
+
+              def _line(occurrence: Occurrence) -> str:
+                  return f"{occurrence.start.strftime(DISPLAY)}  {occurrence.event.minutes:>4}m  {occurrence.event.title}"
+
+
+              def _label(occurrence: Occurrence) -> str:
+                  return f"{occurrence.start.strftime(DISPLAY)} {occurrence.event.title}"
+
+
+              def _parser() -> argparse.ArgumentParser:
+                  parser = argparse.ArgumentParser(prog="flowcal")
+                  parser.add_argument("--file", default="calendar.json", help="the calendar file")
+                  commands = parser.add_subparsers(dest="command", required=True)
+                  for name in ("agenda", "conflicts"):
+                      command = commands.add_parser(name)
+                      command.add_argument("--from", dest="start", required=True, metavar="DATE")
+                      command.add_argument("--to", dest="end", required=True, metavar="DATE")
+                  following = commands.add_parser("next")
+                  following.add_argument("event_id")
+                  following.add_argument("--after", required=True, metavar="YYYY-MM-DDTHH:MM")
+                  skip = commands.add_parser("skip")
+                  skip.add_argument("event_id")
+                  skip.add_argument("date", metavar="DATE")
+                  return parser
+
+
+              def _find(events: list[Event], event_id: str) -> Event:
+                  for event in events:
+                      if event.id == event_id:
+                          return event
+                  raise ValueError(f"no event {event_id!r}")
+
+
+              def _happens_on(event: Event, day: dt.date) -> bool:
+                  """Whether the series (skipped dates included) has a start on `day`."""
+                  for start in starts(event):
+                      if start.date() >= day:
+                          return start.date() == day
+                  return False
+
+
+              def _skip(args: argparse.Namespace, events: list[Event]) -> int:
+                  event = _find(events, args.event_id)
+                  day = parse_date(args.date)
+                  if day in event.skip:
+                      print(f"already skipped {event.id} on {day.isoformat()}")
+                      return 0
+                  if not _happens_on(event, day):
+                      raise ValueError(f"{event.id} has no occurrence on {day.isoformat()}")
+                  changed = dataclasses.replace(event, skip=(*event.skip, day))
+                  store.save(args.file, [changed if item is event else item for item in events])
+                  print(f"skipped {event.id} on {day.isoformat()}")
+                  return 0
+
+
+              def run(args: argparse.Namespace) -> int:
+                  events = store.load(args.file)
+                  if args.command == "agenda":
+                      for occurrence in agenda(events, *_window(args)):
+                          print(_line(occurrence))
+                      return 0
+                  if args.command == "conflicts":
+                      for first, second in conflicts(events, *_window(args)):
+                          print(f"{_label(first)} <-> {_label(second)}")
+                      return 0
+                  if args.command == "skip":
+                      return _skip(args, events)
+                  found = next_occurrence(_find(events, args.event_id), parse_datetime(args.after))
+                  if found is None:
+                      print("no further occurrence")
+                      return 1
+                  print(_label(found))
+                  return 0
+
+
+              def main(argv: list[str] | None = None) -> int:
+                  args = _parser().parse_args(argv)
+                  try:
+                      return run(args)
+                  except (OSError, ValueError, KeyError) as exc:
+                      print(f"error: {exc}", file=sys.stderr)
+                      return 2
+      - text: Updating flowcal/model.py.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: flowcal/model.py
+            content: |
+              """The calendar's data model."""
+
+              import datetime as dt
+              from dataclasses import dataclass
+
+              FREQUENCIES = ("daily", "weekly", "monthly", "yearly")
+
+
+              @dataclass(frozen=True)
+              class Rule:
+                  """How an event repeats. `count` is the total number of occurrences."""
+
+                  freq: str
+                  interval: int = 1
+                  count: int | None = None
+                  until: dt.date | None = None
+
+                  def __post_init__(self) -> None:
+                      if self.freq not in FREQUENCIES:
+                          raise ValueError(f"unknown frequency: {self.freq!r}")
+                      if self.interval < 1:
+                          raise ValueError("interval must be at least 1")
+                      if self.count is not None and self.count < 1:
+                          raise ValueError("count must be at least 1")
+                      if self.count is not None and self.until is not None:
+                          raise ValueError("a rule has either count or until, not both")
+
+
+              @dataclass(frozen=True)
+              class Event:
+                  id: str
+                  title: str
+                  start: dt.datetime
+                  minutes: int
+                  rule: Rule | None = None
+                  skip: tuple[dt.date, ...] = ()
+
+                  def __post_init__(self) -> None:
+                      object.__setattr__(self, "skip", tuple(sorted(set(self.skip))))
+                      if self.minutes < 0:
+                          raise ValueError("minutes must not be negative")
+
+
+              @dataclass(frozen=True)
+              class Occurrence:
+                  """One time an event happens."""
+
+                  event: Event
+                  start: dt.datetime
+
+                  @property
+                  def end(self) -> dt.datetime:
+                      return self.start + dt.timedelta(minutes=self.event.minutes)
+      - text: Updating flowcal/recurrence.py.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: flowcal/recurrence.py
+            content: |
+              """Expanding an event's series into occurrences."""
+
+              import datetime as dt
+              from collections.abc import Iterator
+
+              from flowcal.dates import add_months
+              from flowcal.model import Event, Occurrence, Rule
+
+
+              def _advance(current: dt.datetime, rule: Rule) -> dt.datetime:
+                  if rule.freq == "daily":
+                      return current + dt.timedelta(days=rule.interval)
+                  if rule.freq == "weekly":
+                      return current + dt.timedelta(weeks=rule.interval)
+                  if rule.freq == "monthly":
+                      return add_months(current, rule.interval)
+                  return add_months(current, 12 * rule.interval)
+
+
+              def starts(event: Event) -> Iterator[dt.datetime]:
+                  """Every start of the series, in order. Endless without `count` or `until`."""
+                  yield event.start
+                  rule = event.rule
+                  if rule is None:
+                      return
+                  current = event.start
+                  produced = 1
+                  while rule.count is None or produced < rule.count:
+                      current = _advance(current, rule)
+                      if rule.until is not None and current.date() > rule.until:
+                          return
+                      yield current
+                      produced += 1
+
+
+              def occurrences(
+                  event: Event, window_start: dt.datetime, window_end: dt.datetime
+              ) -> list[Occurrence]:
+                  """The occurrences of `event` in the window from `window_start` to `window_end`."""
+                  found = []
+                  for start in starts(event):
+                      if start >= window_end:
+                          break
+                      if start >= window_start and start.date() not in event.skip:
+                          found.append(Occurrence(event, start))
+                  return found
+      - text: Updating flowcal/store.py.
+        tool_calls:
+        - name: write_file
+          arguments:
+            path: flowcal/store.py
+            content: |
+              """Reading and writing the calendar file."""
+
+              import json
+              from typing import Any
+
+              from flowcal.dates import format_datetime, parse_date, parse_datetime
+              from flowcal.model import Event, Rule
+
+
+              def rule_from_dict(data: dict[str, Any]) -> Rule:
+                  until = data.get("until")
+                  return Rule(
+                      freq=data["freq"],
+                      interval=int(data.get("interval", 1)),
+                      count=data.get("count"),
+                      until=parse_date(until) if until else None,
+                  )
+
+
+              def rule_to_dict(rule: Rule) -> dict[str, Any]:
+                  data: dict[str, Any] = {"freq": rule.freq, "interval": rule.interval}
+                  if rule.count is not None:
+                      data["count"] = rule.count
+                  if rule.until is not None:
+                      data["until"] = rule.until.isoformat()
+                  return data
+
+
+              def event_from_dict(data: dict[str, Any]) -> Event:
+                  rule = data.get("rule")
+                  return Event(
+                      id=data["id"],
+                      title=data["title"],
+                      start=parse_datetime(data["start"]),
+                      minutes=int(data["minutes"]),
+                      rule=rule_from_dict(rule) if rule else None,
+                      skip=tuple(parse_date(day) for day in data.get("skip", [])),
+                  )
+
+
+              def event_to_dict(event: Event) -> dict[str, Any]:
+                  data: dict[str, Any] = {
+                      "id": event.id,
+                      "title": event.title,
+                      "start": format_datetime(event.start),
+                      "minutes": event.minutes,
+                  }
+                  if event.rule is not None:
+                      data["rule"] = rule_to_dict(event.rule)
+                  if event.skip:
+                      data["skip"] = [day.isoformat() for day in event.skip]
+                  return data
+
+
+              def load(path: str) -> list[Event]:
+                  with open(path, encoding="utf-8") as handle:
+                      data = json.load(handle)
+                  events = [event_from_dict(item) for item in data["events"]]
+                  ids = [event.id for event in events]
+                  if len(set(ids)) != len(ids):
+                      raise ValueError("duplicate event ids")
+                  return events
+
+
+              def save(path: str, events: list[Event]) -> None:
+                  data = {"events": [event_to_dict(event) for event in events]}
+                  with open(path, "w", encoding="utf-8") as handle:
+                      json.dump(data, handle, indent=2)
+                      handle.write("\n")
+      - text: Running the tests.
+        tool_calls:
+        - name: run_command
+          arguments:
+            command: python3 -m unittest discover -s tests
+      - text: Added Event.skip (sorted, unique), the optional skip key in the calendar file (written only
+          when not empty), filtering in occurrences() and next_occurrence() after counting, and the skip
+          command. Verified with the test suite and by skipping a date in a copy of the calendar.
+system_prompt: Scripted reference agent (offline).
+tools:
+- filesystem
+- terminal
+- git
+limits:
+  max_steps: 30
+  timeout_seconds: 600
+memory:
+  persist: false
+sandbox:
+  kind: local
+labels:
+  program: dogfood
+  role: swe
+  result_class: offline

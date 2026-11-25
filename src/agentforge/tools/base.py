@@ -53,6 +53,9 @@ class ToolContext:
     redactor: Redactor
     settings: dict[str, Any] = field(default_factory=dict)
     memory: MemoryStore | None = None
+    #: The agent's ``memory.search`` and ``memory.min_similarity`` (used by ``recall``).
+    memory_search: str = "lexical"
+    memory_min_similarity: float = 0.0
     agent_id: str | None = None
     env: dict[str, str] = field(default_factory=dict)
 

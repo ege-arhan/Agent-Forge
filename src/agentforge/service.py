@@ -30,6 +30,7 @@ from agentforge.evaluation.base import EvaluatorSpec
 from agentforge.experiments import Experiment, ExperimentRunner, ExperimentSpec
 from agentforge.improvement.cycle import ImprovementCycle
 from agentforge.improvement.loop import ImprovementLoop
+from agentforge.memory.embeddings import build_embedder
 from agentforge.policy import ServerPolicy
 from agentforge.runtime.agent import AgentRuntime
 from agentforge.runtime.approval import PendingApproval
@@ -49,7 +50,7 @@ class AgentForgeService:
         self.settings = settings
         self.db = db
         self.runs = RunRepository(db)
-        self.memory = SqlMemoryStore(db)
+        self.memory = SqlMemoryStore(db, build_embedder(settings))
         self.broadcaster = EventBroadcaster()
         self.tracing: RunObserver | None = None
         if settings.otel_enabled:
@@ -62,7 +63,7 @@ class AgentForgeService:
         self.recorder = StorageRecorder(db, extra_observers=extra)
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_runs)
         self.policy = ServerPolicy(settings)
-        self.improvements = ImprovementLoop(db, policy=self.policy)
+        self.improvements = ImprovementLoop.from_settings(db, settings, policy=self.policy)
         self._tasks: dict[str, asyncio.Task[Any]] = {}
         self._runtimes: dict[str, AgentRuntime] = {}
         # Test/mirror hooks (never exposed through the API: the GitHub token is
@@ -102,6 +103,8 @@ class AgentForgeService:
             task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        if self.memory.embedder is not None:
+            await self.memory.embedder.aclose()
 
     def _admit(self) -> None:
         if len(self._tasks) >= self.settings.max_queued_runs:

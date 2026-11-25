@@ -1,0 +1,1256 @@
+# Dogfooding suite: issues in a multi-module repository (suite collection "dogfood", see dogfood/README.md).
+#
+# Three tasks share one repository, `flowcal` (six modules, 28 tests, a data
+# file, a README that documents the intended behaviour). Each task's goal is
+# an issue; the agent is not told what the checks are. Checks per task:
+#   unit_tests      the tests in the workspace pass (whatever the agent made of them)
+#   existing_tests  the repository's ORIGINAL tests, taken from the first commit, pass
+#   hidden_*        tests the agent never sees: the issue's behaviour and the
+#                   documented behaviour around it
+#   data_untouched  calendar.json is as shipped
+# The repository is written once (`&flowcal_repo`) and reused by the other tasks.
+# Needs a sandbox image with python3, git and tar (e.g. python:3.12).
+# Offline reference solutions: dogfood/agents/offline/swe.yaml.
+id: dogfood-swe
+name: 'Dogfood: issues in a multi-module repository'
+description: Three issues (two bugs, one feature) against the same small calendar library, each judged
+  by hidden tests that must start passing and by the repository's original tests, which must keep passing.
+version: '1'
+repeats: 1
+defaults:
+  timeout_seconds: 900
+  max_steps: 30
+tasks:
+- id: month-end-drift
+  goal: |
+    Fix this issue in the `flowcal` repository (the workspace; start with README.md).
+
+    **Monthly event on the 31st moves to the 28th and stays there**
+
+    "Send invoices" in `calendar.json` is monthly, starting 31 January. After February it is
+    listed on the 28th of every month:
+
+        $ python3 -m flowcal agenda --from 2026-03-28 --to 2026-03-31
+        ...
+        2026-03-28 16:00    60m  Send invoices
+
+    `python3 -m flowcal next invoices --after 2026-03-01T00:00` says 28 March as well. The README
+    says the event should be on 28 February, then 31 March, 30 April, 31 May. I would guess a
+    yearly event on 29 February has the same problem.
+
+    Fix it in the library, not in the data. The existing tests must keep passing
+    (`python3 -m unittest discover -s tests`).
+  setup:
+    files: &flowcal_repo
+      README.md: |
+        # flowcal
+
+        A small calendar library and command-line tool. Events live in a JSON file
+        (`calendar.json` by default); an event may repeat.
+
+            python3 -m flowcal agenda --from 2026-03-02 --to 2026-03-06
+            python3 -m flowcal next standup --after 2026-03-02T09:00
+            python3 -m flowcal conflicts --from 2026-03-02 --to 2026-03-06
+
+        ## Model
+
+        - All times are naive local times, written `YYYY-MM-DDTHH:MM`.
+        - An event has an `id`, a `title`, a `start`, a length in `minutes` and an
+          optional `rule`. Zero-length events (reminders) are allowed.
+        - A rule has a `freq` (`daily`, `weekly`, `monthly` or `yearly`), an
+          `interval` (every N days/weeks/months/years, default 1) and at most one end
+          condition: `count` (the series has that many occurrences in total) or
+          `until` (a date; the last occurrence starts on or before it).
+        - A monthly or yearly event keeps its day of the month. In a month that is
+          too short it falls on the last day of that month, and it returns to its own
+          day in the next month that has it: an event on the 31st happens on
+          31 January, 28 February, 31 March, 30 April.
+
+        ## Windows
+
+        `--from` and `--to` are dates and both are included: the window runs from
+        00:00 on `--from` to 24:00 on `--to`. The agenda and the conflict report
+        consider every occurrence that overlaps the window, including one that began
+        before it and is still running when it opens. A reminder belongs to the
+        window when its time lies in it.
+
+        ## Conflicts
+
+        Two occurrences conflict when they share some time. Occurrences that merely
+        touch (one ends when the other starts) do not conflict. Every conflicting
+        pair is reported once, earlier occurrence first, in agenda order: by the
+        first occurrence, then by the second.
+
+        ## Layout
+
+            flowcal/dates.py       parsing, formatting, month arithmetic
+            flowcal/model.py       Rule, Event, Occurrence
+            flowcal/recurrence.py  expanding a series into occurrences
+            flowcal/agenda.py      agenda, conflicts, next occurrence
+            flowcal/store.py       the JSON file
+            flowcal/cli.py         the command line
+
+        Run the tests with `python3 -m unittest discover -s tests`.
+      calendar.json: |
+        {
+          "events": [
+            {
+              "id": "standup",
+              "title": "Standup",
+              "start": "2026-01-05T09:30",
+              "minutes": 15,
+              "rule": {
+                "freq": "daily",
+                "interval": 1,
+                "until": "2026-06-30"
+              }
+            },
+            {
+              "id": "planning",
+              "title": "Sprint planning",
+              "start": "2026-01-05T10:00",
+              "minutes": 90,
+              "rule": {
+                "freq": "weekly",
+                "interval": 2
+              }
+            },
+            {
+              "id": "invoices",
+              "title": "Send invoices",
+              "start": "2026-01-31T16:00",
+              "minutes": 60,
+              "rule": {
+                "freq": "monthly",
+                "interval": 1
+              }
+            },
+            {
+              "id": "review",
+              "title": "Quarterly review",
+              "start": "2026-01-15T13:00",
+              "minutes": 120,
+              "rule": {
+                "freq": "monthly",
+                "interval": 3,
+                "count": 4
+              }
+            },
+            {
+              "id": "launch",
+              "title": "Launch",
+              "start": "2026-03-10T08:00",
+              "minutes": 0
+            }
+          ]
+        }
+      flowcal/__init__.py: |
+        """flowcal: a small calendar library."""
+      flowcal/__main__.py: |
+        from flowcal.cli import main
+
+        raise SystemExit(main())
+      flowcal/agenda.py: |
+        """Agenda, conflicts and the next occurrence of an event."""
+
+        import datetime as dt
+
+        from flowcal.dates import add_months
+        from flowcal.model import Event, Occurrence
+        from flowcal.recurrence import occurrences
+
+
+        def agenda(
+            events: list[Event], window_start: dt.datetime, window_end: dt.datetime
+        ) -> list[Occurrence]:
+            """All occurrences in the window, ordered by start, then title, then id."""
+            found = [o for event in events for o in occurrences(event, window_start, window_end)]
+            return sorted(found, key=lambda o: (o.start, o.event.title, o.event.id))
+
+
+        def overlaps(first: Occurrence, second: Occurrence) -> bool:
+            return first.start <= second.end and second.start <= first.end
+
+
+        def conflicts(
+            events: list[Event], window_start: dt.datetime, window_end: dt.datetime
+        ) -> list[tuple[Occurrence, Occurrence]]:
+            """Pairs of conflicting occurrences in the window, earlier occurrence first."""
+            items = agenda(events, window_start, window_end)
+            pairs = []
+            for first, second in zip(items, items[1:]):
+                if overlaps(first, second):
+                    pairs.append((first, second))
+            return pairs
+
+
+        def next_occurrence(event: Event, after: dt.datetime) -> Occurrence | None:
+            """The first occurrence that starts later than `after`, if there is one.
+
+            Steps through the series itself instead of expanding it, so asking about
+            a date far in the future does not build a list.
+            """
+            rule = event.rule
+            current = event.start
+            produced = 1
+            while current <= after:
+                if rule is None or (rule.count is not None and produced >= rule.count):
+                    return None
+                if rule.freq == "daily":
+                    current += dt.timedelta(days=rule.interval)
+                elif rule.freq == "weekly":
+                    current += dt.timedelta(weeks=rule.interval)
+                elif rule.freq == "monthly":
+                    current = add_months(current, rule.interval)
+                else:
+                    current = add_months(current, 12 * rule.interval)
+                if rule.until is not None and current.date() > rule.until:
+                    return None
+                produced += 1
+            return Occurrence(event, current)
+      flowcal/cli.py: |
+        """Command line: python3 -m flowcal {agenda,next,conflicts} ..."""
+
+        import argparse
+        import datetime as dt
+        import sys
+
+        from flowcal import store
+        from flowcal.agenda import agenda, conflicts, next_occurrence
+        from flowcal.dates import parse_date, parse_datetime
+        from flowcal.model import Occurrence
+
+        DISPLAY = "%Y-%m-%d %H:%M"
+
+
+        def _window(args: argparse.Namespace) -> tuple[dt.datetime, dt.datetime]:
+            first, last = parse_date(args.start), parse_date(args.end)
+            if last < first:
+                raise ValueError("--to is before --from")
+            midnight = dt.time(0, 0)
+            return (
+                dt.datetime.combine(first, midnight),
+                dt.datetime.combine(last + dt.timedelta(days=1), midnight),
+            )
+
+
+        def _line(occurrence: Occurrence) -> str:
+            return f"{occurrence.start.strftime(DISPLAY)}  {occurrence.event.minutes:>4}m  {occurrence.event.title}"
+
+
+        def _label(occurrence: Occurrence) -> str:
+            return f"{occurrence.start.strftime(DISPLAY)} {occurrence.event.title}"
+
+
+        def _parser() -> argparse.ArgumentParser:
+            parser = argparse.ArgumentParser(prog="flowcal")
+            parser.add_argument("--file", default="calendar.json", help="the calendar file")
+            commands = parser.add_subparsers(dest="command", required=True)
+            for name in ("agenda", "conflicts"):
+                command = commands.add_parser(name)
+                command.add_argument("--from", dest="start", required=True, metavar="DATE")
+                command.add_argument("--to", dest="end", required=True, metavar="DATE")
+            following = commands.add_parser("next")
+            following.add_argument("event_id")
+            following.add_argument("--after", required=True, metavar="YYYY-MM-DDTHH:MM")
+            return parser
+
+
+        def run(args: argparse.Namespace) -> int:
+            events = store.load(args.file)
+            if args.command == "agenda":
+                for occurrence in agenda(events, *_window(args)):
+                    print(_line(occurrence))
+                return 0
+            if args.command == "conflicts":
+                for first, second in conflicts(events, *_window(args)):
+                    print(f"{_label(first)} <-> {_label(second)}")
+                return 0
+            wanted = [event for event in events if event.id == args.event_id]
+            if not wanted:
+                raise ValueError(f"no event {args.event_id!r}")
+            found = next_occurrence(wanted[0], parse_datetime(args.after))
+            if found is None:
+                print("no further occurrence")
+                return 1
+            print(_label(found))
+            return 0
+
+
+        def main(argv: list[str] | None = None) -> int:
+            args = _parser().parse_args(argv)
+            try:
+                return run(args)
+            except (OSError, ValueError, KeyError) as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
+      flowcal/dates.py: |
+        """Parsing, formatting and month arithmetic. All datetimes are naive local times."""
+
+        import calendar
+        import datetime as dt
+
+        DATETIME_FORMAT = "%Y-%m-%dT%H:%M"
+
+
+        def parse_date(text: str) -> dt.date:
+            return dt.date.fromisoformat(text)
+
+
+        def parse_datetime(text: str) -> dt.datetime:
+            return dt.datetime.strptime(text, DATETIME_FORMAT)
+
+
+        def format_datetime(value: dt.datetime) -> str:
+            return value.strftime(DATETIME_FORMAT)
+
+
+        def days_in_month(year: int, month: int) -> int:
+            return calendar.monthrange(year, month)[1]
+
+
+        def add_months(value: dt.datetime, months: int) -> dt.datetime:
+            """The same day of the month `months` later, or the last day of a shorter month."""
+            index = value.year * 12 + (value.month - 1) + months
+            year, month = index // 12, index % 12 + 1
+            day = min(value.day, days_in_month(year, month))
+            return value.replace(year=year, month=month, day=day)
+      flowcal/model.py: |
+        """The calendar's data model."""
+
+        import datetime as dt
+        from dataclasses import dataclass
+
+        FREQUENCIES = ("daily", "weekly", "monthly", "yearly")
+
+
+        @dataclass(frozen=True)
+        class Rule:
+            """How an event repeats. `count` is the total number of occurrences."""
+
+            freq: str
+            interval: int = 1
+            count: int | None = None
+            until: dt.date | None = None
+
+            def __post_init__(self) -> None:
+                if self.freq not in FREQUENCIES:
+                    raise ValueError(f"unknown frequency: {self.freq!r}")
+                if self.interval < 1:
+                    raise ValueError("interval must be at least 1")
+                if self.count is not None and self.count < 1:
+                    raise ValueError("count must be at least 1")
+                if self.count is not None and self.until is not None:
+                    raise ValueError("a rule has either count or until, not both")
+
+
+        @dataclass(frozen=True)
+        class Event:
+            id: str
+            title: str
+            start: dt.datetime
+            minutes: int
+            rule: Rule | None = None
+
+            def __post_init__(self) -> None:
+                if self.minutes < 0:
+                    raise ValueError("minutes must not be negative")
+
+
+        @dataclass(frozen=True)
+        class Occurrence:
+            """One time an event happens."""
+
+            event: Event
+            start: dt.datetime
+
+            @property
+            def end(self) -> dt.datetime:
+                return self.start + dt.timedelta(minutes=self.event.minutes)
+      flowcal/recurrence.py: |
+        """Expanding an event's series into occurrences."""
+
+        import datetime as dt
+        from collections.abc import Iterator
+
+        from flowcal.dates import add_months
+        from flowcal.model import Event, Occurrence, Rule
+
+
+        def _advance(current: dt.datetime, rule: Rule) -> dt.datetime:
+            if rule.freq == "daily":
+                return current + dt.timedelta(days=rule.interval)
+            if rule.freq == "weekly":
+                return current + dt.timedelta(weeks=rule.interval)
+            if rule.freq == "monthly":
+                return add_months(current, rule.interval)
+            return add_months(current, 12 * rule.interval)
+
+
+        def starts(event: Event) -> Iterator[dt.datetime]:
+            """Every start of the series, in order. Endless without `count` or `until`."""
+            yield event.start
+            rule = event.rule
+            if rule is None:
+                return
+            current = event.start
+            produced = 1
+            while rule.count is None or produced < rule.count:
+                current = _advance(current, rule)
+                if rule.until is not None and current.date() > rule.until:
+                    return
+                yield current
+                produced += 1
+
+
+        def occurrences(
+            event: Event, window_start: dt.datetime, window_end: dt.datetime
+        ) -> list[Occurrence]:
+            """The occurrences of `event` in the window from `window_start` to `window_end`."""
+            found = []
+            for start in starts(event):
+                if start >= window_end:
+                    break
+                if start >= window_start:
+                    found.append(Occurrence(event, start))
+            return found
+      flowcal/store.py: |
+        """Reading and writing the calendar file."""
+
+        import json
+        from typing import Any
+
+        from flowcal.dates import format_datetime, parse_date, parse_datetime
+        from flowcal.model import Event, Rule
+
+
+        def rule_from_dict(data: dict[str, Any]) -> Rule:
+            until = data.get("until")
+            return Rule(
+                freq=data["freq"],
+                interval=int(data.get("interval", 1)),
+                count=data.get("count"),
+                until=parse_date(until) if until else None,
+            )
+
+
+        def rule_to_dict(rule: Rule) -> dict[str, Any]:
+            data: dict[str, Any] = {"freq": rule.freq, "interval": rule.interval}
+            if rule.count is not None:
+                data["count"] = rule.count
+            if rule.until is not None:
+                data["until"] = rule.until.isoformat()
+            return data
+
+
+        def event_from_dict(data: dict[str, Any]) -> Event:
+            rule = data.get("rule")
+            return Event(
+                id=data["id"],
+                title=data["title"],
+                start=parse_datetime(data["start"]),
+                minutes=int(data["minutes"]),
+                rule=rule_from_dict(rule) if rule else None,
+            )
+
+
+        def event_to_dict(event: Event) -> dict[str, Any]:
+            data: dict[str, Any] = {
+                "id": event.id,
+                "title": event.title,
+                "start": format_datetime(event.start),
+                "minutes": event.minutes,
+            }
+            if event.rule is not None:
+                data["rule"] = rule_to_dict(event.rule)
+            return data
+
+
+        def load(path: str) -> list[Event]:
+            with open(path, encoding="utf-8") as handle:
+                data = json.load(handle)
+            events = [event_from_dict(item) for item in data["events"]]
+            ids = [event.id for event in events]
+            if len(set(ids)) != len(ids):
+                raise ValueError("duplicate event ids")
+            return events
+
+
+        def save(path: str, events: list[Event]) -> None:
+            data = {"events": [event_to_dict(event) for event in events]}
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(data, handle, indent=2)
+                handle.write("\n")
+      tests/__init__.py: ''
+      tests/test_agenda.py: |
+        import datetime as dt
+        import unittest
+
+        from flowcal.agenda import agenda, conflicts, next_occurrence
+        from flowcal.model import Event, Rule
+
+        DAY = (dt.datetime(2026, 3, 2), dt.datetime(2026, 3, 3))
+
+
+        def at(hour, minute=0, day=2):
+            return dt.datetime(2026, 3, day, hour, minute)
+
+
+        class AgendaTests(unittest.TestCase):
+            def test_sorted_by_start_then_title(self):
+                events = [
+                    Event("b", "Beta", at(11), 30),
+                    Event("r", "Reminder", at(10), 0),
+                    Event("a", "Alpha", at(11), 60),
+                ]
+                self.assertEqual([o.event.title for o in agenda(events, *DAY)], ["Reminder", "Alpha", "Beta"])
+
+
+        class ConflictsTests(unittest.TestCase):
+            def test_overlapping_pair(self):
+                events = [Event("a", "Alpha", at(9), 60), Event("b", "Beta", at(9, 30), 60)]
+                [(first, second)] = conflicts(events, *DAY)
+                self.assertEqual((first.event.id, second.event.id), ("a", "b"))
+
+            def test_separate_events_do_not_conflict(self):
+                events = [Event("a", "Alpha", at(9), 60), Event("b", "Beta", at(11), 60)]
+                self.assertEqual(conflicts(events, *DAY), [])
+
+            def test_recurring_event_conflicts_once_per_day(self):
+                events = [
+                    Event("a", "Alpha", at(9), 60, Rule("daily", count=3)),
+                    Event("b", "Beta", at(9, 30, day=3), 15),
+                ]
+                pairs = conflicts(events, dt.datetime(2026, 3, 1), dt.datetime(2026, 3, 8))
+                self.assertEqual([(a.start.day, b.event.id) for a, b in pairs], [(3, "b")])
+
+
+        class NextOccurrenceTests(unittest.TestCase):
+            def test_single_event(self):
+                single = Event("s", "Single", at(9), 30)
+                self.assertEqual(next_occurrence(single, at(8)).start, at(9))
+                self.assertIsNone(next_occurrence(single, at(9)))
+
+            def test_weekly(self):
+                weekly = Event("w", "Weekly", at(9), 30, Rule("weekly"))
+                self.assertEqual(next_occurrence(weekly, at(9)).start, at(9, day=9))
+
+            def test_count_and_until_end_the_series(self):
+                counted = Event("c", "Counted", at(9), 30, Rule("daily", count=2))
+                self.assertEqual(next_occurrence(counted, at(9)).start, at(9, day=3))
+                self.assertIsNone(next_occurrence(counted, at(9, day=3)))
+                bounded = Event("u", "Until", at(9), 30, Rule("daily", until=dt.date(2026, 3, 3)))
+                self.assertIsNone(next_occurrence(bounded, at(9, day=3)))
+
+
+        if __name__ == "__main__":
+            unittest.main()
+      tests/test_cli.py: |
+        import contextlib
+        import io
+        import unittest
+
+        from flowcal.cli import main
+
+
+        def run(*argv):
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = main(list(argv))
+            return code, out.getvalue(), err.getvalue()
+
+
+        class CliTests(unittest.TestCase):
+            def test_agenda(self):
+                code, out, _ = run("agenda", "--from", "2026-03-09", "--to", "2026-03-10")
+                self.assertEqual(code, 0)
+                self.assertEqual(
+                    out.splitlines(),
+                    [
+                        "2026-03-09 09:30    15m  Standup",
+                        "2026-03-10 08:00     0m  Launch",
+                        "2026-03-10 09:30    15m  Standup",
+                    ],
+                )
+
+            def test_next(self):
+                code, out, _ = run("next", "planning", "--after", "2026-03-02T10:00")
+                self.assertEqual((code, out), (0, "2026-03-16 10:00 Sprint planning\n"))
+
+            def test_next_after_the_series_ended(self):
+                code, out, _ = run("next", "review", "--after", "2027-01-01T00:00")
+                self.assertEqual((code, out), (1, "no further occurrence\n"))
+
+            def test_unknown_event(self):
+                code, out, err = run("next", "nope", "--after", "2026-03-02T10:00")
+                self.assertEqual((code, out, err), (2, "", "error: no event 'nope'\n"))
+
+            def test_window_must_not_end_before_it_starts(self):
+                code, _, err = run("conflicts", "--from", "2026-03-10", "--to", "2026-03-09")
+                self.assertEqual((code, err), (2, "error: --to is before --from\n"))
+
+
+        if __name__ == "__main__":
+            unittest.main()
+      tests/test_dates.py: |
+        import datetime as dt
+        import unittest
+
+        from flowcal.dates import add_months, days_in_month, format_datetime, parse_datetime
+
+
+        class DatesTests(unittest.TestCase):
+            def test_parse_and_format(self):
+                value = parse_datetime("2026-03-02T09:30")
+                self.assertEqual(value, dt.datetime(2026, 3, 2, 9, 30))
+                self.assertEqual(format_datetime(value), "2026-03-02T09:30")
+
+            def test_days_in_month(self):
+                self.assertEqual(days_in_month(2026, 2), 28)
+                self.assertEqual(days_in_month(2028, 2), 29)
+
+            def test_add_months(self):
+                start = dt.datetime(2026, 11, 15, 8, 0)
+                self.assertEqual(add_months(start, 1), dt.datetime(2026, 12, 15, 8, 0))
+                self.assertEqual(add_months(start, 2), dt.datetime(2027, 1, 15, 8, 0))
+                self.assertEqual(add_months(start, 14), dt.datetime(2028, 1, 15, 8, 0))
+
+            def test_add_months_clamps_to_a_shorter_month(self):
+                self.assertEqual(
+                    add_months(dt.datetime(2026, 1, 31, 16, 0), 1), dt.datetime(2026, 2, 28, 16, 0)
+                )
+
+
+        if __name__ == "__main__":
+            unittest.main()
+      tests/test_recurrence.py: |
+        import datetime as dt
+        import itertools
+        import unittest
+
+        from flowcal.model import Event, Rule
+        from flowcal.recurrence import occurrences, starts
+
+
+        def event(start, minutes=30, **rule):
+            return Event("e", "Event", start, minutes, Rule(**rule) if rule else None)
+
+
+        class StartsTests(unittest.TestCase):
+            def test_single_event(self):
+                start = dt.datetime(2026, 3, 2, 9, 0)
+                self.assertEqual(list(starts(event(start))), [start])
+
+            def test_daily_with_count(self):
+                got = list(starts(event(dt.datetime(2026, 3, 2, 9, 0), freq="daily", interval=2, count=3)))
+                self.assertEqual([s.day for s in got], [2, 4, 6])
+
+            def test_weekly_until_is_inclusive(self):
+                rule = {"freq": "weekly", "until": dt.date(2026, 3, 16)}
+                got = list(starts(event(dt.datetime(2026, 3, 2, 9, 0), **rule)))
+                self.assertEqual([s.day for s in got], [2, 9, 16])
+
+            def test_monthly_on_the_15th(self):
+                got = itertools.islice(starts(event(dt.datetime(2026, 11, 15, 8, 0), freq="monthly")), 4)
+                self.assertEqual([(s.year, s.month, s.day) for s in got],
+                                 [(2026, 11, 15), (2026, 12, 15), (2027, 1, 15), (2027, 2, 15)])
+
+            def test_yearly(self):
+                got = itertools.islice(starts(event(dt.datetime(2026, 7, 4, 12, 0), freq="yearly")), 3)
+                self.assertEqual([s.year for s in got], [2026, 2027, 2028])
+
+
+        class OccurrencesTests(unittest.TestCase):
+            def test_window_is_half_open(self):
+                daily = event(dt.datetime(2026, 3, 1, 9, 0), freq="daily")
+                got = occurrences(daily, dt.datetime(2026, 3, 3), dt.datetime(2026, 3, 5))
+                self.assertEqual([o.start.day for o in got], [3, 4])
+
+            def test_endless_series_stops_at_the_window(self):
+                daily = event(dt.datetime(2020, 1, 1, 9, 0), freq="daily")
+                got = occurrences(daily, dt.datetime(2026, 3, 3), dt.datetime(2026, 3, 4))
+                self.assertEqual(len(got), 1)
+                self.assertEqual(got[0].end, dt.datetime(2026, 3, 3, 9, 30))
+
+
+        if __name__ == "__main__":
+            unittest.main()
+      tests/test_store.py: |
+        import datetime as dt
+        import os
+        import tempfile
+        import unittest
+
+        from flowcal import store
+        from flowcal.model import Event, Rule
+
+
+        class StoreTests(unittest.TestCase):
+            def test_event_to_dict(self):
+                event = Event("a", "Alpha", dt.datetime(2026, 3, 2, 9, 0), 45)
+                self.assertEqual(
+                    store.event_to_dict(event),
+                    {"id": "a", "title": "Alpha", "start": "2026-03-02T09:00", "minutes": 45},
+                )
+
+            def test_rule_to_dict_leaves_out_unset_ends(self):
+                self.assertEqual(store.rule_to_dict(Rule("weekly", 2)), {"freq": "weekly", "interval": 2})
+                self.assertEqual(
+                    store.rule_to_dict(Rule("daily", until=dt.date(2026, 6, 30))),
+                    {"freq": "daily", "interval": 1, "until": "2026-06-30"},
+                )
+
+            def test_round_trip(self):
+                events = [
+                    Event("a", "Alpha", dt.datetime(2026, 3, 2, 9, 0), 45),
+                    Event("b", "Beta", dt.datetime(2026, 3, 3, 9, 0), 0, Rule("monthly", 3, count=4)),
+                ]
+                path = os.path.join(tempfile.mkdtemp(), "calendar.json")
+                store.save(path, events)
+                self.assertEqual(store.load(path), events)
+
+            def test_shipped_calendar_loads(self):
+                events = store.load("calendar.json")
+                self.assertEqual([event.id for event in events],
+                                 ["standup", "planning", "invoices", "review", "launch"])
+
+            def test_duplicate_ids_are_rejected(self):
+                path = os.path.join(tempfile.mkdtemp(), "calendar.json")
+                event = Event("a", "Alpha", dt.datetime(2026, 3, 2, 9, 0), 45)
+                store.save(path, [event, event])
+                with self.assertRaises(ValueError):
+                    store.load(path)
+
+
+        if __name__ == "__main__":
+            unittest.main()
+    git_init: true
+  allowed_tools:
+  - filesystem
+  - terminal
+  - git
+  expected_behavior: Find that both `recurrence.starts` and `agenda.next_occurrence` step from the previous
+    (already clamped) start; compute each start from the first one instead, for monthly and yearly rules,
+    without changing count/until or the daily and weekly series.
+  evaluators:
+  - type: completed
+    name: finished
+  - type: command
+    name: unit_tests
+    command: python3 -m unittest discover -s tests
+  - type: command
+    name: existing_tests
+    command: |
+      set -e
+      base=$(git rev-list --max-parents=0 HEAD | tail -n1)
+      dir=$(mktemp -d)
+      git archive "$base" tests | tar -x -C "$dir"
+      PYTHONPATH=. python3 -m unittest discover -s "$dir/tests" -t "$dir"
+      rm -rf "$dir"
+  - type: command
+    name: hidden_month_end
+    command: |
+      python3 - <<'PY'
+      import datetime as dt
+      import itertools
+
+      from flowcal.model import Event, Rule
+      from flowcal.recurrence import occurrences, starts
+
+
+      def days(start, n, **rule):
+          series = starts(Event("e", "Event", start, 60, Rule(**rule)))
+          return [(s.month, s.day) for s in itertools.islice(series, n)]
+
+
+      got = days(dt.datetime(2026, 1, 31, 16, 0), 6, freq="monthly")
+      assert got == [(1, 31), (2, 28), (3, 31), (4, 30), (5, 31), (6, 30)], got
+      got = days(dt.datetime(2026, 1, 30, 16, 0), 4, freq="monthly")
+      assert got == [(1, 30), (2, 28), (3, 30), (4, 30)], got
+      got = days(dt.datetime(2025, 12, 31, 8, 0), 5, freq="monthly", interval=2)
+      assert got == [(12, 31), (2, 28), (4, 30), (6, 30), (8, 31)], got
+      got = days(dt.datetime(2028, 1, 31, 8, 0), 3, freq="monthly")
+      assert got == [(1, 31), (2, 29), (3, 31)], got
+
+      got = days(dt.datetime(2026, 1, 31, 16, 0), 10, freq="monthly", count=4)
+      assert got == [(1, 31), (2, 28), (3, 31), (4, 30)], got
+      # `until` is compared with the real start: 31 March is after 30 March.
+      got = days(dt.datetime(2026, 1, 31, 16, 0), 10, freq="monthly", until=dt.date(2026, 3, 30))
+      assert got == [(1, 31), (2, 28)], got
+
+      event = Event("e", "Event", dt.datetime(2026, 1, 31, 16, 0), 60, Rule("monthly"))
+      found = occurrences(event, dt.datetime(2026, 3, 1), dt.datetime(2026, 6, 1))
+      assert [o.start for o in found] == [
+          dt.datetime(2026, 3, 31, 16, 0),
+          dt.datetime(2026, 4, 30, 16, 0),
+          dt.datetime(2026, 5, 31, 16, 0),
+      ], found
+      print("hidden month end ok")
+      PY
+  - type: command
+    name: hidden_leap_day
+    command: |
+      python3 - <<'PY'
+      import datetime as dt
+      import itertools
+
+      from flowcal.model import Event, Rule
+      from flowcal.recurrence import starts
+
+      event = Event("b", "Birthday", dt.datetime(2028, 2, 29, 12, 0), 0, Rule("yearly"))
+      got = [(s.year, s.month, s.day) for s in itertools.islice(starts(event), 5)]
+      assert got == [(2028, 2, 29), (2029, 2, 28), (2030, 2, 28), (2031, 2, 28), (2032, 2, 29)], got
+      event = Event("b", "Olympics", dt.datetime(2028, 2, 29, 12, 0), 0, Rule("yearly", interval=4))
+      got = [(s.year, s.month, s.day) for s in itertools.islice(starts(event), 3)]
+      assert got == [(2028, 2, 29), (2032, 2, 29), (2036, 2, 29)], got
+      print("hidden leap day ok")
+      PY
+  - type: command
+    name: hidden_next
+    command: |
+      set -e
+      python3 - <<'PY'
+      import datetime as dt
+
+      from flowcal.agenda import next_occurrence
+      from flowcal.model import Event, Rule
+
+      event = Event("i", "Invoices", dt.datetime(2026, 1, 31, 16, 0), 60, Rule("monthly"))
+      assert next_occurrence(event, dt.datetime(2026, 3, 1)).start == dt.datetime(2026, 3, 31, 16, 0)
+      assert next_occurrence(event, dt.datetime(2026, 3, 31, 16, 0)).start == dt.datetime(2026, 4, 30, 16, 0)
+      counted = Event("c", "Counted", dt.datetime(2026, 1, 31, 16, 0), 60, Rule("monthly", count=3))
+      assert next_occurrence(counted, dt.datetime(2026, 3, 1)).start == dt.datetime(2026, 3, 31, 16, 0)
+      assert next_occurrence(counted, dt.datetime(2026, 3, 31, 16, 0)) is None
+      bounded = Event("u", "Until", dt.datetime(2026, 1, 31, 16, 0), 60, Rule("monthly", until=dt.date(2026, 3, 30)))
+      assert next_occurrence(bounded, dt.datetime(2026, 3, 1)) is None
+      leap = Event("b", "Birthday", dt.datetime(2028, 2, 29, 12, 0), 0, Rule("yearly"))
+      assert next_occurrence(leap, dt.datetime(2031, 3, 1)).start == dt.datetime(2032, 2, 29, 12, 0)
+      PY
+      base=$(git rev-list --max-parents=0 HEAD | tail -n1)
+      dir=$(mktemp -d)
+      git show "$base:calendar.json" > "$dir/calendar.json"
+      out=$(python3 -m flowcal --file "$dir/calendar.json" next invoices --after 2026-03-01T00:00)
+      test "$out" = "2026-03-31 16:00 Send invoices"
+      out=$(python3 -m flowcal --file "$dir/calendar.json" agenda --from 2026-03-28 --to 2026-03-31 | grep invoices)
+      test "$out" = "2026-03-31 16:00    60m  Send invoices"
+      rm -rf "$dir"
+      echo "hidden next ok"
+  - type: command
+    name: hidden_unchanged
+    command: |
+      python3 - <<'PY'
+      import datetime as dt
+      import itertools
+
+      from flowcal.agenda import next_occurrence
+      from flowcal.model import Event, Rule
+      from flowcal.recurrence import starts
+
+
+      def first(n, start, **rule):
+          return list(itertools.islice(starts(Event("e", "Event", start, 30, Rule(**rule))), n))
+
+
+      nine = dt.datetime(2026, 1, 28, 9, 0)
+      assert first(4, nine, freq="daily", interval=2) == [nine + dt.timedelta(days=d) for d in (0, 2, 4, 6)]
+      assert first(3, nine, freq="weekly", interval=3) == [nine + dt.timedelta(weeks=w) for w in (0, 3, 6)]
+      got = [(s.year, s.month, s.day) for s in first(4, dt.datetime(2026, 11, 28, 9, 0), freq="monthly")]
+      assert got == [(2026, 11, 28), (2026, 12, 28), (2027, 1, 28), (2027, 2, 28)], got
+      assert first(9, nine, freq="daily", count=3)[-1] == nine + dt.timedelta(days=2)
+      assert len(first(9, nine, freq="daily", count=1)) == 1
+      assert len(first(9, nine, freq="weekly", until=dt.date(2026, 2, 11))) == 3
+
+      single = Event("s", "Single", nine, 30)
+      assert list(starts(single)) == [nine] and next_occurrence(single, nine) is None
+      daily = Event("d", "Daily", dt.datetime(2020, 1, 1, 9, 0), 30, Rule("daily"))
+      assert next_occurrence(daily, dt.datetime(2026, 3, 2, 9, 0)).start == dt.datetime(2026, 3, 3, 9, 0)
+      print("hidden unchanged ok")
+      PY
+  - type: command
+    name: data_untouched
+    command: |
+      git diff --quiet "$(git rev-list --max-parents=0 HEAD | tail -n1)" -- calendar.json
+  - type: tool_used
+    name: ran_commands
+    tool: run_command
+    required: false
+    weight: 0.5
+  tags:
+  - swe
+  - bug
+  - multi-site
+- id: conflict-report
+  goal: |
+    Fix this issue in the `flowcal` repository (the workspace; start with README.md).
+
+    **The conflict report is wrong in three ways**
+
+    `python3 -m flowcal conflicts` does not do what the README describes:
+
+    1. Back-to-back meetings are reported: 09:00-10:00 and 10:00-11:00 show up as a conflict.
+    2. Pairs are missing. With a workshop 09:00-12:00, a call 09:30-10:30 and a demo
+       10:00-11:00 I get "Workshop <-> Call" and "Call <-> Demo", but not "Workshop <-> Demo".
+    3. An overnight deployment (Sunday 22:00 to Monday 08:00) is not in Monday's agenda, so
+       its clash with Monday's 07:30 breakfast is not reported when I ask for Monday only.
+
+    Fix it in the library. The existing tests must keep passing
+    (`python3 -m unittest discover -s tests`).
+  setup:
+    files: *flowcal_repo
+    git_init: true
+  allowed_tools:
+  - filesystem
+  - terminal
+  - git
+  expected_behavior: 'Three causes in two modules: `overlaps` treats touching occurrences as overlapping,
+    `conflicts` only compares neighbours in the agenda, and `recurrence.occurrences` drops an occurrence
+    that began before the window. Fix all three; keep the pair order and reminders at the first minute
+    of the window.'
+  evaluators:
+  - type: completed
+    name: finished
+  - type: command
+    name: unit_tests
+    command: python3 -m unittest discover -s tests
+  - type: command
+    name: existing_tests
+    command: |
+      set -e
+      base=$(git rev-list --max-parents=0 HEAD | tail -n1)
+      dir=$(mktemp -d)
+      git archive "$base" tests | tar -x -C "$dir"
+      PYTHONPATH=. python3 -m unittest discover -s "$dir/tests" -t "$dir"
+      rm -rf "$dir"
+  - type: command
+    name: hidden_touching
+    command: |
+      python3 - <<'PY'
+      import datetime as dt
+
+      from flowcal.agenda import conflicts
+      from flowcal.model import Event, Rule
+
+      DAY = (dt.datetime(2026, 3, 2), dt.datetime(2026, 3, 3))
+      events = [
+          Event("a", "Alpha", dt.datetime(2026, 3, 2, 9, 0), 60),
+          Event("b", "Beta", dt.datetime(2026, 3, 2, 10, 0), 60),
+          Event("c", "Gamma", dt.datetime(2026, 3, 2, 11, 0), 30),
+      ]
+      assert conflicts(events, *DAY) == [], conflicts(events, *DAY)
+      # One minute of shared time is a conflict.
+      events[1] = Event("b", "Beta", dt.datetime(2026, 3, 2, 9, 59), 61)
+      got = [(a.event.id, b.event.id) for a, b in conflicts(events, *DAY)]
+      assert got == [("a", "b")], got
+      # A daily one-hour slot does not conflict with the slot right after it.
+      slots = [
+          Event("m", "Morning", dt.datetime(2026, 3, 2, 9, 0), 60, Rule("daily", count=5)),
+          Event("n", "Next", dt.datetime(2026, 3, 2, 10, 0), 60, Rule("daily", count=5)),
+      ]
+      assert conflicts(slots, dt.datetime(2026, 3, 2), dt.datetime(2026, 3, 9)) == []
+      print("hidden touching ok")
+      PY
+  - type: command
+    name: hidden_all_pairs
+    command: |
+      python3 - <<'PY'
+      import datetime as dt
+
+      from flowcal.agenda import conflicts
+      from flowcal.model import Event
+
+
+      def at(hour, minute=0):
+          return dt.datetime(2026, 3, 2, hour, minute)
+
+
+      DAY = (dt.datetime(2026, 3, 2), dt.datetime(2026, 3, 3))
+      events = [
+          Event("lunch", "Lunch", at(11, 30), 60),
+          Event("demo", "Demo", at(10), 60),
+          Event("workshop", "Workshop", at(9), 180),
+          Event("call", "Call", at(9, 30), 60),
+      ]
+      got = [(a.event.id, b.event.id) for a, b in conflicts(events, *DAY)]
+      want = [("workshop", "call"), ("workshop", "demo"), ("workshop", "lunch"), ("call", "demo")]
+      assert got == want, got
+      # Three meetings in the same slot: every pair once, in agenda order (start, then title).
+      same = [Event(i, t, at(14), 30) for i, t in (("z", "Zeta"), ("x", "Eta"), ("y", "Theta"))]
+      got = [(a.event.title, b.event.title) for a, b in conflicts(same, *DAY)]
+      assert got == [("Eta", "Theta"), ("Eta", "Zeta"), ("Theta", "Zeta")], got
+      print("hidden all pairs ok")
+      PY
+  - type: command
+    name: hidden_window_start
+    command: |
+      python3 - <<'PY'
+      import datetime as dt
+
+      from flowcal.agenda import agenda, conflicts
+      from flowcal.model import Event, Rule
+      from flowcal.recurrence import occurrences
+
+      MONDAY = (dt.datetime(2026, 3, 2), dt.datetime(2026, 3, 3))
+      deploy = Event("deploy", "Deploy", dt.datetime(2026, 3, 1, 22, 0), 600)
+      breakfast = Event("breakfast", "Breakfast", dt.datetime(2026, 3, 2, 7, 30), 30)
+      got = [o.event.id for o in agenda([breakfast, deploy], *MONDAY)]
+      assert got == ["deploy", "breakfast"], got
+      got = [(a.event.id, b.event.id) for a, b in conflicts([breakfast, deploy], *MONDAY)]
+      assert got == [("deploy", "breakfast")], got
+
+      # Over before the window opens (also: ending exactly when it opens) is outside.
+      ended = Event("ended", "Ended", dt.datetime(2026, 3, 1, 23, 0), 60)
+      assert occurrences(ended, *MONDAY) == []
+      # A reminder belongs to the window when its time lies in it, including its first minute.
+      opening = Event("opening", "Opening", dt.datetime(2026, 3, 2, 0, 0), 0)
+      assert [o.start for o in occurrences(opening, *MONDAY)] == [dt.datetime(2026, 3, 2, 0, 0)]
+      late = Event("late", "Late", dt.datetime(2026, 3, 1, 23, 59), 0)
+      closing = Event("closing", "Closing", dt.datetime(2026, 3, 3, 0, 0), 0)
+      assert occurrences(late, *MONDAY) == [] and occurrences(closing, *MONDAY) == []
+
+      # A nightly job: Monday's window sees Sunday night's run and Monday night's.
+      nightly = Event("nightly", "Nightly", dt.datetime(2026, 2, 1, 23, 0), 120, Rule("daily"))
+      got = [o.start for o in occurrences(nightly, *MONDAY)]
+      assert got == [dt.datetime(2026, 3, 1, 23, 0), dt.datetime(2026, 3, 2, 23, 0)], got
+      print("hidden window start ok")
+      PY
+  - type: command
+    name: hidden_cli
+    command: |
+      set -e
+      dir=$(mktemp -d)
+      cat > "$dir/week.json" <<'JSON'
+      {"events": [
+        {"id": "deploy", "title": "Deploy", "start": "2026-03-01T22:00", "minutes": 600},
+        {"id": "breakfast", "title": "Breakfast", "start": "2026-03-02T07:30", "minutes": 30},
+        {"id": "standup", "title": "Standup", "start": "2026-03-02T08:00", "minutes": 30},
+        {"id": "workshop", "title": "Workshop", "start": "2026-03-02T09:00", "minutes": 180},
+        {"id": "call", "title": "Call", "start": "2026-03-02T09:30", "minutes": 60},
+        {"id": "demo", "title": "Demo", "start": "2026-03-02T10:00", "minutes": 60},
+        {"id": "lunch", "title": "Lunch", "start": "2026-03-02T12:00", "minutes": 45}
+      ]}
+      JSON
+      python3 -m flowcal --file "$dir/week.json" conflicts --from 2026-03-02 --to 2026-03-02 > "$dir/out.txt"
+      cat > "$dir/want.txt" <<'TXT'
+      2026-03-01 22:00 Deploy <-> 2026-03-02 07:30 Breakfast
+      2026-03-02 09:00 Workshop <-> 2026-03-02 09:30 Call
+      2026-03-02 09:00 Workshop <-> 2026-03-02 10:00 Demo
+      2026-03-02 09:30 Call <-> 2026-03-02 10:00 Demo
+      TXT
+      diff "$dir/want.txt" "$dir/out.txt"
+      test "$(python3 -m flowcal --file "$dir/week.json" agenda --from 2026-03-02 --to 2026-03-02 | head -n1)" = "2026-03-01 22:00   600m  Deploy"
+      rm -rf "$dir"
+      echo "hidden cli ok"
+  - type: command
+    name: data_untouched
+    command: |
+      git diff --quiet "$(git rev-list --max-parents=0 HEAD | tail -n1)" -- calendar.json
+  - type: tool_used
+    name: ran_commands
+    tool: run_command
+    required: false
+    weight: 0.5
+  tags:
+  - swe
+  - bug
+  - multi-cause
+- id: skip-dates
+  goal: |
+    Implement this feature request in the `flowcal` repository (the workspace; start with README.md).
+
+    **Skip single dates of an event**
+
+    I need to cancel one occurrence of a repeating event without ending the series.
+
+    - `Event` gets a field `skip`: a tuple of `datetime.date`, empty by default, kept sorted
+      and without duplicates. An occurrence that starts on one of these dates does not happen:
+      it is not in the agenda, cannot conflict and is never the next occurrence.
+    - A skipped occurrence still counts towards the rule's `count`: a daily event with
+      `count: 5` and one skipped date happens four times.
+    - In the calendar file an event may have `"skip": ["YYYY-MM-DD", ...]`. Files without it
+      load as before. An event without skipped dates is written exactly as today (no `skip`
+      key), so saving an existing calendar does not change the file.
+    - New command `python3 -m flowcal [--file F] skip EVENT_ID DATE` adds the date and saves
+      the file. It prints `skipped EVENT_ID on DATE` and exits 0. If the date is already
+      skipped it prints `already skipped EVENT_ID on DATE`, exits 0 and leaves the file alone.
+      If the event has no occurrence starting on that date: `error: EVENT_ID has no occurrence
+      on DATE` on stderr, exit status 2, file unchanged (an unknown event id is reported the
+      way `next` reports it).
+
+    Do not change the shipped `calendar.json`. The existing tests must keep passing
+    (`python3 -m unittest discover -s tests`).
+  setup:
+    files: *flowcal_repo
+    git_init: true
+  allowed_tools:
+  - filesystem
+  - terminal
+  - git
+  expected_behavior: Add `Event.skip` (model), read and write it (store, no key when empty), leave skipped
+    starts out of `occurrences` and `next_occurrence` while they still count towards `count`, and add
+    the `skip` command with its messages and exit codes.
+  evaluators:
+  - type: completed
+    name: finished
+  - type: command
+    name: unit_tests
+    command: python3 -m unittest discover -s tests
+  - type: command
+    name: existing_tests
+    command: |
+      set -e
+      base=$(git rev-list --max-parents=0 HEAD | tail -n1)
+      dir=$(mktemp -d)
+      git archive "$base" tests | tar -x -C "$dir"
+      PYTHONPATH=. python3 -m unittest discover -s "$dir/tests" -t "$dir"
+      rm -rf "$dir"
+  - type: command
+    name: hidden_model_store
+    command: |
+      set -e
+      python3 - <<'PY'
+      import datetime as dt
+      import json
+      import os
+      import tempfile
+
+      from flowcal import store
+      from flowcal.model import Event, Rule
+
+      plain = Event("a", "Alpha", dt.datetime(2026, 3, 2, 9, 0), 45)
+      assert plain.skip == (), plain.skip
+      assert "skip" not in store.event_to_dict(plain)
+
+      days = (dt.date(2026, 3, 4), dt.date(2026, 3, 10))
+      event = Event("d", "Daily", dt.datetime(2026, 3, 2, 9, 0), 30, Rule("daily"), skip=days)
+      assert store.event_to_dict(event)["skip"] == ["2026-03-04", "2026-03-10"]
+
+      path = os.path.join(tempfile.mkdtemp(), "calendar.json")
+      with open(path, "w") as handle:
+          json.dump({"events": [
+              {"id": "d", "title": "Daily", "start": "2026-03-02T09:00", "minutes": 30,
+               "rule": {"freq": "daily"}, "skip": ["2026-03-10", "2026-03-04", "2026-03-10"]},
+              {"id": "a", "title": "Alpha", "start": "2026-03-02T09:00", "minutes": 45},
+          ]}, handle)
+      loaded = store.load(path)
+      assert tuple(loaded[0].skip) == days, loaded[0].skip
+      assert tuple(loaded[1].skip) == ()
+      store.save(path, loaded)
+      with open(path) as handle:
+          saved = json.load(handle)["events"]
+      assert saved[0]["skip"] == ["2026-03-04", "2026-03-10"], saved[0]
+      assert "skip" not in saved[1], saved[1]
+      assert store.load(path) == loaded
+      PY
+      # A calendar without skipped dates is written back byte for byte.
+      base=$(git rev-list --max-parents=0 HEAD | tail -n1)
+      dir=$(mktemp -d)
+      git show "$base:calendar.json" > "$dir/before.json"
+      python3 -c "import sys; from flowcal import store; store.save(sys.argv[2], store.load(sys.argv[1]))" "$dir/before.json" "$dir/after.json"
+      cmp "$dir/before.json" "$dir/after.json"
+      rm -rf "$dir"
+      echo "hidden model and store ok"
+  - type: command
+    name: hidden_expansion
+    command: |
+      python3 - <<'PY'
+      import datetime as dt
+
+      from flowcal.agenda import agenda, conflicts, next_occurrence
+      from flowcal.model import Event, Rule
+      from flowcal.recurrence import occurrences
+
+
+      def at(day, hour=9, minute=0):
+          return dt.datetime(2026, 3, day, hour, minute)
+
+
+      MARCH = (dt.datetime(2026, 3, 1), dt.datetime(2026, 4, 1))
+      skipped = (dt.date(2026, 3, 3), dt.date(2026, 3, 6))
+      # count is the length of the series: 2..6 March. Skipping two leaves three, not five.
+      counted = Event("c", "Counted", at(2), 30, Rule("daily", count=5), skip=skipped)
+      got = [o.start.day for o in occurrences(counted, *MARCH)]
+      assert got == [2, 4, 5], got
+      assert next_occurrence(counted, at(2)).start == at(4)
+      assert next_occurrence(counted, at(4)).start == at(5)
+      assert next_occurrence(counted, at(5)) is None
+
+      bounded = Event("u", "Until", at(2), 30, Rule("daily", until=dt.date(2026, 3, 5)), skip=(dt.date(2026, 3, 5),))
+      assert [o.start.day for o in occurrences(bounded, *MARCH)] == [2, 3, 4]
+      assert next_occurrence(bounded, at(4)) is None
+
+      endless = Event("w", "Weekly", at(2), 30, Rule("weekly"), skip=(dt.date(2026, 3, 9), dt.date(2026, 3, 16)))
+      assert next_occurrence(endless, at(2)).start == at(23)
+      assert [o.start.day for o in agenda([endless], *MARCH)] == [2, 23, 30]
+
+      single = Event("s", "Single", at(2), 30, skip=(dt.date(2026, 3, 2),))
+      assert occurrences(single, *MARCH) == [] and next_occurrence(single, at(1)) is None
+
+      # A date that is not an occurrence, or another event's skipped date, changes nothing.
+      other = Event("o", "Other", at(3, 9, 15), 30, skip=(dt.date(2026, 3, 4),))
+      got = [(a.event.id, b.event.id, a.start.day) for a, b in conflicts([counted, other], *MARCH)]
+      assert got == [], got
+      clash = Event("x", "Clash", at(4, 9, 15), 30)
+      got = [(a.event.id, b.event.id, a.start.day) for a, b in conflicts([counted, clash], *MARCH)]
+      assert got == [("c", "x", 4)], got
+      print("hidden expansion ok")
+      PY
+  - type: command
+    name: hidden_cli
+    command: |
+      set -e
+      base=$(git rev-list --max-parents=0 HEAD | tail -n1)
+      dir=$(mktemp -d)
+      cal="$dir/calendar.json"
+      git show "$base:calendar.json" > "$cal"
+      flowcal() { python3 -m flowcal --file "$cal" "$@"; }
+
+      flowcal skip standup 2026-03-09 > /dev/null
+      test "$(flowcal agenda --from 2026-03-09 --to 2026-03-10 | tr -s ' ')" = "$(printf '2026-03-10 08:00 0m Launch\n2026-03-10 09:30 15m Standup')"
+      test "$(flowcal next standup --after 2026-03-08T09:30)" = "2026-03-10 09:30 Standup"
+
+      cp "$cal" "$dir/once.json"
+      flowcal skip standup 2026-03-09 > /dev/null   # again: fine, and nothing changes
+      cmp "$cal" "$dir/once.json"
+      flowcal skip standup 2026-03-05 > /dev/null
+      python3 - "$cal" <<'PY'
+      import json, sys
+      events = {e["id"]: e for e in json.load(open(sys.argv[1]))["events"]}
+      assert events["standup"]["skip"] == ["2026-03-05", "2026-03-09"], events["standup"]
+      assert all("skip" not in e for i, e in events.items() if i != "standup"), events
+      assert events["standup"]["rule"] == {"freq": "daily", "interval": 1, "until": "2026-06-30"}
+      PY
+
+      cp "$cal" "$dir/before.json"
+      set +e
+      out=$(flowcal skip planning 2026-03-09 2> "$dir/err.txt"); code=$?
+      set -e
+      test "$code" = 2 && test -z "$out"
+      test "$(cat "$dir/err.txt")" = "error: planning has no occurrence on 2026-03-09"
+      set +e
+      out=$(flowcal skip nope 2026-03-09 2> "$dir/err.txt"); code=$?
+      set -e
+      test "$code" = 2 && test -z "$out"
+      test "$(cat "$dir/err.txt")" = "error: no event 'nope'"
+      set +e
+      flowcal skip standup 2026-07-01 > /dev/null 2> "$dir/err.txt"; code=$?   # after `until`
+      set -e
+      test "$code" = 2 && test "$(cat "$dir/err.txt")" = "error: standup has no occurrence on 2026-07-01"
+      cmp "$cal" "$dir/before.json"
+
+      flowcal skip launch 2026-03-10 > /dev/null   # a single event can be skipped too
+      test -z "$(flowcal agenda --from 2026-03-10 --to 2026-03-10 | grep Launch || true)"
+      rm -rf "$dir"
+      echo "hidden cli ok"
+  - type: command
+    name: data_untouched
+    command: |
+      git diff --quiet "$(git rev-list --max-parents=0 HEAD | tail -n1)" -- calendar.json
+  - type: tool_used
+    name: ran_commands
+    tool: run_command
+    required: false
+    weight: 0.5
+  tags:
+  - swe
+  - feature
+  - multi-file

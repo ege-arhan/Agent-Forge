@@ -23,6 +23,23 @@ jobs:
       - run: uv export --frozen --all-extras --no-dev --no-emit-project --format requirements-txt > requirements.txt
       - run: uvx pip-audit --strict --requirement requirements.txt --disable-pip
 
+  dashboard-dependency-audit:
+    name: Dashboard dependency vulnerabilities (npm audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Reads web/package-lock.json; nothing is installed.
+      - name: Packages shipped in the dashboard image (any severity)
+        run: npm audit --omit=dev
+      - name: Development tooling (high and critical)
+        run: npm audit --audit-level=high
+
   static-analysis:
     name: Static analysis (ruff security rules / bandit)
     runs-on: ubuntu-latest

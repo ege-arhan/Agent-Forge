@@ -33,3 +33,14 @@ proposal `limits.max_steps: 3 → 20` → v2 6/6 on dogfood-coding@1 (3 repeats)
 verdict "improved". Deterministic replays: the interval statistics describe
 the pipeline, not a model. Record:
 [`offline/improvement-demo/`](offline/improvement-demo).
+
+### `dogfood-swe` (2026-11-24, AgentForge 0.2.0, suite v1)
+
+| Suite | Agent (scripted reference) | Passed |
+|---|---|---|
+| dogfood-swe@1 | dogfood-swe-offline v1 | 3/3 |
+
+Local sandbox. Like every OFFLINE result this shows that the tasks are
+solvable and that their checks accept the reference solutions; it is not
+model performance. The suite has not been run with a real model. Record:
+[`offline/dogfood-swe-v1/`](offline/dogfood-swe-v1).

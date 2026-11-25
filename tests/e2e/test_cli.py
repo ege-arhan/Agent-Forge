@@ -149,6 +149,45 @@ def _history(capsys: pytest.CaptureFixture[str]) -> dict[str, Any]:
     return data
 
 
+def test_model_assisted_proposal_cli(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert main(["bench", "run", CODING, "-a", DEMO_V1, "--save-agent"]) == 0
+    capsys.readouterr()
+    baseline = _history(capsys)["benchmarks"][0]["id"]
+
+    # Without a configured model the command fails and names the setting.
+    assert main(["improve", "propose", baseline, "--proposer", "llm"]) != 0
+    assert "AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL" in capsys.readouterr().err
+
+    answer = {
+        "changes": [
+            {"path": "limits.max_steps", "value": 20, "rationale": "Runs stop after 3 steps."},
+            {"path": "tools", "value": ["terminal"]},
+        ]
+    }
+    model = {
+        "provider": "scripted",
+        "model": "p",
+        "options": {"turns": [{"text": json.dumps(answer)}]},
+    }
+    monkeypatch.setenv("AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL", json.dumps(model))
+    get_settings.cache_clear()
+    assert main(["improve", "propose", baseline, "--proposer", "llm"]) == 0
+    out = capsys.readouterr().out
+    assert "proposal (llm):" in out and "limits.max_steps set 20" in out
+    assert "why: Runs stop after 3 steps." in out
+    assert "note: dropped a suggested change (tools)" in out
+    assert "proposer model: scripted/p  tokens in/out 0/0  cost $0.0000" in out
+
+    assert main(["improve", "run", baseline, "--proposer", "llm", "--json"]) == 0
+    [cycle] = json.loads(capsys.readouterr().out)
+    assert cycle["proposal"]["proposer"] == "llm" and cycle["status"] == "evaluated"
+    # 0/2 -> 2/2 with one repeat: every task fixed, but too few runs for a verdict.
+    assert cycle["comparison"]["pass_rate_delta"] == 1.0
+    assert cycle["comparison"]["verdict"] == "inconclusive"
+
+
 def test_improvement_loop_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     results = tmp_path / "results"
     code = main(
@@ -164,7 +203,9 @@ def test_improvement_loop_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]
 
     baseline = _history(capsys)["benchmarks"][0]["id"]
     assert main(["improve", "analyze", baseline]) == 0
-    assert "step_limit" in capsys.readouterr().out
+    analysis_out = capsys.readouterr().out
+    assert "step_limit" in analysis_out
+    assert "failure stages (trace diagnosis):" in analysis_out and "stage: " in analysis_out
 
     assert main(["improve", "propose", baseline, "--json"]) == 0
     cycle = json.loads(capsys.readouterr().out)
@@ -248,3 +289,51 @@ def test_dogfood_script(
         sandbox="docker",
     )
     assert kept.model.model == "claude-sonnet-5" and kept.sandbox.kind.value == "docker"
+
+
+def test_memory_commands(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert main(["agents", "create", DEMO]) == 0
+    capsys.readouterr()
+    agent = "scripted-demo"
+
+    assert main(["memory", "list", agent]) == 0
+    assert capsys.readouterr().out.strip() == "no memories"
+
+    monkeypatch.setenv("DEMO_API_KEY", "sk-demo-secret-value")
+    note = "Database configuration lives in settings.py (key sk-demo-secret-value)"
+    assert main(["memory", "add", agent, note, "--tag", "config"]) == 0
+    assert capsys.readouterr().out.startswith("saved memory mem_")
+    assert main(["memory", "add", agent, "The weather service caches forecasts"]) == 0
+    capsys.readouterr()
+
+    assert main(["memory", "list", agent, "--json"]) == 0
+    listed = json.loads(capsys.readouterr().out)["memories"]
+    assert len(listed) == 2
+    assert "sk-demo-secret-value" not in json.dumps(listed)  # redacted before it is stored
+    assert {tuple(m["tags"]) for m in listed} == {("config",), ()}
+
+    # Lexical (the agent's default): the query shares no whole word with the note.
+    assert main(["memory", "search", agent, "configuring databases"]) == 0
+    out = capsys.readouterr().out
+    assert "mode: lexical  embedder: -" in out and "no memories" in out
+
+    # Vector search needs the operator's embedder.
+    assert main(["memory", "search", agent, "configuring databases", "--mode", "vector"]) == 2
+    assert "AGENTFORGE_MEMORY_EMBEDDER" in capsys.readouterr().err
+
+    monkeypatch.setenv("AGENTFORGE_MEMORY_EMBEDDER", "hashing")
+    get_settings.cache_clear()
+    args = ["memory", "search", agent, "configuring databases", "--min-similarity", "0.15"]
+    assert main([*args, "--mode", "vector", "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["mode"] == "vector"
+    (hit,) = result["memories"]
+    assert hit["content"].startswith("Database configuration") and 0.15 < hit["score"] <= 1.0
+    assert main([*args, "--mode", "hybrid"]) == 0
+    out = capsys.readouterr().out
+    assert "mode: hybrid  embedder: hashing-v1:256" in out and "[config]" in out
+
+    assert main(["memory", "list", "no-such-agent"]) == 2
+    assert "no stored agent" in capsys.readouterr().err

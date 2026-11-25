@@ -38,7 +38,8 @@ flowchart LR
     EV --> SB
 
     LLM --> P1[Anthropic]
-    LLM --> P2[OpenAI-compatible<br/>OpenAI, OpenRouter,<br/>Gemini, local]
+    LLM --> P2[OpenAI-compatible<br/>OpenAI, OpenRouter,<br/>OpenCode Go, local]
+    LLM --> P4[Gemini native]
     LLM --> P3[Scripted]
 
     BE[Benchmark Engine] --> RT
@@ -58,11 +59,11 @@ flowchart LR
 | Planner | `runtime/planner.py` | `react` (no upfront plan) and `plan_execute` strategies |
 | Tools | `tools/` | `Tool` interface, registry with toolsets and entry-point plugins, safe executor, built-ins |
 | Sandbox | `sandbox/` | Workspace path confinement; local process and hardened Docker execution |
-| Memory | `memory/` | Short-term context compaction; persistent store interface (in-memory, SQL) |
+| Memory | `memory/` | Short-term context compaction; persistent store interface (in-memory, SQL); lexical, vector and hybrid search; embedders (`memory/embeddings.py` hashing, `llm/embeddings.py` OpenAI-compatible HTTP) |
 | Evaluation | `evaluation/` | Evaluator interface + built-ins, aggregation, objective run metrics |
 | Benchmarks | `benchmarks/` | Suite spec, repeated execution, statistics (Wilson CI, stddev) |
 | Experiments | `experiments/` | Variants over a base config, comparison against a baseline |
-| Improvement loop | `improvement/` | Failure analysis of benchmark runs, rule-based/manual proposals, applying them as new agent versions, re-benchmarking and comparison ([docs/improvement.md](docs/improvement.md)) |
+| Improvement loop | `improvement/` | Failure analysis of benchmark runs (categories plus a rule-based trace-level diagnosis), rule-based/manual proposals and an optional model-assisted proposer whose answer is validated against a narrower allowlist, applying them as new agent versions, re-benchmarking and comparison ([docs/improvement.md](docs/improvement.md)) |
 | Reports | `benchmarks/report.py` | Publication records per benchmark run, stored under `<offline\|real>/` |
 | Regression gate | `benchmarks/gate.py` | CI decision between a baseline and a candidate report: pass / regression / error with exit codes 0 / 1 / 2 and configurable thresholds ([docs/regression-gate.md](docs/regression-gate.md)) |
 | Storage | `storage/` | Async SQLAlchemy tables and repositories; persistence observer |
@@ -113,7 +114,8 @@ limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · 
 | Decision | Rationale |
 |---|---|
 | **Official SDKs as optional extras** (`anthropic`, `openai`), imported lazily inside adapters | Correct wire handling and typed errors without making the core depend on any vendor. |
-| **One OpenAI-compatible adapter** serves OpenAI, OpenRouter, Gemini (its OpenAI-compatible endpoint) and local servers | Chat Completions is the common denominator; presets differ only in URL, key and token-parameter name. A native Gemini adapter is a planned enhancement. |
+| **One OpenAI-compatible adapter** serves OpenAI, OpenRouter, OpenCode Go and local servers | Chat Completions (and, for OpenCode Go, the Responses API) is the common denominator; presets differ only in URL, key, token-parameter name and wire API. |
+| **Gemini's own native adapter**, over `httpx` directly (no SDK, no optional extra) | `generateContent`'s role names (`user`/`model`), `systemInstruction` field and id-less function calls don't fit the OpenAI-compatible shape cleanly; a thin adapter over the plain REST API is simpler than forcing the fit. |
 | **Opaque `ProviderPart`** in the neutral message format | Some APIs (e.g. Anthropic thinking blocks) require blocks to be echoed back verbatim; other providers drop them, keeping conversations portable. |
 | **Runtime owns retries** | One source of truth for attempts, backoff and recorded retry metrics. |
 | **Tool executor wraps every call** | Tools stay small; validation, permission policy, timeouts, truncation, redaction and records are uniform. |
@@ -125,7 +127,8 @@ limits: max_steps · timeout · max_tool_calls · consecutive tool-error cap · 
 | **Lifecycle events + observers** | Persistence, logs, live SSE and OpenTelemetry export share one mechanism. |
 | **Post-hoc trace export** | Spans are built from the finished run record with recorded timestamps: exact timings, zero overhead and no failure modes in the loop; live progress uses SSE. |
 | **Prometheus text without a client library** | Metrics are derived from the database (survive restarts, include CLI runs); a few lines of formatting avoid a dependency. |
-| **Lexical (BM25-style) memory search** | Dependency-free and deterministic; `MemoryStore.search` is the seam for a vector store. |
+| **Lexical (BM25-style) memory search** | Dependency-free and deterministic; stays the default. |
+| **Vector memory as brute-force cosine over cached embeddings** | Per-agent memories are small (the search window is 1 000 records), so an ANN index or pgvector would add a dependency without a measurable need. Vectors are cached per embedder in `memory_embeddings` and computed lazily at search time, so writes never depend on an embedding endpoint. The embedder is a server setting, never part of an agent config (no new SSRF or credential path through the API). |
 | **Benchmarks as normal runs** | Every benchmark attempt is a fully recorded run, inspectable in the same UI. Task/suite limits act as caps on the agent's own limits. |
 | **Wilson score intervals** | Benchmark samples are small and pass rates near 0/1; comparisons show uncertainty rather than implying rankings. |
 | **Scripted provider** | Deterministic, offline end-to-end tests and demos; explicitly not a model. |
