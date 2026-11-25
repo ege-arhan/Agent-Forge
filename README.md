@@ -88,7 +88,9 @@ dashboard, not model performance.*
 - **Agent improvement loop**: agent version → benchmark → evaluation →
   failure analysis → improvement proposal → new version → benchmark again →
   comparison, with the full history kept (immutable agent versions, suite
-  snapshots, analyses, proposals, verdicts). See
+  snapshots, analyses, proposals, verdicts). Proposals are rule-based by
+  default; a model can be asked instead (optional, validated against a
+  narrower allowlist, not yet tried with a real model). See
   [docs/improvement.md](docs/improvement.md).
 - **Honest results**: offline (scripted) and real-model results are separate
   result classes that are never mixed; unmeasured values (tokens, cost) are

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -189,6 +189,11 @@ class ImprovementCreate(_Request):
         default=None,
         description="Developer-written changes; omit to use the rule-based proposer.",
         max_length=50,
+    )
+    proposer: Literal["rules", "llm"] = Field(
+        default="rules",
+        description="'llm' asks the model the operator configured "
+        "(AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL) instead of the rule-based proposer.",
     )
     notes: str = Field(default="", max_length=10_000)
 

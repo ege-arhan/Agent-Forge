@@ -63,7 +63,7 @@ flowchart LR
 | Evaluation | `evaluation/` | Evaluator interface + built-ins, aggregation, objective run metrics |
 | Benchmarks | `benchmarks/` | Suite spec, repeated execution, statistics (Wilson CI, stddev) |
 | Experiments | `experiments/` | Variants over a base config, comparison against a baseline |
-| Improvement loop | `improvement/` | Failure analysis of benchmark runs (categories plus a rule-based trace-level diagnosis), rule-based/manual proposals, applying them as new agent versions, re-benchmarking and comparison ([docs/improvement.md](docs/improvement.md)) |
+| Improvement loop | `improvement/` | Failure analysis of benchmark runs (categories plus a rule-based trace-level diagnosis), rule-based/manual proposals and an optional model-assisted proposer whose answer is validated against a narrower allowlist, applying them as new agent versions, re-benchmarking and comparison ([docs/improvement.md](docs/improvement.md)) |
 | Reports | `benchmarks/report.py` | Publication records per benchmark run, stored under `<offline\|real>/` |
 | Regression gate | `benchmarks/gate.py` | CI decision between a baseline and a candidate report: pass / regression / error with exit codes 0 / 1 / 2 and configurable thresholds ([docs/regression-gate.md](docs/regression-gate.md)) |
 | Storage | `storage/` | Async SQLAlchemy tables and repositories; persistence observer |

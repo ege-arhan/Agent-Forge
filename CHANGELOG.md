@@ -8,6 +8,21 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Optional model-assisted improvement proposer (T-017b).
+  `agentforge improve propose|run --proposer llm` and `POST /improvements`
+  with `"proposer": "llm"` ask a model for the configuration changes instead
+  of the rules. The model is a server setting
+  (`AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL`, a JSON `ModelConfig`; unset by
+  default, and a request cannot supply one). It is shown the agent's
+  changeable settings and the analysis' categories, stages and signals, but
+  no text written by a run or an evaluator and no task goals. Its answer is
+  validated suggestion by suggestion against a narrower allowlist (no
+  `tools`, `model.model` or `retry.evaluation_retries`; the system prompt is
+  append-only; limits are capped at the suite's); what fails is dropped with
+  a note. The proposal records the call (`proposer_call`: provider, model,
+  usage, cost or `null`). The rule-based proposer remains the default.
+  Limits: run against the scripted provider only — no real model has
+  produced a proposal with it; the dashboard cannot request one.
 - Dogfood suite `dogfood-swe` v1 (`dogfood/benchmarks/swe.yaml`, T-008b):
   three issues (a bug present at two sites, a bug with three causes in two
   modules, a feature across five modules) against one shared repository,

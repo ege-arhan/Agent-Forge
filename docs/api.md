@@ -39,7 +39,7 @@ See [improvement.md](improvement.md) for the concepts.
 |---|---|
 | `GET /improvements/categories` | failure categories with descriptions |
 | `GET /improvements/diagnosis` | stages and trace signals of the trace-level diagnosis, with descriptions |
-| `POST /improvements` | `{benchmark_run_id, changes?, notes?}` → 201 cycle with analysis and proposal (rule-based unless `changes` is given; `changes` are `{path, value, operation?, rationale?}` limited to an allowlist) |
+| `POST /improvements` | `{benchmark_run_id, changes?, notes?, proposer?}` → 201 cycle with analysis and proposal (rule-based unless `changes` is given; `changes` are `{path, value, operation?, rationale?}` limited to an allowlist). `proposer: "llm"` asks the model set in `AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL` instead (one model call, up to 120 s; 409 when the setting is unset, when `changes` is also given, or when the call fails); the proposal then carries `proposer_call` (provider, model, usage, `cost_usd` or `null`) |
 | `GET /improvements?agent_id&limit` | cycles, newest first |
 | `GET /improvements/{id}` | one cycle |
 | `POST /improvements/{id}/apply` | `{change_ids?}` → stores the next agent version (`source: improvement`) |

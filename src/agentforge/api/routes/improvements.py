@@ -39,7 +39,7 @@ async def create_improvement(
 ) -> ImprovementCycle:
     """Analyse a finished benchmark of a stored agent version and record a proposal."""
     cycle = await service.improvements.propose(
-        body.benchmark_run_id, changes=body.changes, notes=body.notes
+        body.benchmark_run_id, changes=body.changes, notes=body.notes, proposer=body.proposer
     )
     audit(
         request,
@@ -47,6 +47,7 @@ async def create_improvement(
         improvement_id=cycle.id,
         agent_id=cycle.agent_id,
         benchmark_run_id=body.benchmark_run_id,
+        proposer=cycle.proposal.proposer,
     )
     return cycle
 

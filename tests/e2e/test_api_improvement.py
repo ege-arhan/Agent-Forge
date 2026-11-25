@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ import yaml
 from fastapi.testclient import TestClient
 
 from agentforge.api.app import create_app
+from agentforge.core.config import ModelConfig
 from agentforge.settings import Settings
 from tests.e2e.test_api import API, terminal, wait_for
 
@@ -241,3 +243,56 @@ def test_benchmark_records_the_version_whose_config_it_ran(client: TestClient) -
     assert bench["agent_version"] == 2
     assert bench["agent_config"]["limits"]["max_steps"] == 20
     wait_for(client, f"{API}/benchmarks/runs/{bench['id']}", terminal)
+
+
+def test_model_assisted_proposal_via_api(settings: Settings) -> None:
+    """`proposer: llm` uses the server's model; a request cannot bring its own."""
+    answer = {
+        "changes": [
+            {"path": "limits.max_steps", "value": 20, "addresses": ["step_limit"]},
+            {"path": "model.base_url", "value": "https://attacker.example/v1"},
+        ],
+        "notes": [],
+    }
+    model = ModelConfig(
+        provider="scripted", model="proposer", options={"turns": [{"text": json.dumps(answer)}]}
+    )
+    configured = settings.model_copy(update={"improvement_proposer_model": model})
+    with TestClient(create_app(configured)) as client:
+        agent = client.post(f"{API}/agents", json=demo_agent()).json()
+        baseline = start_benchmark(client, agent["id"])
+        body = {"benchmark_run_id": baseline["id"], "proposer": "llm"}
+        created = client.post(f"{API}/improvements", json=body)
+        assert created.status_code == 201, created.text
+        proposal = created.json()["proposal"]
+        assert proposal["proposer"] == "llm"
+        assert [c["path"] for c in proposal["changes"]] == ["limits.max_steps"]
+        assert any("model.base_url" in n for n in proposal["notes"])
+        assert proposal["proposer_call"] == {
+            "provider": "scripted",
+            "model": "proposer",
+            "usage": {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+            },
+            "cost_usd": 0.0,
+        }
+        # The request body has no field for a model, an endpoint or a key.
+        for extra in ({"model": model.model_dump()}, {"proposer_model": {"provider": "openai"}}):
+            assert client.post(f"{API}/improvements", json={**body, **extra}).status_code == 422
+        assert client.post(f"{API}/improvements", json={**body, "proposer": "x"}).status_code == 422
+        both = {**body, "changes": [{"path": "limits.max_steps", "value": 9}]}
+        assert client.post(f"{API}/improvements", json=both).status_code == 409
+
+
+def test_model_assisted_proposer_is_off_unless_configured(client: TestClient) -> None:
+    agent = client.post(f"{API}/agents", json=demo_agent()).json()
+    baseline = start_benchmark(client, agent["id"])
+    refused = client.post(
+        f"{API}/improvements", json={"benchmark_run_id": baseline["id"], "proposer": "llm"}
+    )
+    assert refused.status_code == 409
+    assert "AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL" in refused.text
+    assert client.get(f"{API}/improvements").json() == []

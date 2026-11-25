@@ -14,10 +14,10 @@ Nothing is deleted: versions, benchmarks, runs and cycles form the history.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from agentforge.benchmarks.runner import BenchmarkRun, BenchmarkRunner, environment_info
-from agentforge.core.config import AgentConfig
+from agentforge.core.config import AgentConfig, ModelConfig
 from agentforge.core.errors import ImprovementError
 from agentforge.core.ids import utcnow
 from agentforge.core.models import AgentVersionSource, Run, RunStatus
@@ -36,18 +36,47 @@ from agentforge.storage.repositories import AgentRepository, RunRepository
 from agentforge.storage.tracking import BenchmarkRepository, ImprovementRepository
 
 if TYPE_CHECKING:
+    from agentforge.llm.pricing import PriceTable
     from agentforge.policy import ServerPolicy
+    from agentforge.settings import Settings
+
+ProposerKind = Literal["rules", "llm"]
 
 logger = logging.getLogger("agentforge.improvement")
 
 
 class ImprovementLoop:
-    def __init__(self, db: Database, *, policy: ServerPolicy | None = None) -> None:
+    def __init__(
+        self,
+        db: Database,
+        *,
+        policy: ServerPolicy | None = None,
+        proposer_model: ModelConfig | None = None,
+        price_table: PriceTable | None = None,
+    ) -> None:
         self.agents = AgentRepository(db)
         self.runs = RunRepository(db)
         self.benchmarks = BenchmarkRepository(db)
         self.cycles = ImprovementRepository(db)
         self.policy = policy
+        # The model behind proposer="llm". It comes from the server settings,
+        # never from a request: a caller must not choose where the analysis
+        # and the server's credential are sent.
+        self.proposer_model = proposer_model
+        self.price_table = price_table
+
+    @classmethod
+    def from_settings(
+        cls, db: Database, settings: Settings, *, policy: ServerPolicy | None = None
+    ) -> ImprovementLoop:
+        from agentforge.runtime.factory import price_table_for
+
+        return cls(
+            db,
+            policy=policy,
+            proposer_model=settings.improvement_proposer_model,
+            price_table=price_table_for(settings),
+        )
 
     # ---------------------------------------------------------------- analysis
     async def _runs_of(self, bench: BenchmarkRun) -> dict[str, Run]:
@@ -75,12 +104,22 @@ class ImprovementLoop:
         *,
         changes: list[ProposedChange] | None = None,
         notes: str = "",
+        proposer: ProposerKind = "rules",
     ) -> ImprovementCycle:
         """Analyse a finished benchmark of a stored agent version and record a proposal.
 
         With ``changes`` the proposal is the developer's (validated against the
-        allowlist); otherwise the rule-based proposer derives it.
+        allowlist); otherwise the rule-based proposer derives it, or, with
+        ``proposer="llm"``, the model the operator configured suggests it.
         """
+        if proposer == "llm":
+            if changes:
+                raise ImprovementError("give either your own changes or proposer 'llm', not both")
+            if self.proposer_model is None:
+                raise ImprovementError(
+                    "the model-assisted proposer is not configured on this server "
+                    "(AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL)"
+                )
         bench = await self.benchmarks.get(bench_id)
         if not bench.status.is_terminal:
             raise ImprovementError(f"benchmark {bench_id} has not finished ({bench.status.value})")
@@ -92,9 +131,20 @@ class ImprovementLoop:
         agent = await self.agents.get(bench.agent_id)
         analysis = analyze(bench, await self._runs_of(bench))
         config = bench.agent_config
-        proposal = (
-            prepare_manual(config, changes) if changes else propose(analysis, config, bench.suite)
-        )
+        if changes:
+            proposal = prepare_manual(config, changes)
+        elif proposer == "llm" and self.proposer_model is not None:
+            from agentforge.improvement.llm_proposer import propose_with_model
+
+            proposal = await propose_with_model(
+                analysis,
+                config,
+                bench.suite,
+                self.proposer_model,
+                price_table=self.price_table,
+            )
+        else:
+            proposal = propose(analysis, config, bench.suite)
         task_ids = list(dict.fromkeys(r.task_id for r in bench.results))
         cycle = ImprovementCycle(
             agent_id=agent.id,

@@ -20,7 +20,7 @@ changes and the comparison together form the agent's improvement history.
 | Benchmark provenance | A benchmark run records the stored agent id and version it ran (`agent_id`, `agent_version`) and its **result class**. | `BenchmarkRun` |
 | Failure analysis | Classifies every failed run from its record (status, error, evaluator results, tool calls) into a category, with evidence. | `agentforge.improvement.analysis` |
 | Trace-level diagnosis | Reads each failed run's trace for signals (repeated calls, unverified changes, …) and names the stage — planning, execution, verification, reasoning, reporting — the failure points to. Rule-based. | `agentforge.improvement.diagnosis` |
-| Proposal | Rule-based, deterministic config changes that cite the category, evidence runs and rationale — or your own changes. | `agentforge.improvement.proposal` |
+| Proposal | Rule-based, deterministic config changes that cite the category, evidence runs and rationale — or your own changes, or (optional, off by default) suggestions from a model the operator configured. | `agentforge.improvement.proposal`, `agentforge.improvement.llm_proposer` |
 | Comparison | Candidate vs baseline on the same suite snapshot: pass-rate delta, Wilson 95% intervals, per-task changes, category deltas, verdict. | `agentforge.improvement.comparison` |
 | Cycle | One pass through the loop, with status `proposed → applied → evaluating → evaluated` (or `rejected` / `failed`). | `ImprovementCycle`, `improvement_cycles` table |
 
@@ -143,6 +143,81 @@ Credentials, endpoints (`model.base_url`, `api_key_env`), the sandbox and tool
 settings cannot be changed through the loop; the resulting config also passes
 the server policy.
 
+## Model-assisted proposals (optional)
+
+`proposer: llm` asks a model for the changes instead of the rules. It is off
+until the operator names the model in a server setting, a JSON
+[`ModelConfig`](../src/agentforge/core/config.py):
+
+```bash
+AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL='{"provider": "anthropic", "model": "<model id>", "max_tokens": 2000}'
+agentforge improve propose BENCH_ID --proposer llm    # one model call; records a cycle like any other
+agentforge improve run BENCH_ID --proposer llm        # applies each proposal without review
+```
+
+Through the API: `POST /improvements` with `"proposer": "llm"`. The request
+cannot name a model, an endpoint or a key; the setting is the only source, so
+a caller cannot choose where the analysis and the server's credential go.
+The rule-based proposer stays the default everywhere.
+
+**What the model is shown:** the agent's values at the paths it may change
+(the system prompt among them) and its tool list; the failure categories and
+the diagnosis stages and signals with their counts and meanings; per failed
+run the task id, category, stage and signals; the tool-issue counts; the
+suite's step and time caps. Secrets known to the process are redacted first.
+
+**What it is never shown:** anything a run or an evaluator wrote — evaluator
+details, error messages, tool arguments and outputs, final answers — and the
+task goals. Two reasons: a hidden check's output must not end up in a prompt
+the model writes (the next benchmark would then measure the leak), and text
+produced by a run could carry instructions for the proposer.
+
+**What it may change** is narrower than the manual allowlist:
+
+| Not available to the model | Why |
+|---|---|
+| `tools` | widens what the agent may do |
+| `model.model` | changes what is measured and what a run costs |
+| `retry.evaluation_retries` | shows the agent the checks |
+
+`system_prompt` can only be appended to (at most 1 200 characters per
+change); at most 8 changes per proposal.
+
+The answer is treated as untrusted input. Each suggestion is checked on its
+own; one that fails a check is dropped and listed in the proposal's notes
+(`dropped a suggested change (…): reason`), and the rest are kept:
+unknown or forbidden paths, a `set` on the system prompt, values of the wrong
+type (`true` for a number is refused, not read as 1), values the config
+schema rejects, repeated paths, values equal to the current one.
+`limits.max_steps` and `limits.timeout_seconds` above the suite's cap for the
+failed tasks are lowered to the cap. Categories the analysis did not find are
+removed from `addresses`, and the evidence run ids are taken from the
+analysis, never from the model. Rationales and notes are clipped and
+redacted. What is applied later still passes `apply`'s checks and the server
+policy, as for every proposal.
+
+The proposal records the call in `proposer_call`: provider, model, token
+usage and cost (`null` when the model's pricing is unknown; never
+estimated). If the call fails, times out (120 s) or the answer contains no
+JSON object, the command fails and no cycle is recorded; there is no retry
+and no silent fallback to the rules. When no run failed, the model is not
+called.
+
+Limits, stated plainly:
+
+- **It has only been run against the scripted provider** (tests). No real
+  model has produced a proposal with it, so whether its proposals are better
+  than the rules' is unknown; finding out needs credentials and a budget
+  (T-009c). The prompt has not been tuned on any model.
+- Because the model sees no evidence text, it reasons from categories,
+  diagnosis signals and the configuration only. That is a deliberate trade
+  for benchmark integrity, and it limits how specific its advice can be.
+- A proposal can still be wrong, vague or unhelpful within the allowlist:
+  read it before `apply`. `improve run --proposer llm` skips that reading.
+- The dashboard shows such a proposal (as `Proposal (llm)`) and can apply,
+  evaluate and reject it, but its *Propose improvement* button always uses
+  the rules, and it does not show the call's tokens.
+
 ## Comparison and verdicts
 
 The candidate benchmark reuses the baseline's exact suite snapshot, tasks and
@@ -168,6 +243,7 @@ CLI:
 agentforge bench run SUITE.yaml -a AGENT.yaml --save-agent -r 3   # stores AGENT as vN, links the benchmark
 agentforge improve analyze BENCH_ID                              # failure categories, stages + evidence
 agentforge improve propose BENCH_ID [--changes my-changes.yaml]  # records a cycle
+agentforge improve propose BENCH_ID --proposer llm               # ask the configured model (see above)
 agentforge improve apply CYCLE_ID [--change c1]                  # creates vN+1
 agentforge improve evaluate CYCLE_ID                             # benchmarks vN+1 and compares
 agentforge improve reject CYCLE_ID --reason "..."                # decline / revert (stored as a new version)
@@ -194,8 +270,9 @@ whose history matters.
 
 ## Limitations
 
-- The rule-based proposer only changes configuration and prompt guidance; it
-  does not rewrite tools or code. An LLM-assisted proposer is not implemented.
+- Both proposers only change configuration and prompt guidance; neither
+  rewrites tools or code. The model-assisted proposer is optional and has not
+  been run with a real model (see its section above).
 - Categories are derived from evaluator types, so custom evaluators map to
   `evaluation_failed` unless they are named after a built-in type.
 - The trace-level diagnosis is a set of heuristics over the recorded tool

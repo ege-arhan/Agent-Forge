@@ -2,10 +2,12 @@
 
 The built-in proposer is rule-based and deterministic: every change cites the
 failure category it addresses, the evidence (run ids) and its rationale.
-Proposals can also be written by a developer (``proposer="manual"``). Either
-way, changes are limited to an allowlist of agent-config paths; the provider
-can never change, so a new version stays in the same result class
-(offline/real) as its baseline.
+Proposals can also be written by a developer (``proposer="manual"``) or
+suggested by a model the operator configured (``proposer="llm"``, see
+:mod:`agentforge.improvement.llm_proposer`). In every case, changes are
+limited to an allowlist of agent-config paths; the provider can never change,
+so a new version stays in the same result class (offline/real) as its
+baseline.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from agentforge.benchmarks.runner import ResultClass
 from agentforge.benchmarks.spec import BenchmarkSuite
 from agentforge.core.config import AgentConfig
 from agentforge.core.errors import ImprovementError
+from agentforge.core.models import TokenUsage
 from agentforge.improvement.analysis import (
     NON_AGENT_CATEGORIES,
     FailureAnalysis,
@@ -66,11 +69,25 @@ class ProposedChange(BaseModel):
     evidence: list[str] = Field(default_factory=list, description="Run ids supporting the change.")
 
 
+class ProposerCall(BaseModel):
+    """The model call behind a model-assisted proposal (``proposer="llm"``)."""
+
+    provider: str
+    model: str
+    usage: TokenUsage = Field(default_factory=TokenUsage)
+    cost_usd: float | None = Field(
+        default=None, description="None when the model's pricing is unknown; never estimated."
+    )
+
+
 class ImprovementProposal(BaseModel):
-    proposer: str = "rules"
+    proposer: str = Field(default="rules", description="rules, manual or llm.")
     changes: list[ProposedChange] = Field(default_factory=list)
     notes: list[str] = Field(
         default_factory=list, description="Findings that no config change addresses."
+    )
+    proposer_call: ProposerCall | None = Field(
+        default=None, description="Set for model-assisted proposals only."
     )
 
 
@@ -391,6 +408,7 @@ __all__ = [
     "ChangeOperation",
     "ImprovementProposal",
     "ProposedChange",
+    "ProposerCall",
     "apply_changes",
     "describe",
     "prepare_manual",

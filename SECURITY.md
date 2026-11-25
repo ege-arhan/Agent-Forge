@@ -134,6 +134,21 @@ changed through the improvement loop (HTTP 409). The rule-based proposer never
 copies evaluator details into prompts. The CLI runs the
 operator's own files and does not apply it.
 
+The optional model-assisted proposer (`proposer: llm`,
+[docs/improvement.md](docs/improvement.md#model-assisted-proposals-optional))
+is off unless the operator sets `AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL`; a
+request cannot name the model, endpoint or key. The model is sent the
+agent's changeable settings (including its system prompt, redacted) and
+counts and labels from the failure analysis, but no text written by a run or
+an evaluator and no task goals, so hidden checks cannot leak into a prompt
+and a run cannot inject instructions into the proposer. Its answer is
+untrusted: it is validated against a narrower allowlist (no `tools`, no
+`model.model`, no `retry.evaluation_retries`; the system prompt can only be
+appended to), and anything else is dropped. A model-written prompt addition
+is still text chosen by a model: review it before applying. Each API request
+with `proposer: llm` makes one billed model call; the mutation rate limit is
+the only bound on how often.
+
 ### API transport controls
 
 - Request bodies above `AGENTFORGE_MAX_REQUEST_BYTES` (default 1 MB) → 413.

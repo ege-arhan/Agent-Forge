@@ -63,7 +63,7 @@ class AgentForgeService:
         self.recorder = StorageRecorder(db, extra_observers=extra)
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_runs)
         self.policy = ServerPolicy(settings)
-        self.improvements = ImprovementLoop(db, policy=self.policy)
+        self.improvements = ImprovementLoop.from_settings(db, settings, policy=self.policy)
         self._tasks: dict[str, asyncio.Task[Any]] = {}
         self._runtimes: dict[str, AgentRuntime] = {}
         # Test/mirror hooks (never exposed through the API: the GitHub token is

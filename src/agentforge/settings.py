@@ -10,6 +10,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from agentforge.core.config import ModelConfig
 from agentforge.tools.base import Permission
 
 
@@ -64,6 +65,13 @@ class Settings(BaseSettings):
     )
     embedding_dimensions: int = Field(
         default=256, ge=64, le=4096, description="Vector size of the 'hashing' embedder."
+    )
+    # --- Improvement loop (see docs/improvement.md) ---
+    improvement_proposer_model: ModelConfig | None = Field(
+        default=None,
+        description="Model for the optional model-assisted proposer (proposer 'llm'), as a "
+        'JSON ModelConfig, e.g. {"provider": "anthropic", "model": "..."}. Unset: only the '
+        "rule-based and manual proposers are available.",
     )
     # --- API policy (see agentforge/policy.py and SECURITY.md) ---
     allowed_key_envs: list[str] = Field(

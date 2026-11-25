@@ -149,6 +149,45 @@ def _history(capsys: pytest.CaptureFixture[str]) -> dict[str, Any]:
     return data
 
 
+def test_model_assisted_proposal_cli(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert main(["bench", "run", CODING, "-a", DEMO_V1, "--save-agent"]) == 0
+    capsys.readouterr()
+    baseline = _history(capsys)["benchmarks"][0]["id"]
+
+    # Without a configured model the command fails and names the setting.
+    assert main(["improve", "propose", baseline, "--proposer", "llm"]) != 0
+    assert "AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL" in capsys.readouterr().err
+
+    answer = {
+        "changes": [
+            {"path": "limits.max_steps", "value": 20, "rationale": "Runs stop after 3 steps."},
+            {"path": "tools", "value": ["terminal"]},
+        ]
+    }
+    model = {
+        "provider": "scripted",
+        "model": "p",
+        "options": {"turns": [{"text": json.dumps(answer)}]},
+    }
+    monkeypatch.setenv("AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL", json.dumps(model))
+    get_settings.cache_clear()
+    assert main(["improve", "propose", baseline, "--proposer", "llm"]) == 0
+    out = capsys.readouterr().out
+    assert "proposal (llm):" in out and "limits.max_steps set 20" in out
+    assert "why: Runs stop after 3 steps." in out
+    assert "note: dropped a suggested change (tools)" in out
+    assert "proposer model: scripted/p  tokens in/out 0/0  cost $0.0000" in out
+
+    assert main(["improve", "run", baseline, "--proposer", "llm", "--json"]) == 0
+    [cycle] = json.loads(capsys.readouterr().out)
+    assert cycle["proposal"]["proposer"] == "llm" and cycle["status"] == "evaluated"
+    # 0/2 -> 2/2 with one repeat: every task fixed, but too few runs for a verdict.
+    assert cycle["comparison"]["pass_rate_delta"] == 1.0
+    assert cycle["comparison"]["verdict"] == "inconclusive"
+
+
 def test_improvement_loop_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     results = tmp_path / "results"
     code = main(
