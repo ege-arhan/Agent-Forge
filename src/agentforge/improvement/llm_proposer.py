@@ -265,8 +265,13 @@ def validate_suggestions(
         raw_addresses = raw.get("addresses")
         addresses = [
             FailureCategory(a)
-            for a in dict.fromkeys(raw_addresses if isinstance(raw_addresses, list) else [])
-            if isinstance(a, str) and a in seen_categories
+            # Strings only, before deduplicating: an object or a list here is unhashable.
+            for a in dict.fromkeys(
+                a
+                for a in (raw_addresses if isinstance(raw_addresses, list) else [])
+                if isinstance(a, str)
+            )
+            if a in seen_categories
         ]
         rationale = raw.get("rationale")
         change = ProposedChange(

@@ -287,6 +287,30 @@ def test_too_many_changes_and_long_text_are_bounded() -> None:
     assert len(change.rationale) == 500
 
 
+@pytest.mark.parametrize(
+    "addresses",
+    [
+        [{"category": "step_limit"}, "step_limit"],
+        [["step_limit"], "step_limit", None, 3.5],
+        "step_limit",
+        {"step_limit": True},
+        None,
+    ],
+)
+def test_malformed_addresses_do_not_abort_the_proposal(addresses: Any) -> None:
+    """Regression: an unhashable entry raised TypeError and lost every suggestion."""
+    changes, notes = validated(
+        [
+            {"path": "model.temperature", "value": 0.2, "addresses": addresses},
+            {"path": "limits.max_tool_calls", "value": 150, "addresses": ["step_limit"]},
+        ]
+    )
+    assert [c.path for c in changes] == ["model.temperature", "limits.max_tool_calls"]
+    expected = [FailureCategory.STEP_LIMIT] if isinstance(addresses, list) else []
+    assert changes[0].addresses == expected
+    assert changes[1].addresses == [FailureCategory.STEP_LIMIT] and notes == []
+
+
 def test_secrets_in_the_answer_are_redacted() -> None:
     changes, notes = validated(
         [

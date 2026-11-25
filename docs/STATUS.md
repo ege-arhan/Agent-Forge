@@ -48,6 +48,11 @@ recorded below.
   `limits.max_steps: true` became a one-step limit and a string slipped past
   the suite cap. Booleans are now refused for non-boolean settings and values
   are recorded as the validated config holds them.
+- From the automated (Codex) review of PR #52, verified and fixed: an object
+  or a nested list in a suggestion's `addresses` raised `TypeError`
+  (deduplication ran before the string filter), which aborted the whole
+  proposal instead of handling the entry locally. Non-string entries are now
+  filtered out first; 5 regression tests.
 - No schema change: the proposal is stored as JSON; `proposer_call`
   (provider, model, usage, cost or `null`) is a new optional field.
 - Scope, stated plainly: **no real model has produced a proposal with
@@ -60,7 +65,7 @@ recorded below.
   and applies such a proposal but cannot request one, and does not show the
   call's tokens.
 - Verification on this branch: ruff, ruff format, mypy --strict: clean.
-  `pytest -m "not docker"`: 639 passed (58 new: 52 unit in
+  `pytest -m "not docker"`: 644 passed (63 new: 57 unit in
   `tests/unit/test_llm_proposer.py`, 3 integration, 1 CLI, 2 API). Not run
   locally: PostgreSQL tests (no storage change), Docker-sandbox tests, the
   dashboard (untouched); CI runs them.
