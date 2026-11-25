@@ -1,19 +1,71 @@
 # AgentForge Development Status
 
-Date: 2026-11-24
+Date: 2026-11-25
 
 Version: **0.2.0** (released; tag `v0.2.0` on `main`). Milestones 0–15 are
-merged. Milestone 16 (documentation and demo) and six future-work items are
+merged. Milestone 16 (documentation and demo) and seven future-work items are
 implemented in pull requests that await the owner's review; nothing has been
-merged into `main` since 2026-11-01 (checked 2026-11-24). Earlier dated session reports are in
+merged into `main` since 2026-11-01 (checked 2026-11-25). Earlier dated session reports are in
 this file's git history.
 
-## State of `main` (2026-11-24)
+## State of `main` (2026-11-25)
 
 - `main` is at `9a0f8fb`. CI on its last push and the scheduled Security run
   of 2026-11-23 succeeded.
 
-## This session (2026-11-24)
+## This session (2026-11-25)
+
+**PR #52** (branch `claude/stoic-gates-tpyw7k`), **stacked on PR #51** (the
+branch is #51's head plus this work, so it holds every open agent change).
+PRs #40–#51 were unchanged: #51's CI was green and its one review thread
+(the unchanged-data check of `skip-dates`) is resolved; the others as
+recorded below.
+
+- Implemented T-017b, an optional model-assisted improvement proposer.
+  `agentforge improve propose|run --proposer llm` and `POST /improvements`
+  with `"proposer": "llm"` ask a model for the configuration changes; the
+  rule-based proposer stays the default. New module
+  `improvement/llm_proposer.py`; guide: `docs/improvement.md`,
+  "Model-assisted proposals".
+- Decisions worth the owner's eye:
+  - The model is a server setting (`AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL`,
+    a JSON `ModelConfig`, unset by default). A request cannot name a model,
+    endpoint or key.
+  - The model is shown the agent's changeable settings and the analysis'
+    categories, stages and signals — and **no text written by a run or an
+    evaluator, and no task goals**. This keeps hidden checks out of prompts
+    the model writes and keeps run output from instructing the proposer; it
+    also means the model has less to go on than a person reading the
+    evidence.
+  - Its allowlist is narrower than the manual one: no `tools`, no
+    `model.model`, no `retry.evaluation_retries`; the system prompt is
+    append-only (1 200 characters per change, 8 changes).
+  - A failed call or an answer without the JSON object is an error; there is
+    no fallback to the rules and no retry.
+- The answer is validated suggestion by suggestion; what fails is dropped
+  with a note and the rest is kept. Found while testing: Pydantic reads
+  `true` as 1 and `"400"` as 400 for a number, so a suggested
+  `limits.max_steps: true` became a one-step limit and a string slipped past
+  the suite cap. Booleans are now refused for non-boolean settings and values
+  are recorded as the validated config holds them.
+- No schema change: the proposal is stored as JSON; `proposer_call`
+  (provider, model, usage, cost or `null`) is a new optional field.
+- Scope, stated plainly: **no real model has produced a proposal with
+  this.** Every test uses the scripted provider replaying an answer written
+  for the test, so the tests show what happens to an answer, not whether a
+  model's answers are any good, and the prompt is untuned. `TASKS.md` said
+  this item was "only worth doing after real-model cycles show the
+  rule-based proposals' limits"; that evidence still does not exist (T-009c,
+  needs a budget), so the feature's value is unproven. The dashboard shows
+  and applies such a proposal but cannot request one, and does not show the
+  call's tokens.
+- Verification on this branch: ruff, ruff format, mypy --strict: clean.
+  `pytest -m "not docker"`: 639 passed (58 new: 52 unit in
+  `tests/unit/test_llm_proposer.py`, 3 integration, 1 CLI, 2 API). Not run
+  locally: PostgreSQL tests (no storage change), Docker-sandbox tests, the
+  dashboard (untouched); CI runs them.
+
+## Session of 2026-11-24
 
 **PR #51** (branch `claude/stoic-gates-4w6htq`), **stacked on PR #50** (the branch is
 #50's head plus this work, so it holds every open agent change). PRs #40–#50
@@ -431,13 +483,13 @@ PR #40 itself was unchanged: green CI, no review findings, mergeable.
 **Merge #47 first** (the dashboard security fix; from `main`, independent).
 Merge order for the rest: **#40 → #41 → #42 → #44 → #45 → #46 → #48 (YAML
 import) → #49 (component tests) → #50 (vector memory) → #51
-(`dogfood-swe` suite)** (each contains the
-previous one; the last three also contain #47, so merging the last alone brings
+(`dogfood-swe` suite) → #52 (model-assisted proposer)** (each contains the
+previous one; the last four also contain #47, so merging the last alone brings
 in everything). Then close #13, #32, #33, #34, #37, #38 and
 #39, whose commits are all in #40, and #43, whose commit is in #44. Do not
 merge #43 by itself: it lacks the fixes above and conflicts with the stack.
 
-Agent work is spread over nineteen pull requests. The two oldest stacks could
+Agent work is spread over twenty pull requests. The two oldest stacks could
 not both be merged until PR #40 combined them (2026-11-14):
 
 - **Milestone 16 stack** — #37 (offline tour) → #38 (screenshots, docs index,
@@ -538,6 +590,8 @@ Documented in `docs/REAL_MODEL_BENCHMARK.md`; not rerun or altered.
   provider only; text only; no native streaming for Gemini or Responses-API
   models; no replay for clients that subscribe midway.
 - The rule-based proposer changes configuration and prompt guidance only.
+- The model-assisted proposer has run against the scripted provider only; no
+  real model has produced a proposal with it.
 - The `agentforge-sandbox` image cannot be built in this development
   environment (Debian mirrors blocked); CI builds it.
 - Databases created before migrations existed are rejected with a clear

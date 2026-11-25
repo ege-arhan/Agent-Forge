@@ -168,10 +168,20 @@ _None open. Continue with P1 in roadmap order._
   only once such results exist.
 
 ### T-017b LLM-assisted improvement proposals
-- **Status:** todo — optional proposer that asks a model for changes, limited to
-  the same path allowlist and server policy, with the rule-based proposer as
-  default. Only worth doing after real-model cycles show the rule-based
-  proposals' limits.
+- **Status:** done (awaiting merge) — implemented 2026-11-25 in PR #52
+  (`claude/stoic-gates-tpyw7k`), stacked on #51 (see the Done table and
+  `docs/improvement.md`, "Model-assisted proposals").
+- **Not done:** any run with a real model (T-017c); requesting such a
+  proposal from the dashboard, and showing the call's tokens there.
+
+### T-017c Try the model-assisted proposer with a real model
+- **Status:** blocked — needs credentials and the owner's budget approval.
+  The proposer (T-017b) has only processed answers replayed by the scripted
+  provider. **To do:** on a real baseline with failures, record one
+  rule-based and one model-assisted proposal, evaluate both (`-r 3+`), and
+  record the outcome as REAL, including the proposer call's tokens and how
+  many suggestions were dropped; adjust the prompt only on that evidence.
+  Belongs with T-009c.
 
 ### T-003b Streaming model output
 - **Status:** done (awaiting merge) — implemented in PR #43, then reviewed,
@@ -223,3 +233,4 @@ _None open. Continue with P1 in roadmap order._
 | T-008b | Repository-with-issues suite | `dogfood-swe` v1: three issues (bug at two sites, bug with three causes in two modules, feature across five modules) against one shared synthetic repository (`flowcal`); goal = issue text; checks = hidden fail-to-pass tests, the repository's original tests from the first commit, unchanged data file; offline reference agent `dogfood/agents/offline/swe.yaml`; `swe` role in `scripts/dogfood.py` (real agent: `engineer.yaml`, untuned); 12 integration tests (untouched repository fails every hidden fix check, ten plausible wrong solutions fail exactly the intended checks) plus the reference/idle test. OFFLINE result recorded (3/3). Limits: synthetic, small, never run with a model. Awaiting review (PR #51, stacked on #50) |
 | T-019b | More regression policies | All opt-in, on `agentforge bench gate` and `GET /benchmarks/gate`: token and latency budgets (`--max-token-increase`, `--max-duration-increase`; usage averaged per task so different repeat counts compare fairly), required repeats (`--min-repeats`, exit 2 when not met), per-check threshold (`--max-check-pass-rate-drop`), failure categories that are never tolerated (`--fail-on-category`), pooled baselines (repeat `--baseline`). Unit, CLI e2e and API tests; `docs/regression-gate.md`. Not included: stored baseline history, age weighting, drift detection or significance tests — the pooled baseline is a plain rate over the reports the caller passes. In PR #40 (budgets) and PR #41 (the rest; depends on #40); not merged yet |
 | T-003b | Streaming model output | Opt-in `model.stream`; `LLMProvider.stream()` → `CompletionStream` (default wraps `complete()`), native for Anthropic and OpenAI-compatible chat completions, word-by-word replay in the scripted provider; runtime emits coalesced `llm.delta` events (≤ 1 per 50 ms), retries a stream that fails midway, closes it on error/cancel; deltas reach the CLI, SSE and the dashboard run page and are never logged or persisted. Tests: both SDKs over mock transports (incl. the real Anthropic SSE parser), runtime failure/cancel/coalescing, API SSE e2e, dashboard parser/reducer; live preview checked in a browser with the scripted provider. In PR #44 (which contains #43); not merged yet; never run against a live model |
+| T-017b | Model-assisted improvement proposer | Optional `proposer: llm` (`improve propose\|run --proposer llm`, `POST /improvements`): a model set by the operator (`AGENTFORGE_IMPROVEMENT_PROPOSER_MODEL`) suggests config changes from the agent's changeable settings and the analysis' categories, stages and signals — it is shown no run or evaluator text and no task goals. Answer validated per suggestion against a narrower allowlist (no `tools`, `model.model`, `retry.evaluation_retries`; prompt append-only; limits capped at the suite's); failures dropped with a note; call recorded (`proposer_call`, cost `null` if unknown). 58 tests. Scripted provider only: no real model has produced a proposal (T-017c). PR #52, awaiting merge |

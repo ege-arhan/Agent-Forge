@@ -43,7 +43,9 @@ future-work item, vector and hybrid memory search (T-006b), is implemented
 in PR #50, stacked on #49. A sixth, a benchmark suite of issues against a
 shared multi-module repository with hidden tests (`dogfood-swe`, T-008b), is
 implemented in PR #51, stacked on #50; it is validated
-offline only. `docs/STATUS.md` lists the
+offline only. A seventh, an optional model-assisted improvement proposer
+(T-017b), is implemented in PR #52, stacked on #51; it has processed
+scripted answers only, never a real model's. `docs/STATUS.md` lists the
 open pull requests and the order to merge them in.
 
 ## Next up (owner)
@@ -57,8 +59,8 @@ open pull requests and the order to merge them in.
 - Benchmark tasks taken from real open-source repositories, and larger ones
   (the rest of T-008b; the synthetic repository suite is implemented, see
   above).
-- More sophisticated improvement proposals: an optional LLM-assisted proposer
-  within the same allowlist (T-017b).
+- Trying the model-assisted proposer (T-017b, implemented, see above) with a
+  real model and comparing it with the rules; needs a budget (T-017c).
 - Broader model evaluations: more tasks, repeats and models, and a real
   improvement cycle on an unconstrained failure; needs a budget (T-009c).
 - Also planned: distributed execution (T-015). Blocked on credentials: live
